@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ darkMode: localStorage.getItem('theme') !== 'light' }" :class="darkMode ? 'dark' : ''">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Kokomi AI{% endblock %}</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- AlpineJS + Collapse -->
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- FontAwesome (SF Symbols substitute) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Marked + Highlight.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        /* Apple HIG: SF Pro → system font stack fallback */
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+                        mono: ['"SF Mono"', '"JetBrains Mono"', '"Fira Code"', 'monospace']
+                    },
+                    colors: {
+                        midnight:  '#272757',
+                        lavender:  '#8686AC',
+                        indigo_m:  '#505081',
+                        obsidian:  '#0F0E47',
+                    },
+                    /* Apple HIG: Continuous corner curves */
+                    borderRadius: {
+                        'squircle': '16px',
+                        'squircle-lg': '22px',
+                        'squircle-xl': '28px',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+
+        /* ═══════════════════════════════════════════════════════
+           APPLE HIG — CSS CUSTOM PROPERTIES
+           Materials, Depth, Vibrancy
+        ═══════════════════════════════════════════════════════ */
+
+        /* ── LIGHT MODE ── */
+        :root {
+            --bg-sidebar:       rgba(240, 239, 246, 0.8);
+            --bg-canvas:        #FBFBFD;
+            --bg-surface:       rgba(255, 255, 255, 0.7);
+            --bg-surface-hover: rgba(240, 238, 248, 0.85);
+            --bg-input:         rgba(245, 244, 250, 0.9);
+            --bg-elevated:      rgba(255, 255, 255, 0.85);
+            --border:           rgba(80, 80, 129, 0.12);
+            --border-focus:     rgba(80, 80, 129, 0.35);
+            --separator:        rgba(80, 80, 129, 0.08);
+            --text-primary:     #1C1C2E;
+            --text-secondary:   #505081;
+            --text-tertiary:    #8686AC;
+            --text-quaternary:  rgba(134, 134, 172, 0.6);
+            --accent:           #505081;
+            --accent-hover:     #3d3d6e;
+            --accent-text:      #FFFFFF;
+            --accent-subtle:    rgba(80, 80, 129, 0.08);
+            --accent-subtle-h:  rgba(80, 80, 129, 0.14);
+            --think-bg:         rgba(80, 80, 129, 0.05);
+            --think-border:     rgba(80, 80, 129, 0.12);
+            --think-text:       #8686AC;
+            --code-bg:          #F5F4FA;
+            --code-border:      rgba(80, 80, 129, 0.1);
+            --code-inline-bg:   rgba(80, 80, 129, 0.07);
+            --code-inline-text: #505081;
+            --msg-user-bg:      transparent;
+            --msg-ai-bg:        rgba(80, 80, 129, 0.03);
+            --shadow-sm:        0 1px 2px rgba(80, 80, 129, 0.06);
+            --shadow-md:        0 4px 12px rgba(80, 80, 129, 0.08);
+            --shadow-lg:        0 8px 28px rgba(80, 80, 129, 0.1);
+            --material-blur:    16px;
+            --vibrancy:         saturate(180%) blur(20px);
+        }
+
+        /* ── DARK MODE ── */
+        .dark {
+            --bg-sidebar:       rgba(12, 11, 52, 0.85);
+            --bg-canvas:        #131245;
+            --bg-surface:       rgba(39, 39, 87, 0.6);
+            --bg-surface-hover: rgba(55, 55, 100, 0.6);
+            --bg-input:         rgba(20, 19, 60, 0.8);
+            --bg-elevated:      rgba(39, 39, 87, 0.8);
+            --border:           rgba(134, 134, 172, 0.15);
+            --border-focus:     rgba(134, 134, 172, 0.35);
+            --separator:        rgba(134, 134, 172, 0.08);
+            --text-primary:     #EDEDF5;
+            --text-secondary:   #C5C4DD;
+            --text-tertiary:    #8686AC;
+            --text-quaternary:  rgba(134, 134, 172, 0.45);
+            --accent:           #8686AC;
+            --accent-hover:     #A0A0C8;
+            --accent-text:      #0F0E47;
+            --accent-subtle:    rgba(134, 134, 172, 0.1);
+            --accent-subtle-h:  rgba(134, 134, 172, 0.18);
+            --think-bg:         rgba(15, 14, 71, 0.6);
+            --think-border:     rgba(134, 134, 172, 0.15);
+            --think-text:       #8686AC;
+            --code-bg:          rgba(15, 14, 71, 0.7);
+            --code-border:      rgba(134, 134, 172, 0.12);
+            --code-inline-bg:   rgba(134, 134, 172, 0.12);
+            --code-inline-text: #C5C4DD;
+            --msg-user-bg:      transparent;
+            --msg-ai-bg:        rgba(39, 39, 87, 0.2);
+            --shadow-sm:        0 1px 3px rgba(0, 0, 0, 0.2);
+            --shadow-md:        0 4px 16px rgba(0, 0, 0, 0.25);
+            --shadow-lg:        0 8px 32px rgba(0, 0, 0, 0.35);
+            --material-blur:    20px;
+            --vibrancy:         saturate(180%) blur(24px);
+        }
+
+        body {
+            background: var(--bg-canvas);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            transition: background 0.35s ease, color 0.35s ease;
+        }
+
+        /* ── Scrollbars (minimal, Apple-like) ── */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--text-quaternary); border-radius: 100px; }
+
+        /* ═══════════ APPLE MATERIALS (Glassmorphism) ═══════════ */
+        .material {
+            background: var(--bg-surface);
+            backdrop-filter: var(--vibrancy);
+            -webkit-backdrop-filter: var(--vibrancy);
+        }
+        .material-sidebar {
+            background: var(--bg-sidebar);
+            backdrop-filter: var(--vibrancy);
+            -webkit-backdrop-filter: var(--vibrancy);
+        }
+        .material-elevated {
+            background: var(--bg-elevated);
+            backdrop-filter: blur(var(--material-blur));
+            -webkit-backdrop-filter: blur(var(--material-blur));
+            box-shadow: var(--shadow-md);
+        }
+
+        /* ═══════════ APPLE FIELDS ═══════════ */
+        .apple-field {
+            background: var(--bg-input) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px;
+            color: var(--text-primary) !important;
+            padding: 10px 14px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+            display: block;
+            appearance: none;
+        }
+        .apple-field:focus {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 3px var(--accent-subtle) !important;
+            outline: none !important;
+        }
+        .apple-field::placeholder { color: var(--text-quaternary); }
+
+        .apple-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-left: 2px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        /* ═══════════ UTILITY CLASSES ═══════════ */
+        .bg-canvas     { background: var(--bg-canvas); }
+        .bg-input      { background: var(--bg-input); }
+        .border-themed { border-color: var(--border) !important; }
+        .separator     { border-color: var(--separator) !important; }
+        .text-1        { color: var(--text-primary); }
+        .text-2        { color: var(--text-secondary); }
+        .text-3        { color: var(--text-tertiary); }
+        .text-4        { color: var(--text-quaternary); }
+        .bg-accent-c   { background: var(--accent); }
+        .bg-accent-sub { background: var(--accent-subtle); }
+        .text-accent-c { color: var(--accent); }
+        .text-accent-t { color: var(--accent-text); }
+        .shadow-t      { box-shadow: var(--shadow-sm); }
+        .shadow-t-md   { box-shadow: var(--shadow-md); }
+        .hover-surface:hover { background: var(--bg-surface-hover); }
+        .hover-accent-sub:hover { background: var(--accent-subtle-h); }
+
+        .t-apple {
+            transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        /* ═══════════ PROSE / MARKDOWN ═══════════ */
+        .chat-prose { line-height: 1.7; font-size: 0.9375rem; letter-spacing: -0.01em; }
+        .chat-prose p { margin-bottom: 0.6em; }
+        .chat-prose p:last-child { margin-bottom: 0; }
+        .chat-prose h1, .chat-prose h2, .chat-prose h3, .chat-prose h4 {
+            font-weight: 600; letter-spacing: -0.02em;
+            margin: 1.2em 0 0.4em; color: var(--text-primary);
+        }
+        .chat-prose h1 { font-size: 1.35em; }
+        .chat-prose h2 { font-size: 1.15em; }
+        .chat-prose h3 { font-size: 1.02em; }
+        .chat-prose ul, .chat-prose ol { padding-left: 1.4em; margin-bottom: 0.6em; }
+        .chat-prose li { margin-bottom: 0.25em; }
+        .chat-prose code:not(pre code) {
+            background: var(--code-inline-bg); color: var(--code-inline-text);
+            padding: 0.12em 0.35em; border-radius: 5px; font-size: 0.85em;
+            font-family: "SF Mono", "JetBrains Mono", monospace;
+        }
+        .chat-prose pre {
+            background: var(--code-bg); border: 1px solid var(--code-border);
+            border-radius: 12px; overflow-x: auto; margin: 0.8em 0;
+        }
+        .chat-prose pre code {
+            padding: 0.9em 1.1em; display: block; font-size: 0.82em;
+            font-family: "SF Mono", "JetBrains Mono", monospace;
+            color: var(--text-secondary); background: transparent !important;
+        }
+        .chat-prose blockquote {
+            border-left: 3px solid var(--accent);
+            padding-left: 0.9em; color: var(--text-tertiary);
+            margin: 0.8em 0; font-style: italic;
+        }
+        .chat-prose table { width: 100%; border-collapse: collapse; margin: 0.8em 0; }
+        .chat-prose th { background: var(--accent-subtle); padding: 0.45em 0.7em; text-align: left; border: 1px solid var(--border); font-weight: 600; font-size: 0.85em; }
+        .chat-prose td { padding: 0.45em 0.7em; border: 1px solid var(--border); font-size: 0.9em; }
+        .chat-prose a { color: var(--accent); text-decoration: none; }
+        .chat-prose a:hover { text-decoration: underline; }
+        .chat-prose strong { color: var(--text-primary); font-weight: 600; }
+        .chat-prose hr { border: none; border-top: 1px solid var(--separator); margin: 1.2em 0; }
+
+        /* ═══════════ THINKING BLOCK (Apple Sheet style) ═══════════ */
+        .thinking-block {
+            background: var(--think-bg);
+            border: 1px solid var(--think-border);
+            border-radius: 12px; overflow: hidden; margin-bottom: 0.8em;
+        }
+        .thinking-header {
+            display: flex; align-items: center; gap: 0.45em;
+            padding: 0.45em 0.75em; cursor: pointer;
+            border-bottom: 1px solid transparent;
+            transition: background 0.2s ease;
+            border-radius: 12px;
+        }
+        .thinking-header:hover { background: var(--accent-subtle); }
+        .thinking-header.open { border-bottom-color: var(--think-border); border-radius: 12px 12px 0 0; }
+        .thinking-content {
+            padding: 0.75em 0.85em; font-size: 0.78em;
+            color: var(--think-text); font-style: italic; line-height: 1.6;
+            max-height: 280px; overflow-y: auto; white-space: pre-wrap;
+        }
+        .thinking-chevron { transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1); }
+        .thinking-chevron.rotated { transform: rotate(180deg); }
+
+        /* ═══════════ CODE COPY ═══════════ */
+        .code-wrapper { position: relative; }
+        .code-copy-btn {
+            position: absolute; top: 7px; right: 7px;
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            color: var(--text-tertiary); font-size: 11px; padding: 2px 8px;
+            border-radius: 6px; cursor: pointer;
+            font-family: -apple-system, sans-serif;
+            opacity: 0; transition: opacity 0.2s;
+            backdrop-filter: blur(8px);
+        }
+        .code-wrapper:hover .code-copy-btn { opacity: 1; }
+
+        /* ═══════════ INPUT ═══════════ */
+        #user-input {
+            resize: none; overflow-y: hidden;
+            min-height: 48px; max-height: 200px;
+        }
+
+        /* ═══════════ TYPING ANIMATION ═══════════ */
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.25; transform: scale(0.85); }
+            50% { opacity: 1; transform: scale(1); }
+        }
+        .typing-dot:nth-child(1) { animation: pulse-dot 1.4s 0s infinite ease-in-out; }
+        .typing-dot:nth-child(2) { animation: pulse-dot 1.4s 0.2s infinite ease-in-out; }
+        .typing-dot:nth-child(3) { animation: pulse-dot 1.4s 0.4s infinite ease-in-out; }
+
+        /* ═══════════ MICRO-ANIMATIONS ═══════════ */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+        [x-cloak] { display: none; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    {% block body %}{% endblock %}
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

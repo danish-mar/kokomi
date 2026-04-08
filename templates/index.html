@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Kokomi AI{% endblock %}
+
+{% block body %}
+<div id="app" x-data="aiApp()" x-cloak class="flex h-screen overflow-hidden">
+
+    <!-- ═══════════════ SIDEBAR ═══════════════ -->
+    <aside :class="sidebarOpen ? 'w-[260px]' : 'w-0'"
+        class="material-sidebar flex-shrink-0 flex flex-col overflow-hidden border-r border-themed t-apple">
+        <div class="w-[260px] flex flex-col h-full">
+
+            <!-- Brand + New Chat -->
+            <div class="px-4 pt-5 pb-3 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-[30px] h-[30px] rounded-[8px] flex items-center justify-center shadow-t" style="background: var(--accent);">
+                        <i class="fa-solid fa-fish-fins text-accent-t text-[13px]"></i>
+                    </div>
+                    <span class="font-semibold text-[15px] tracking-[-0.01em] text-1">Kokomi</span>
+                </div>
+                <button @click="newChat()" title="New Chat"
+                    class="w-[30px] h-[30px] rounded-[8px] hover-accent-sub flex items-center justify-center text-3 hover:text-1 t-apple">
+                    <i class="fa-solid fa-square-pen text-[14px]"></i>
+                </button>
+            </div>
+
+            <!-- Conversations -->
+            <div class="flex-grow overflow-y-auto px-2 pt-1 pb-2 space-y-0.5">
+                <p class="px-3 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-4">Recent</p>
+                <template x-for="conv in conversations" :key="conv._id">
+                    <button @click="loadConversation(conv._id)"
+                        :class="currentConvId === conv._id ? 'bg-accent-sub text-1 font-medium' : 'text-2 hover-surface'"
+                        class="w-full text-left px-3 py-[7px] rounded-[10px] text-[13px] flex items-center gap-2 group t-apple">
+                        <i class="fa-regular fa-message text-[11px] text-3 shrink-0"></i>
+                        <span class="truncate flex-grow" x-text="conv.title"></span>
+                        <span @click.stop="deleteConversation(conv._id)"
+                            class="opacity-0 group-hover:opacity-50 hover:!opacity-100 text-[11px] text-red-400 shrink-0 cursor-pointer t-apple">
+                            <i class="fa-solid fa-xmark"></i>
+                        </span>
+                    </button>
+                </template>
+                <template x-if="conversations.length === 0">
+                    <div class="flex flex-col items-center justify-center pt-8 text-center px-4">
+                        <div class="w-10 h-10 rounded-[10px] bg-accent-sub flex items-center justify-center mb-2">
+                            <i class="fa-regular fa-comments text-accent-c text-lg"></i>
+                        </div>
+                        <p class="text-[12px] text-3 leading-tight">No conversations yet.<br>Start a new chat above.</p>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Bottom: Character + Theme + Settings -->
+            <div class="px-3 pb-3 pt-2 space-y-1.5 border-t separator">
+                <!-- Active Character Badge -->
+                <div class="flex items-center gap-2 px-2.5 py-2 rounded-[10px] bg-accent-sub t-apple cursor-pointer hover-accent-sub"
+                    @click="charPickerOpen = !charPickerOpen" x-data="{ }">
+                    <template x-if="activeChar.avatar">
+                        <img :src="activeChar.avatar" class="w-[22px] h-[22px] rounded-[6px] object-cover" />
+                    </template>
+                    <template x-if="!activeChar.avatar">
+                        <div class="w-[22px] h-[22px] rounded-[6px] flex items-center justify-center" style="background: linear-gradient(135deg, #505081, #8686AC);">
+                            <span class="text-white text-[10px] font-bold" x-text="activeChar.name.charAt(0)"></span>
+                        </div>
+                    </template>
+                    <div class="min-w-0 flex-grow">
+                        <p class="text-[10px] text-4 font-medium uppercase tracking-[0.04em]">Character</p>
+                        <p class="text-[12px] font-medium text-accent-c truncate" x-text="activeChar.name"></p>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-[9px] text-4 t-apple" :class="charPickerOpen && 'rotate-180'"></i>
+                </div>
+
+                <!-- Character Picker Dropdown -->
+                <div x-show="charPickerOpen" x-collapse class="space-y-0.5 pl-1">
+                    <template x-for="char in characters" :key="char.id">
+                        <button @click="selectCharacter(char.id)"
+                            :class="activeCharId === char.id ? 'bg-accent-sub text-1' : 'text-2 hover-surface'"
+                            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-[8px] text-[12px] t-apple">
+                            <template x-if="char.avatar">
+                                <img :src="char.avatar" class="w-[18px] h-[18px] rounded-[5px] object-cover" />
+                            </template>
+                            <template x-if="!char.avatar">
+                                <div class="w-[18px] h-[18px] rounded-[5px] flex items-center justify-center text-[8px] font-bold text-white" style="background: linear-gradient(135deg, #505081, #8686AC);" x-text="char.name.charAt(0)"></div>
+                            </template>
+                            <span class="truncate" x-text="char.name"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Theme -->
+                <button @click="toggleTheme()"
+                    class="w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-[10px] hover-surface text-2 hover:text-1 t-apple">
+                    <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
+                        <i :class="darkMode ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon'" class="text-[11px]"></i>
+                    </div>
+                    <span x-text="darkMode ? 'Light Mode' : 'Dark Mode'" class="text-[13px] font-medium"></span>
+                </button>
+
+                <!-- Settings Link -->
+                <a href="/settings"
+                    class="w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-[10px] hover-surface text-2 hover:text-1 t-apple">
+                    <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
+                        <i class="fa-solid fa-gear text-[11px] text-accent-c"></i>
+                    </div>
+                    <span class="text-[13px] font-medium">Settings</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ═══════════════ MAIN ═══════════════ -->
+    <div class="flex flex-col flex-grow min-w-0 h-full bg-canvas t-apple">
+
+        <!-- Top Nav -->
+        <header class="flex items-center gap-2 px-3 py-2.5 border-b separator shrink-0 bg-canvas t-apple relative z-10">
+            <button @click="sidebarOpen = !sidebarOpen"
+                class="w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple shrink-0">
+                <i class="fa-solid fa-bars text-[14px]"></i>
+            </button>
+            <div class="flex-grow min-w-0 text-center">
+                <span class="text-[13px] font-semibold text-1 tracking-[-0.01em]" x-text="currentTitle"></span>
+            </div>
+            <button @click="toggleTheme()"
+                class="sm:hidden w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple shrink-0">
+                <i :class="darkMode ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon'" class="text-[13px]"></i>
+            </button>
+            <button @click="newChat()"
+                class="w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple shrink-0">
+                <i class="fa-solid fa-square-pen text-[14px]"></i>
+            </button>
+        </header>
+
+        <!-- Messages -->
+        <main class="flex-grow overflow-y-auto" x-ref="chatBox">
+
+            <!-- Welcome -->
+            <template x-if="messages.length === 0">
+                <div class="h-full flex flex-col items-center justify-center px-6 pb-12 fade-in">
+                    <div class="relative" x-data="{ pickerOpen: false }">
+                        <button @click="pickerOpen = !pickerOpen" 
+                            class="flex flex-col items-center group t-apple px-6 py-2 rounded-squircle hover:bg-black/5 dark:hover:bg-white/5">
+                            <!-- Avatar -->
+                            <template x-if="activeChar.avatar">
+                                <img :src="activeChar.avatar" class="w-[60px] h-[60px] rounded-squircle object-cover shadow-t-md mb-4 group-hover:scale-105 t-apple" />
+                            </template>
+                            <template x-if="!activeChar.avatar">
+                                <div class="w-[60px] h-[60px] rounded-squircle bg-accent-sub flex items-center justify-center mb-4 group-hover:scale-105 t-apple shadow-t-md">
+                                    <i class="fa-solid fa-fish-fins text-accent-c text-[28px]"></i>
+                                </div>
+                            </template>
+                            
+                            <h2 class="text-[24px] font-bold text-1 mb-1 tracking-[-0.02em] flex items-center gap-2">
+                                Chat with <span x-text="activeChar.name" class="text-accent-c"></span>
+                                <i class="fa-solid fa-chevron-down text-[12px] opacity-40 group-hover:opacity-100 t-apple"></i>
+                            </h2>
+                            <p class="text-3 text-[14px] font-normal" x-text="'Ask ' + activeChar.name + ' anything...'"></p>
+                        </button>
+
+                        <!-- Popover Picker -->
+                        <div x-show="pickerOpen" x-cloak @click.away="pickerOpen = false"
+                            x-transition:enter="transition ease-out duration-200"
+                            x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+                            x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                            class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[240px] material-elevated border border-themed rounded-[18px] shadow-t-lg z-50 p-2 overflow-hidden">
+                            <div class="max-h-[300px] overflow-y-auto space-y-1">
+                                <template x-for="c in characters" :key="c.id">
+                                    <button @click="selectCharacter(c.id); pickerOpen = false"
+                                        class="w-full flex items-center gap-3 p-2.5 rounded-[12px] hover-surface t-apple text-left"
+                                        :class="activeCharId === c.id ? 'bg-accent-sub border-themed' : ''">
+                                        <template x-if="c.avatar">
+                                            <img :src="c.avatar" class="w-[28px] h-[28px] rounded-[8px] object-cover" />
+                                        </template>
+                                        <template x-if="!c.avatar">
+                                            <div class="w-[28px] h-[28px] rounded-[8px] bg-accent-sub flex items-center justify-center">
+                                                <i class="fa-solid fa-user text-[11px] text-accent-c"></i>
+                                            </div>
+                                        </template>
+                                        <div class="min-w-0">
+                                            <p class="text-[13px] font-semibold text-1 truncate" x-text="c.name"></p>
+                                            <p class="text-[10px] text-4 truncate" x-text="c.persona"></p>
+                                        </div>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="h-8"></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-[520px] w-full">
+                        <template x-for="prompt in quickPrompts" :key="prompt.text">
+                            <button @click="setInput(prompt.text)"
+                                class="material-elevated flex items-start gap-3 text-left rounded-[14px] p-3.5 border border-themed hover-accent-sub group t-apple">
+                                <div class="w-[30px] h-[30px] rounded-[8px] bg-accent-sub flex items-center justify-center shrink-0">
+                                    <i :class="prompt.icon" class="text-accent-c text-[12px]"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-[13px] font-semibold text-1 group-hover:text-accent-c t-apple" x-text="prompt.label"></p>
+                                    <p class="text-[11px] text-3 mt-0.5 truncate" x-text="prompt.text"></p>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Message List -->
+            <template x-if="messages.length > 0">
+                <div class="py-4">
+                    <template x-for="(msg, index) in messages" :key="index">
+                        <div class="px-4 py-5 t-apple" :style="msg.role === 'assistant' ? 'background: var(--msg-ai-bg)' : ''">
+                            <div class="max-w-[680px] mx-auto flex gap-3.5">
+                                <!-- Avatar -->
+                                <div class="shrink-0 pt-0.5">
+                                    <template x-if="msg.role === 'user'">
+                                        <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center" style="background: var(--accent);">
+                                            <i class="fa-solid fa-user text-accent-t text-[11px]"></i>
+                                        </div>
+                                    </template>
+                                    <template x-if="msg.role === 'assistant'">
+                                        <template x-if="activeChar.avatar">
+                                            <img :src="activeChar.avatar" class="w-[28px] h-[28px] rounded-full object-cover" />
+                                        </template>
+                                    </template>
+                                    <template x-if="msg.role === 'assistant' && !activeChar.avatar">
+                                        <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #505081, #8686AC);">
+                                            <i class="fa-solid fa-fish-fins text-white text-[11px]"></i>
+                                        </div>
+                                    </template>
+                                </div>
+                                <!-- Content -->
+                                <div class="flex-grow min-w-0">
+                                    <div class="flex items-center gap-2 mb-1.5">
+                                        <p class="font-semibold text-[13px] text-1 tracking-[-0.01em]"
+                                            x-text="msg.role === 'user' ? 'You' : activeChar.name"></p>
+                                        <template x-if="msg.role === 'assistant' && msg.model">
+                                            <span class="text-[10px] text-4 font-medium px-1.5 py-0.25 rounded-[6px] bg-accent-sub border border-themed" x-text="msg.model"></span>
+                                        </template>
+                                    </div>
+                                    <template x-if="msg.role === 'user'">
+                                        <p class="text-2 leading-relaxed whitespace-pre-wrap text-[14.5px]" x-text="msg.content"></p>
+                                    </template>
+                                    <template x-if="msg.role === 'assistant'">
+                                        <div>
+                                            <template x-if="msg.thinking && msg.thinking.trim()">
+                                                <div class="thinking-block" x-data="{ open: false }">
+                                                    <div class="thinking-header" :class="open && 'open'" @click="open = !open">
+                                                        <i class="fa-regular fa-lightbulb text-[11px]" style="color: var(--think-text)"></i>
+                                                        <span class="text-[11px] font-semibold tracking-[0.03em] uppercase" style="color: var(--think-text)">Thought Process</span>
+                                                        <i class="fa-solid fa-chevron-down text-[9px] text-4 ml-auto thinking-chevron" :class="open && 'rotated'"></i>
+                                                    </div>
+                                                    <div x-show="open" x-collapse class="thinking-content" x-text="msg.thinking"></div>
+                                                </div>
+                                            </template>
+                                            <!-- Tool Calls -->
+                                            <template x-if="msg.tool_calls && msg.tool_calls.length">
+                                                <div class="mb-3 space-y-1.5">
+                                                    <template x-for="(tc, ti) in msg.tool_calls" :key="ti">
+                                                        <div class="rounded-[10px] border border-themed p-2.5 t-apple" style="background: var(--accent-subtle);" x-data="{ expanded: false }">
+                                                            <div class="flex items-center gap-2 cursor-pointer" @click="expanded = !expanded">
+                                                                <i class="fa-solid fa-wrench text-[10px] text-accent-c"></i>
+                                                                <span class="text-[12px] font-semibold text-accent-c font-mono" x-text="tc.name"></span>
+                                                                <span class="text-[10px] text-4 ml-auto" x-text="expanded ? '▾' : '▸'"></span>
+                                                            </div>
+                                                            <div x-show="expanded" x-collapse class="mt-2 text-[11px] font-mono text-3 whitespace-pre-wrap break-all leading-relaxed" x-text="tc.result"></div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <div class="chat-prose text-2" x-html="renderMarkdown(msg.displayContent || msg.content)"></div>
+                                            <div class="flex items-center gap-1 mt-3 -ml-1">
+                                                <button @click="copyText(msg.content)"
+                                                    class="text-4 hover:text-2 text-[12px] flex items-center gap-1.5 px-2 py-1 rounded-[8px] hover-surface t-apple">
+                                                    <i class="fa-regular fa-copy text-[11px]"></i> Copy
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Typing -->
+                    <div x-show="loading" class="px-4 py-5 t-apple" style="background: var(--msg-ai-bg)">
+                        <div class="max-w-[680px] mx-auto flex gap-3.5">
+                            <template x-if="activeChar.avatar">
+                                <img :src="activeChar.avatar" class="w-[28px] h-[28px] rounded-full object-cover shrink-0" />
+                            </template>
+                            <template x-if="!activeChar.avatar">
+                                <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center shrink-0" style="background: linear-gradient(135deg, #505081, #8686AC);">
+                                    <i class="fa-solid fa-fish-fins text-white text-[11px]"></i>
+                                </div>
+                            </template>
+                            <div class="flex-grow pt-1">
+                                <p class="font-semibold text-[13px] text-1 mb-2.5" x-text="activeChar.name"></p>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-[6px] h-[6px] rounded-full typing-dot" style="background: var(--accent)"></div>
+                                    <div class="w-[6px] h-[6px] rounded-full typing-dot" style="background: var(--accent)"></div>
+                                    <div class="w-[6px] h-[6px] rounded-full typing-dot" style="background: var(--accent)"></div>
+                                    <span class="text-[12px] text-4 ml-1 font-medium" x-text="loadingStatus"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="bottom-anchor" class="h-1"></div>
+                </div>
+            </template>
+        </main>
+
+        <!-- Input -->
+        <footer class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
+            <div class="max-w-[680px] mx-auto">
+                <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple relative"
+                    style="transition: border-color 0.2s, box-shadow 0.2s;">
+                    <textarea id="user-input" x-model="input" x-ref="textarea"
+                        @keydown.enter.prevent="if(!$event.shiftKey) sendMessage()"
+                        @input="autoResize()"
+                        placeholder="Message..." rows="1"
+                        class="w-full bg-transparent px-4 pt-3.5 pb-11 text-[14.5px] text-1 outline-none resize-none font-sans"
+                        style="color: var(--text-primary);"></textarea>
+                    <div class="absolute bottom-2.5 left-4 right-4 flex items-center justify-between pointer-events-none">
+                        <div class="flex items-center gap-2.5 text-4">
+                            <span class="text-[11px]"><kbd class="bg-accent-sub px-1.5 py-0.5 rounded-[5px] text-[10px] font-medium text-3">⏎</kbd> send</span>
+                            <span class="hidden sm:inline text-[11px]"><kbd class="bg-accent-sub px-1.5 py-0.5 rounded-[5px] text-[10px] font-medium text-3">⇧⏎</kbd> newline</span>
+                        </div>
+                        <button @click="sendMessage()" :disabled="!input.trim() || loading"
+                            class="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center t-apple shrink-0 pointer-events-auto"
+                            :class="input.trim() && !loading ? 'bg-accent-c hover:bg-accent-h text-accent-t shadow-t' : 'bg-accent-sub text-4 cursor-not-allowed'">
+                            <i class="fa-solid fa-arrow-up text-[12px]"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-center text-[10px] text-4 mt-1.5 font-medium">
+                    <span x-text="activeChar.name"></span> may produce inaccurate information.
+                </p>
+            </div>
+        </footer>
+    </div>
+</div>
+{% endblock %}

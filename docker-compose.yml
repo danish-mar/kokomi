@@ -1,0 +1,16 @@
+services:
+  mongodb:
+    image: mongo:4.4
+    container_name: kokomi_mongodb
+    restart: unless-stopped
+    ports:
+      - "27027:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: kokomi_admin
+      MONGO_INITDB_ROOT_PASSWORD: kokomi_pass
+    command: ["mongod", "--nojournal"]
+
+volumes:
+  mongodb_data:

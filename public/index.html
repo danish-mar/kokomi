@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kokomi | AI Assistant - Ocean Powered</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <!-- Config Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ocean_deep: '#030E1B',
+                        ocean_dark: '#0A192F',
+                        ocean_blue: '#0077B6',
+                        ocean_neon: '#00B4D8',
+                        coral_soft: '#FF7F50',
+                        coral_bright: '#FF6B6B',
+                        seafoam: '#90E0EF'
+                    },
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background: radial-gradient(circle at top right, #0A2647 0%, #030E1B 40%, #030E1B 100%);
+            scrollbar-width: thin;
+            scrollbar-color: #0077B6 #030E1B;
+        }
+        .glass-panel {
+            background: rgba(10, 25, 47, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 119, 182, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glow-blue {
+            text-shadow: 0 0 10px rgba(0, 180, 216, 0.5);
+        }
+        .glow-coral {
+            text-shadow: 0 0 10px rgba(255, 127, 80, 0.5);
+        }
+        .chat-bubbles::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-bubbles::-webkit-scrollbar-thumb {
+            background-color: #0077B6;
+            border-radius: 10px;
+        }
+        @keyframes drift {
+            0% { transform: translateY(0) rotate(0deg); opacity: 0.2; }
+            50% { transform: translateY(-20px) rotate(5deg); opacity: 0.4; }
+            100% { transform: translateY(0) rotate(0deg); opacity: 0.2; }
+        }
+        .coral-orb {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 127, 80, 0.15) 0%, rgba(255, 127, 80, 0) 70%);
+            filter: blur(40px);
+            animation: drift 15s infinite ease-in-out;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen font-sans selection:bg-coral-soft selection:text-white" x-data="aiApp()">
+
+    <!-- Decorative Elements -->
+    <div class="coral-orb top-[-100px] left-[-100px]"></div>
+    <div class="coral-orb bottom-[-100px] right-[-100px]" style="animation-delay: -7s;"></div>
+
+    <div class="container mx-auto px-4 py-8 h-screen flex flex-col max-w-4xl">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-8">
+            <div class="flex items-center space-x-3">
+                <div class="bg-ocean_blue p-2.5 rounded-xl shadow-[0_0_15px_rgba(0,119,182,0.5)]">
+                    <i class="fa-solid fa-fish-fins text-2xl text-seafoam"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-extrabold tracking-tight glow-blue">Kokomi <span class="text-coral_soft">AI</span></h1>
+                    <p class="text-[10px] uppercase tracking-[0.2em] text-ocean_neon/70 font-semibold">Deep Sea Intelligence</p>
+                </div>
+            </div>
+            <div class="hidden sm:flex items-center space-x-4 bg-ocean_dark/40 px-4 py-2 rounded-full border border-ocean_blue/20">
+                <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="text-xs font-medium text-ocean_neon/80">LPU Powered Inference</span>
+            </div>
+        </header>
+
+        <!-- Main Chat Area -->
+        <main class="flex-grow glass-panel rounded-3xl overflow-hidden flex flex-col mb-6">
+            <!-- Messages Container -->
+            <div class="flex-grow overflow-y-auto p-6 space-y-6 chat-bubbles" id="chat-container" x-ref="chatBox">
+                <template x-if="messages.length === 0">
+                    <div class="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
+                        <i class="fa-solid fa-water-gradient text-6xl text-ocean_neon/30"></i>
+                        <p class="text-lg font-light italic">Dive into a conversation...</p>
+                        <div class="flex flex-wrap justify-center gap-2">
+                            <button @click="setInput('Tell me about the mysteries of the deep sea')" class="px-4 py-2 rounded-full border border-ocean_blue/30 hover:bg-ocean_blue/20 transition-all text-xs">Deep Sea Mysteries</button>
+                            <button @click="setInput('How are coral reefs formed?')" class="px-4 py-2 rounded-full border border-ocean_blue/30 hover:bg-ocean_blue/20 transition-all text-xs">Coral Formations</button>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-for="(msg, index) in messages" :key="index">
+                    <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                        <div :class="msg.role === 'user' ? 
+                            'bg-ocean_blue text-white rounded-2xl rounded-tr-none px-5 py-3.5 max-w-[85%] shadow-lg' : 
+                            'bg-ocean_dark/80 text-gray-100 rounded-2xl rounded-tl-none px-5 py-3.5 max-w-[85%] border border-ocean_blue/10'"
+                        >
+                            <div class="flex items-center space-x-2 mb-1.5 opacity-60 text-[10px] uppercase tracking-wider font-bold">
+                                <i :class="msg.role === 'user' ? 'fa-solid fa-anchor' : 'fa-solid fa-shrimp'"></i>
+                                <span x-text="msg.role === 'user' ? 'Navigator' : 'Kokomi'"></span>
+                            </div>
+                            <div class="prose prose-invert prose-sm leading-relaxed" x-html="renderMarkdown(msg.content)"></div>
+                        </div>
+                    </div>
+                </template>
+
+                <div x-show="loading" class="flex justify-start">
+                    <div class="bg-ocean_dark/80 rounded-2xl rounded-tl-none px-5 py-3.5 border border-ocean_blue/10">
+                        <div class="flex space-x-2">
+                            <div class="w-2 h-2 bg-ocean_neon rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div class="w-2 h-2 bg-ocean_neon rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div class="w-2 h-2 bg-ocean_neon rounded-full animate-bounce"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-5 border-t border-ocean_blue/10 bg-ocean_dark/30">
+                <form @submit.prevent="sendMessage()" class="relative flex items-center space-x-3">
+                    <div class="relative flex-grow group">
+                        <input 
+                            type="text" 
+                            x-model="input" 
+                            placeholder="Type your message across the currents..."
+                            class="w-full bg-ocean_dark/60 border border-ocean_blue/30 focus:border-ocean_neon focus:ring-4 focus:ring-ocean_neon/10 rounded-2xl px-5 py-4 pl-12 transition-all outline-none text-seafoam placeholder-ocean_neon/30"
+                        >
+                        <i class="fa-solid fa-magnifying-glass absolute left-5 top-1/2 -translate-y-1/2 text-ocean_neon/40 group-focus-within:text-ocean_neon"></i>
+                    </div>
+                    <button 
+                        type="submit" 
+                        :disabled="!input.trim() || loading"
+                        class="bg-coral_soft hover:bg-coral_bright disabled:opacity-50 disabled:cursor-not-allowed text-white p-4 rounded-2xl transition-all shadow-lg hover:shadow-coral_soft/40 active:scale-95"
+                    >
+                        <i class="fa-solid fa-paper-plane text-xl" :class="loading ? 'fa-spinner animate-spin' : ''"></i>
+                    </button>
+                </form>
+                <div class="mt-3 flex items-center justify-between px-2">
+                    <p class="text-[10px] text-ocean_neon/50 font-medium">Model: <span class="text-ocean_neon">qwen/qwen3-32b</span></p>
+                    <button @click="messages = []" class="text-[10px] hover:text-coral_soft transition-colors flex items-center space-x-1 uppercase tracking-tighter opacity-70">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Clear Depths</span>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="text-center">
+            <p class="text-[11px] text-ocean_neon/40 font-bold uppercase tracking-widest leading-loose">
+                Managed with UV &bull; Powered by Groq LPUs &bull; Crafted by <span class="text-coral_soft">Antigravity</span>
+            </p>
+        </footer>
+    </div>
+
+    <!-- Background Ripples -->
+    <script>
+        function aiApp() {
+            return {
+                input: '',
+                messages: [],
+                loading: false,
+
+                setInput(val) {
+                    this.input = val;
+                },
+
+                async sendMessage() {
+                    if (!this.input.trim() || this.loading) return;
+
+                    const userMessage = this.input;
+                    this.messages.push({ role: 'user', content: userMessage });
+                    this.input = '';
+                    this.loading = true;
+
+                    this.$nextTick(() => this.scrollToBottom());
+
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: userMessage })
+                        });
+
+                        if (!response.ok) throw new Error('Ocean current blocked...');
+
+                        const data = await response.json();
+                        this.messages.push({ role: 'assistant', content: data.response });
+                    } catch (error) {
+                        this.messages.push({ role: 'assistant', content: "⚠️ *Gurgle...* An error occurred connecting to the depths. Please check your connection." });
+                    } finally {
+                        this.loading = false;
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                },
+
+                renderMarkdown(content) {
+                    // Primitive markdown renderer for simple bold/italic/code
+                    return content
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                        .replace(/`(.*?)`/g, '<code class="bg-ocean_dark px-1 rounded text-coral_soft font-mono">$1</code>')
+                        .replace(/\n/g, '<br>');
+                },
+
+                scrollToBottom() {
+                    const el = this.$refs.chatBox;
+                    el.scrollTop = el.scrollHeight;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
