@@ -1,175 +1,620 @@
 {% extends "base.html" %}
 {% block title %}Settings — Kokomi AI{% endblock %}
 
-{% block body %}
-<div id="settings-app" x-data="settingsApp()" x-cloak class="min-h-screen bg-canvas">
+{% block head %}
+<style>
+    /* ═══ Settings Page — Premium Apple HIG ═══ */
+    .settings-page { min-height: 100vh; background: var(--bg-canvas); }
 
-    <!-- ── Top Bar ── -->
-    <header class="flex items-center gap-3 px-5 py-3 border-b separator bg-canvas sticky top-0 z-20 t-apple">
-        <a href="/" class="w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple">
-            <i class="fa-solid fa-arrow-left text-[14px]"></i>
+    /* Frosted top bar */
+    .settings-topbar {
+        position: sticky; top: 0; z-index: 30;
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 20px;
+        background: var(--bg-sidebar);
+        backdrop-filter: var(--vibrancy);
+        -webkit-backdrop-filter: var(--vibrancy);
+        border-bottom: 1px solid var(--separator);
+    }
+    .settings-topbar h1 {
+        font-size: 17px; font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: -0.02em;
+    }
+
+    /* Rounded icon buttons */
+    .icon-btn {
+        width: 36px; height: 36px;
+        border-radius: 10px; border: none;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-tertiary); cursor: pointer;
+        background: transparent;
+        transition: all 0.22s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .icon-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+    .icon-btn:active { transform: scale(0.92); }
+
+    /* Apple segmented control */
+    .seg-control {
+        display: flex; gap: 4px; padding: 3px;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+    }
+    .seg-btn {
+        flex: 1; padding: 8px 12px;
+        border-radius: 11px; border: none;
+        font-size: 13px; font-weight: 500;
+        color: var(--text-tertiary);
+        background: transparent; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .seg-btn:hover:not(.seg-active) { color: var(--text-secondary); }
+    .seg-btn.seg-active {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        font-weight: 600;
+        box-shadow: var(--shadow-md);
+    }
+    .seg-btn:active { transform: scale(0.97); }
+
+    /* Glass card */
+    .glass-card {
+        background: var(--bg-elevated);
+        backdrop-filter: blur(var(--material-blur));
+        -webkit-backdrop-filter: blur(var(--material-blur));
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+    }
+
+    /* Card row with separator */
+    .card-row {
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--separator);
+        transition: background 0.2s ease;
+    }
+    .card-row:last-child { border-bottom: none; }
+    .card-row:hover { background: var(--accent-subtle); }
+
+    /* Apple toggle switch */
+    .apple-toggle {
+        position: relative;
+        width: 46px; height: 26px;
+        border-radius: 13px;
+        border: none; cursor: pointer;
+        transition: background 0.2s ease;
+        flex-shrink: 0;
+    }
+    .apple-toggle.on { background: var(--accent); }
+    .apple-toggle.off { background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--border); }
+    .apple-toggle .toggle-knob {
+        position: absolute; top: 3px; left: 3px;
+        width: 20px; height: 20px;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        transition: transform 0.22s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .apple-toggle.on .toggle-knob { transform: translateX(20px); }
+
+    /* Section heading */
+    .section-title {
+        font-size: 22px; font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: -0.025em;
+        margin-bottom: 4px;
+    }
+    .section-subtitle {
+        font-size: 13px; color: var(--text-tertiary);
+        letter-spacing: -0.005em;
+    }
+
+    /* Character card */
+    .char-card {
+        background: var(--bg-elevated);
+        backdrop-filter: blur(var(--material-blur));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        display: flex; gap: 14px;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .char-card:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--border-focus);
+        transform: translateY(-1px);
+    }
+
+    /* MCP server row */
+    .mcp-row {
+        background: var(--bg-elevated);
+        backdrop-filter: blur(var(--material-blur));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px 20px;
+        display: flex; align-items: center; gap: 16px;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .mcp-row:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--border-focus);
+    }
+
+    /* Accent button */
+    .btn-accent {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 9px 16px; border-radius: 12px;
+        font-size: 13px; font-weight: 600;
+        background: var(--accent); color: var(--accent-text);
+        border: none; cursor: pointer;
+        box-shadow: var(--shadow-sm);
+        transition: all 0.2s ease;
+    }
+    .btn-accent:hover { background: var(--accent-hover); box-shadow: var(--shadow-md); }
+    .btn-accent:active { transform: scale(0.96); }
+
+    /* Ghost btn */
+    .btn-ghost {
+        padding: 8px 14px; border-radius: 10px;
+        font-size: 13px; font-weight: 500;
+        background: transparent; color: var(--text-secondary);
+        border: none; cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-ghost:hover { background: var(--bg-surface-hover); }
+
+    /* Info banner */
+    .info-banner {
+        padding: 14px 18px;
+        border-radius: 14px;
+        background: var(--accent-subtle);
+        border: 1px solid var(--border);
+        display: flex; align-items: flex-start; gap: 12px;
+    }
+
+    /* Saved toast */
+    .saved-toast {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 14px;
+        border-radius: 100px;
+        background: var(--accent);
+        color: var(--accent-text);
+        font-size: 12px; font-weight: 600;
+        box-shadow: var(--shadow-lg);
+    }
+
+    /* Modal overlay */
+    .modal-overlay {
+        position: fixed; inset: 0; z-index: 50;
+        display: flex; align-items: flex-end; justify-content: center;
+    }
+    @media (min-width: 640px) {
+        .modal-overlay { align-items: center; }
+    }
+    .modal-backdrop {
+        position: absolute; inset: 0;
+        background: rgba(0,0,0,0.45);
+        backdrop-filter: blur(6px);
+    }
+    .modal-sheet {
+        position: relative; z-index: 10;
+        width: 100%; max-width: 480px;
+        margin: 0 16px;
+        background: var(--bg-elevated);
+        backdrop-filter: blur(var(--material-blur));
+        border: 1px solid var(--border);
+        border-radius: 22px 22px 0 0;
+        box-shadow: var(--shadow-lg);
+        padding: 28px;
+        max-height: 85vh; overflow-y: auto;
+    }
+    @media (min-width: 640px) {
+        .modal-sheet { border-radius: 22px; }
+    }
+    .modal-handle {
+        width: 40px; height: 4px;
+        border-radius: 2px;
+        background: var(--text-quaternary);
+        margin: 0 auto 20px;
+    }
+    @media (min-width: 640px) {
+        .modal-handle { display: none; }
+    }
+
+    /* Avatar placeholder */
+    .avatar-circle {
+        width: 50px; height: 50px;
+        border-radius: 14px;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, #505081, #8686AC);
+        color: #fff; font-weight: 700; font-size: 19px;
+        box-shadow: var(--shadow-sm);
+        flex-shrink: 0;
+    }
+    .avatar-circle img {
+        width: 100%; height: 100%;
+        border-radius: 14px;
+        object-fit: cover;
+    }
+
+    /* Mini badge */
+    .mini-badge {
+        font-size: 9px; font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 2px 7px;
+        border-radius: 6px;
+    }
+
+    /* Smooth page transitions */
+    .tab-panel { animation: tabFadeIn 0.3s ease-out; }
+    @keyframes tabFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* About footer */
+    .about-footer {
+        background: var(--bg-elevated);
+        backdrop-filter: blur(var(--material-blur));
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px 24px;
+        box-shadow: var(--shadow-sm);
+        margin-top: 32px;
+    }
+
+    /* Surface vars for themed bg */
+    .bg-themed-surface { background: var(--bg-input); }
+
+    /* Action btns on hover */
+    .action-btns { opacity: 0; transition: opacity 0.2s ease; }
+    .group:hover .action-btns, .char-card:hover .action-btns, .mcp-row:hover .action-btns { opacity: 1; }
+
+    /* Inline small icon btn */
+    .sm-icon-btn {
+        width: 30px; height: 30px;
+        border-radius: 9px; border: none;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; background: transparent;
+        transition: all 0.2s ease;
+    }
+    .sm-icon-btn:hover { background: var(--bg-surface-hover); }
+    .sm-icon-btn:active { transform: scale(0.9); }
+
+    /* Transport picker btn */
+    .transport-btn {
+        flex: 1; min-width: 100px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--text-tertiary);
+        background: transparent; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 7px;
+        transition: all 0.2s ease;
+    }
+    .transport-btn.selected {
+        border: 2px solid var(--accent);
+        background: var(--accent-subtle);
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    /* MCP tool pills in modal */
+    .tool-pill {
+        font-size: 10px; padding: 3px 8px;
+        border-radius: 6px; font-family: "SF Mono","JetBrains Mono",monospace;
+        background: var(--bg-canvas); border: 1px solid var(--border);
+    }
+
+    /* Template badge btn */
+    .template-btn {
+        padding: 6px 12px;
+        border-radius: 9px;
+        background: var(--accent-subtle);
+        color: var(--accent);
+        border: 1px solid var(--border);
+        font-size: 12px; font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .template-btn:hover { background: var(--accent-subtle-h); }
+
+    /* Upload avatar area */
+    .upload-area {
+        width: 68px; height: 68px;
+        border-radius: 16px;
+        border: 2px dashed var(--border);
+        background: var(--accent-subtle);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .upload-area:hover { border-color: var(--accent); background: var(--accent-subtle-h); }
+
+    .surface-secondary { background: var(--surface-secondary, var(--bg-input)); }
+</style>
+{% endblock %}
+
+{% block body %}
+<div id="settings-app" x-data="settingsApp()" x-cloak class="settings-page">
+
+    <!-- ── Frosted Top Bar ── -->
+    <header class="settings-topbar">
+        <a href="/" class="icon-btn" style="text-decoration:none;">
+            <i class="fa-solid fa-arrow-left" style="font-size:14px;"></i>
         </a>
-        <h1 class="text-[15px] font-semibold text-1 tracking-[-0.01em]">Settings</h1>
-        <div class="flex-grow"></div>
-        <button @click="toggleTheme()"
-            class="w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple">
-            <i :class="darkMode ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon'" class="text-[14px]"></i>
+        <h1>Settings</h1>
+        <div style="flex-grow:1;"></div>
+        <button @click="toggleTheme()" class="icon-btn">
+            <i :class="darkMode ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"
+               :style="darkMode ? 'color:#FBBF24' : ''"
+               style="font-size:14px;"></i>
         </button>
     </header>
 
-    <div class="max-w-2xl mx-auto px-5 py-6">
+    <div style="max-width:680px; margin:0 auto; padding:24px 20px 48px;">
 
-        <!-- ── Tabs ── -->
-        <div class="flex gap-1 mb-6 p-1 rounded-[12px]" style="background: var(--surface-secondary);">
+        <!-- ── Segmented Control ── -->
+        <div class="seg-control" style="margin-bottom:28px;">
             <button @click="tab = 'general'"
-                :class="tab === 'general' ? 'material-elevated text-1 font-semibold shadow-t' : 'text-3 hover:text-2'"
-                class="flex-1 px-4 py-2 rounded-[10px] text-[13px] t-apple flex items-center justify-center gap-2">
-                <i class="fa-solid fa-gear text-[11px]"></i> General
+                :class="tab === 'general' ? 'seg-active' : ''" class="seg-btn">
+                <i class="fa-solid fa-gear" style="font-size:11px;"></i> General
             </button>
             <button @click="tab = 'characters'"
-                :class="tab === 'characters' ? 'material-elevated text-1 font-semibold shadow-t' : 'text-3 hover:text-2'"
-                class="flex-1 px-4 py-2 rounded-[10px] text-[13px] t-apple flex items-center justify-center gap-2">
-                <i class="fa-solid fa-users text-[11px]"></i> Characters
+                :class="tab === 'characters' ? 'seg-active' : ''" class="seg-btn">
+                <i class="fa-solid fa-users" style="font-size:11px;"></i> Characters
             </button>
             <button @click="tab = 'mcp'"
-                :class="tab === 'mcp' ? 'material-elevated text-1 font-semibold shadow-t' : 'text-3 hover:text-2'"
-                class="flex-1 px-4 py-2 rounded-[10px] text-[13px] t-apple flex items-center justify-center gap-2">
-                <i class="fa-solid fa-plug text-[11px]"></i> MCP
+                :class="tab === 'mcp' ? 'seg-active' : ''" class="seg-btn">
+                <i class="fa-solid fa-plug" style="font-size:11px;"></i> MCP
+            </button>
+            <button @click="tab = 'appearance'"
+                :class="tab === 'appearance' ? 'seg-active' : ''" class="seg-btn">
+                <i class="fa-solid fa-palette" style="font-size:11px;"></i> Appearance
             </button>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════ -->
-        <!-- TAB: GENERAL                                        -->
-        <!-- ═══════════════════════════════════════════════════ -->
-        <div x-show="tab === 'general'" x-transition class="space-y-6">
-            <div class="space-y-1">
-                <h2 class="text-[19px] font-bold text-1 tracking-[-0.02em]">General</h2>
-                <p class="text-[13px] text-3">Manage global AI behavior and model preferences.</p>
+        <!-- ═══════════ TAB: GENERAL ═══════════ -->
+        <div x-show="tab === 'general'" x-transition class="tab-panel">
+            <div style="margin-bottom:20px;">
+                <h2 class="section-title">General</h2>
+                <p class="section-subtitle">Manage global AI behavior and model preferences.</p>
             </div>
 
-            <div class="material-elevated border border-themed rounded-squircle p-6 space-y-7">
-                <!-- Model Selection -->
-                <div class="space-y-3">
-                    <label class="apple-label">AI Intelligence Model (Groq)</label>
-                    <div class="relative group">
-                        <select x-model="prefs.model_name" @change="savePrefs()"
-                            class="apple-field pr-10 cursor-pointer shadow-t hover:border-accent/40 t-apple">
-                            <template x-for="m in models" :key="m.id">
-                                <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.model_name" class="bg-obsidian text-white"></option>
-                            </template>
+            <div class="glass-card">
+                <!-- LLM Provider Selection -->
+                <div class="card-row">
+                    <label class="apple-label" style="margin-bottom:12px;">Intelligence Provider</label>
+                    <div class="seg-control" style="margin-bottom:20px; max-width: 400px;">
+                        <button @click="prefs.llm_provider = 'groq'; savePrefs()"
+                            :class="prefs.llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
+                            <i class="fa-solid fa-cloud" style="font-size:10px;"></i> Groq Cloud
+                        </button>
+                        <button @click="prefs.llm_provider = 'google'; savePrefs()"
+                            :class="prefs.llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
+                            <i class="fa-solid fa-wand-sparkles" style="font-size:10px;"></i> Gemini
+                        </button>
+                        <button @click="prefs.llm_provider = 'local'; savePrefs()"
+                            :class="prefs.llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
+                            <i class="fa-solid fa-desktop" style="font-size:10px;"></i> Local Llama
+                        </button>
+
+                    </div>
+
+                    <!-- Cloud Models (Groq & Google) -->
+                    <div x-show="prefs.llm_provider === 'groq' || prefs.llm_provider === 'google'" x-transition>
+                        <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);" 
+                               x-text="prefs.llm_provider === 'groq' ? 'Groq Model Selection' : 'Gemini Model Selection'"></label>
+
+                        <div style="position:relative;">
+                            <select x-model="prefs.model_name" @change="savePrefs()"
+                                class="apple-field" style="padding-right:40px; cursor:pointer;">
+                                <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
+                                    <option :value="m.id" x-text="m.name || m.id"
+                                        :selected="m.id === prefs.model_name"
+                                        style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                </template>
+
+                            </select>
+                            <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Local Specific -->
+                    <div x-show="prefs.llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:16px;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">llama.cpp Server URL</label>
+                            <input type="text" x-model="prefs.local_url" @blur="savePrefs()"
+                                placeholder="http://localhost:8080/v1" class="apple-field">
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">Full OpenAI-compatible endpoint URL.</p>
+                        </div>
+                        <div>
+                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">Local Model Identifier</label>
+                            <input type="text" x-model="prefs.local_model" @blur="savePrefs()"
+                                placeholder="local-model" class="apple-field">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Embedding Model -->
+                <div class="card-row">
+                    <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">RAG Embedding Model</label>
+                    <div style="position:relative;">
+                        <select x-model="prefs.embedding_model" @change="savePrefs()"
+                            class="apple-field" style="padding-right:40px; cursor:pointer;">
+                            <option value="models/gemini-embedding-2">Gemini Embedding 2 (Latest, Multimodal)</option>
+                            <option value="models/gemini-embedding-001">Gemini Embedding 001 (Stable)</option>
                         </select>
-                        <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-3 text-[11px] group-hover:text-accent-c t-apple">
+                        <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
                             <i class="fa-solid fa-chevron-down"></i>
                         </div>
                     </div>
-                    <p class="text-[11px] text-4 ml-1">Select the primary model for chat interactions.</p>
                 </div>
 
                 <!-- User Persona -->
-                <div class="space-y-3">
-                    <label class="apple-label">About Me (User Persona)</label>
+                <div class="card-row">
+                    <label class="apple-label" style="margin-bottom:10px;">About Me (User Persona)</label>
                     <textarea x-model="prefs.user_persona" @blur="savePrefs()" rows="5"
                         placeholder="e.g. I am a software engineer who prefers concise answers and Python code examples..."
-                        class="apple-field resize-none leading-relaxed"></textarea>
-                    <p class="text-[11px] text-4 ml-1">This context is provided to the AI in every conversation.</p>
+                        class="apple-field" style="resize:none; line-height:1.65;"></textarea>
+                    <p style="font-size:11px; color:var(--text-quaternary); margin-top:8px; margin-left:2px;">This context is provided to the AI in every conversation.</p>
                 </div>
+
                 <!-- Smart Suggestions -->
-                <div class="pt-4 border-t border-themed flex items-center justify-between">
-                    <div class="space-y-0.5">
-                        <label class="apple-label">Smart Suggestions</label>
-                        <p class="text-[11px] text-4">Use AI to generate persona-aware chat starters.</p>
+                <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <label class="apple-label" style="margin-bottom:2px;">Smart Suggestions</label>
+                        <p style="font-size:11px; color:var(--text-quaternary);">Use AI to generate persona-aware chat starters.</p>
                     </div>
-                    <button @click="prefs.dynamic_suggestions = !prefs.dynamic_suggestions; savePrefs()" 
-                        class="relative w-[44px] h-[24px] rounded-full transition-colors duration-200 outline-none shrink-0"
-                        :class="prefs.dynamic_suggestions ? 'bg-accent-c' : 'bg-themed-surface shadow-inner'">
-                        <div class="absolute top-[2px] left-[2px] w-[20px] h-[20px] bg-white rounded-full transition-transform duration-200 shadow-sm"
-                            :class="prefs.dynamic_suggestions ? 'translate-x-[20px]' : 'translate-x-0'"></div>
+                    <button @click="prefs.dynamic_suggestions = !prefs.dynamic_suggestions; savePrefs()"
+                        class="apple-toggle" :class="prefs.dynamic_suggestions ? 'on' : 'off'">
+                        <div class="toggle-knob"></div>
                     </button>
                 </div>
 
                 <!-- Streaming Mode -->
-                <div class="pt-4 border-t border-themed flex items-center justify-between">
-                    <div class="space-y-0.5">
-                        <label class="apple-label">Streaming Mode</label>
-                        <p class="text-[11px] text-4">Stream responses in real-time as they are being generated.</p>
+                <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <label class="apple-label" style="margin-bottom:2px;">Streaming Mode</label>
+                        <p style="font-size:11px; color:var(--text-quaternary);">Stream responses in real-time as they are being generated.</p>
                     </div>
-                    <button @click="prefs.streaming_mode = !prefs.streaming_mode; savePrefs()" 
-                        class="relative w-[44px] h-[24px] rounded-full transition-colors duration-200 outline-none shrink-0"
-                        :class="prefs.streaming_mode ? 'bg-accent-c' : 'bg-themed-surface shadow-inner'">
-                        <div class="absolute top-[2px] left-[2px] w-[20px] h-[20px] bg-white rounded-full transition-transform duration-200 shadow-sm"
-                            :class="prefs.streaming_mode ? 'translate-x-[20px]' : 'translate-x-0'"></div>
+                    <button @click="prefs.streaming_mode = !prefs.streaming_mode; savePrefs()"
+                        class="apple-toggle" :class="prefs.streaming_mode ? 'on' : 'off'">
+                        <div class="toggle-knob"></div>
                     </button>
                 </div>
-            </div>
-            
 
+                <!-- Inject Current Time -->
+                <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                    <div>
+                        <label class="apple-label" style="margin-bottom:2px;">Inject Current Time</label>
+                        <p style="font-size:11px; color:var(--text-quaternary);">Automatically provide the AI with the current system date & time.</p>
+                    </div>
+                    <button @click="prefs.inject_time = !prefs.inject_time; savePrefs()"
+                        class="apple-toggle" :class="prefs.inject_time ? 'on' : 'off'">
+                        <div class="toggle-knob"></div>
+                    </button>
+                </div>
+                <!-- WhatsApp Integration -->
+                <div class="card-row" style="background: var(--accent-subtle);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="width:32px; height:32px; border-radius:8px; background:#25D366; display:flex; align-items:center; justify-content:center; color:#fff;">
+                                <i class="fa-brands fa-whatsapp"></i>
+                            </div>
+                            <div>
+                                <label class="apple-label" style="margin-bottom:0;">WhatsApp Integration</label>
+                                <p style="font-size:11px; color:var(--text-tertiary);">Receive & reply to messages via WhatsApp.</p>
+                            </div>
+                        </div>
+                        <button @click="prefs.whatsapp_enabled = !prefs.whatsapp_enabled; savePrefs()"
+                            class="apple-toggle" :class="prefs.whatsapp_enabled ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
+                    
+                    <div x-show="prefs.whatsapp_enabled" x-transition>
+                        <div style="margin-bottom:16px;">
+                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">Main WhatsApp Character</label>
+                            <div style="position:relative;">
+                                <select x-model="prefs.whatsapp_character_id" @change="savePrefs()"
+                                    class="apple-field" style="padding-right:40px; cursor:pointer;">
+                                    <template x-for="char in characters" :key="char.id">
+                                        <option :value="char.id" x-text="char.name"
+                                            :selected="char.id === prefs.whatsapp_character_id"
+                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                    </template>
+                                </select>
+                                <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                            </div>
+                        </div>
 
-            <div x-show="prefSaving" x-transition class="flex justify-center">
-                <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent text-[11px] text-white font-bold shadow-lg">
+                        <div style="margin-bottom:16px;">
+                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">WhatsApp REST API URL</label>
+                            <input type="text" x-model="prefs.whatsapp_api_url" @blur="savePrefs()"
+                                placeholder="http://localhost:3013" class="apple-field" style="font-family:'SF Mono',monospace;">
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">
+                                The direct REST API endpoint of your WhatsApp bridge.
+                            </p>
+                        </div>
+
+                        <p style="font-size:10px; color:var(--text-quaternary);">
+                            The selected character will receive all incoming messages and can use tools to reply or deploy other agents.
+                        </p>
+                    </div>
+                </div>
+
+            <!-- Saved indicator -->
+            <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:16px;">
+                <div class="saved-toast">
                     <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
                 </div>
             </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════ -->
-        <!-- TAB: CHARACTERS                                     -->
-        <!-- ═══════════════════════════════════════════════════ -->
-        <div x-show="tab === 'characters'" x-transition>
-            <div class="flex items-center justify-between mb-4">
+        <!-- ═══════════ TAB: CHARACTERS ═══════════ -->
+        <div x-show="tab === 'characters'" x-transition class="tab-panel">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
                 <div>
-                    <h2 class="text-[18px] font-bold text-1 tracking-[-0.02em]">Characters</h2>
-                    <p class="text-[13px] text-3 mt-0.5">Create personas with custom system prompts and tool access.</p>
+                    <h2 class="section-title">Characters</h2>
+                    <p class="section-subtitle">Create personas with custom system prompts and tool access.</p>
                 </div>
-                <button @click="openCharModal()"
-                    class="flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[13px] font-semibold t-apple"
-                    style="background: var(--accent); color: var(--accent-text);">
-                    <i class="fa-solid fa-plus text-[11px]"></i> New
+                <button @click="openCharModal()" class="btn-accent">
+                    <i class="fa-solid fa-plus" style="font-size:11px;"></i> New
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:12px;">
                 <template x-for="char in characters" :key="char.id">
-                    <div class="material-elevated border border-themed rounded-[14px] p-4 flex gap-3.5 group t-apple">
+                    <div class="char-card">
                         <!-- Avatar -->
-                        <div class="shrink-0">
+                        <div>
                             <template x-if="char.avatar">
-                                <img :src="char.avatar" class="w-[48px] h-[48px] rounded-[12px] object-cover shadow-t" />
+                                <div class="avatar-circle"><img :src="char.avatar" /></div>
                             </template>
                             <template x-if="!char.avatar">
-                                <div class="w-[48px] h-[48px] rounded-[12px] flex items-center justify-center shadow-t"
-                                    style="background: linear-gradient(135deg, #505081, #8686AC);">
-                                    <span class="text-white font-bold text-[18px]" x-text="char.name.charAt(0).toUpperCase()"></span>
+                                <div class="avatar-circle">
+                                    <span x-text="char.name.charAt(0).toUpperCase()"></span>
                                 </div>
                             </template>
                         </div>
                         <!-- Info -->
-                        <div class="flex-grow min-w-0">
-                            <div class="flex items-center gap-2 mb-1">
-                                <p class="text-[14px] font-semibold text-1 truncate" x-text="char.name"></p>
+                        <div style="flex-grow:1; min-width:0;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                                <p style="font-size:14px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.name"></p>
                                 <template x-if="char.id === 'kokomi'">
-                                    <span class="text-[9px] font-bold uppercase tracking-[0.05em] px-1.5 py-0.5 rounded-[5px] bg-accent-sub text-accent-c shrink-0">Default</span>
+                                    <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent);">Default</span>
                                 </template>
                             </div>
-                            <p class="text-[12px] text-3 line-clamp-2 leading-relaxed" x-text="char.persona"></p>
+                            <p style="font-size:12px; color:var(--text-tertiary); display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.55;" x-text="char.persona"></p>
                             <!-- MCP badges -->
-                            <div class="flex flex-wrap gap-1 mt-1.5" x-show="char.mcp_servers && char.mcp_servers.length">
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;" x-show="char.mcp_servers && char.mcp_servers.length">
                                 <template x-for="sid in (char.mcp_servers || [])" :key="sid">
-                                    <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-[5px] truncate max-w-[100px]"
-                                        style="background: var(--accent-subtle); color: var(--accent);"
+                                    <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent); max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
                                         x-text="getMCPName(sid)"></span>
                                 </template>
                             </div>
                         </div>
                         <!-- Actions -->
-                        <div class="shrink-0 flex flex-col gap-1 opacity-0 group-hover:opacity-100 t-apple">
-                            <button @click="openCharModal(char)"
-                                class="w-[28px] h-[28px] rounded-[8px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple">
-                                <i class="fa-solid fa-pen text-[11px]"></i>
+                        <div class="action-btns" style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
+                            <button @click="openCharModal(char)" class="sm-icon-btn" style="color:var(--text-tertiary);">
+                                <i class="fa-solid fa-pen" style="font-size:11px;"></i>
                             </button>
                             <template x-if="char.id !== 'kokomi'">
-                                <button @click="deleteChar(char.id)"
-                                    class="w-[28px] h-[28px] rounded-[8px] hover-surface flex items-center justify-center text-red-400 hover:text-red-300 t-apple">
-                                    <i class="fa-solid fa-trash text-[11px]"></i>
+                                <button @click="deleteChar(char.id)" class="sm-icon-btn" style="color:#f87171;">
+                                    <i class="fa-solid fa-trash" style="font-size:11px;"></i>
                                 </button>
                             </template>
                         </div>
@@ -178,193 +623,266 @@
             </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════ -->
-        <!-- TAB: MCP SERVERS                                    -->
-        <!-- ═══════════════════════════════════════════════════ -->
-        <div x-show="tab === 'mcp'" x-transition>
-            <div class="flex items-center justify-between mb-4">
+        <!-- ═══════════ TAB: MCP SERVERS ═══════════ -->
+        <div x-show="tab === 'mcp'" x-transition class="tab-panel">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
                 <div>
-                    <h2 class="text-[18px] font-bold text-1 tracking-[-0.02em]">MCP Servers</h2>
-                    <p class="text-[13px] text-3 mt-0.5">Connect tools via the Model Context Protocol.</p>
+                    <h2 class="section-title">MCP Servers</h2>
+                    <p class="section-subtitle">Connect tools via the Model Context Protocol.</p>
                 </div>
-                <button @click="openMCPModal()"
-                    class="flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[13px] font-semibold t-apple"
-                    style="background: var(--accent); color: var(--accent-text);">
-                    <i class="fa-solid fa-plus text-[11px]"></i> Add Server
+                <button @click="openMCPModal()" class="btn-accent">
+                    <i class="fa-solid fa-plus" style="font-size:11px;"></i> Add Server
                 </button>
             </div>
 
-            <!-- MCP Info Banner -->
-            <div class="mb-4 p-3.5 rounded-[12px] border border-themed flex items-start gap-3" style="background: var(--accent-subtle);">
-                <i class="fa-solid fa-circle-info text-accent-c text-[14px] mt-0.5 shrink-0"></i>
-                <div class="text-[12px] text-2 leading-relaxed">
-                    <p class="font-semibold text-1 mb-0.5">What are MCP Servers?</p>
+            <!-- Info Banner -->
+            <div class="info-banner" style="margin-bottom:16px;">
+                <i class="fa-solid fa-circle-info" style="color:var(--accent); font-size:14px; margin-top:2px; flex-shrink:0;"></i>
+                <div style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
+                    <p style="font-weight:600; color:var(--text-primary); margin-bottom:3px;">What are MCP Servers?</p>
                     <p>MCP (Model Context Protocol) lets your AI use external tools — file systems, databases, APIs — by connecting to tool servers. Add a server here, then assign it to a character in the Characters tab.</p>
                 </div>
             </div>
 
-            <div class="space-y-3">
+            <div style="display:flex; flex-direction:column; gap:12px;">
                 <template x-for="srv in mcpServers" :key="srv.id">
-                    <div class="material-elevated border border-themed rounded-[14px] p-4 flex items-center gap-4 group t-apple">
+                    <div class="mcp-row">
                         <!-- Icon -->
-                        <div class="w-[40px] h-[40px] rounded-[10px] flex items-center justify-center shrink-0"
-                            :style="srv.enabled ? 'background: var(--accent-subtle)' : 'background: var(--surface-secondary)'">
-                            <i class="text-[16px]"
-                                :class="srv.transport === 'sse' ? 'fa-solid fa-globe text-blue-400' : 'fa-solid fa-terminal text-accent-c'"></i>
+                        <div style="width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"
+                            :style="srv.enabled ? 'background:var(--accent-subtle)' : 'background:var(--bg-input)'">
+                            <i style="font-size:16px;"
+                                :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'"
+                                :style="srv.transport === 'sse' ? 'color:#60A5FA' : 'color:var(--accent)'"></i>
                         </div>
                         <!-- Info -->
-                        <div class="flex-grow min-w-0">
-                            <div class="flex items-center gap-2 mb-0.5">
-                                <p class="text-[14px] font-semibold text-1 truncate" x-text="srv.name"></p>
-                                <span class="text-[9px] font-bold uppercase tracking-[0.05em] px-1.5 py-0.5 rounded-[5px]"
-                                    :class="srv.enabled ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'"
+                        <div style="flex-grow:1; min-width:0;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
+                                <p style="font-size:14px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="srv.name"></p>
+                                <span class="mini-badge"
+                                    :style="srv.enabled ? 'background:rgba(34,197,94,0.12); color:#4ADE80;' : 'background:rgba(248,113,113,0.12); color:#f87171;'"
                                     x-text="srv.enabled ? 'Active' : 'Disabled'"></span>
                             </div>
-                            <p class="text-[11px] text-4 font-mono truncate"
+                            <p style="font-size:11px; color:var(--text-quaternary); font-family:'SF Mono','JetBrains Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
                                 x-text="srv.transport === 'stdio' ? (srv.command + ' ' + (srv.args || []).join(' ')) : srv.url"></p>
                         </div>
                         <!-- Actions -->
-                        <div class="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 t-apple">
+                        <div class="action-btns" style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
                             <button @click="testMCP(srv.id)" :disabled="testingId === srv.id"
-                                class="px-2.5 py-1.5 rounded-[8px] hover-surface text-[11px] font-semibold text-accent-c t-apple">
-                                <span x-show="testingId !== srv.id"><i class="fa-solid fa-bolt text-[10px]"></i> Test</span>
-                                <span x-show="testingId === srv.id"><i class="fa-solid fa-spinner fa-spin text-[10px]"></i></span>
+                                style="padding:5px 10px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:600; color:var(--accent); background:transparent; transition:all 0.2s ease;"
+                                onmouseover="this.style.background='var(--bg-surface-hover)'" onmouseout="this.style.background='transparent'">
+                                <span x-show="testingId !== srv.id"><i class="fa-solid fa-bolt" style="font-size:10px;"></i> Test</span>
+                                <span x-show="testingId === srv.id"><i class="fa-solid fa-spinner fa-spin" style="font-size:10px;"></i></span>
                             </button>
-                            <button @click="openMCPModal(srv)"
-                                class="w-[28px] h-[28px] rounded-[8px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple">
-                                <i class="fa-solid fa-pen text-[11px]"></i>
+                            <button @click="openMCPModal(srv)" class="sm-icon-btn" style="color:var(--text-tertiary);">
+                                <i class="fa-solid fa-pen" style="font-size:11px;"></i>
                             </button>
-                            <button @click="deleteMCP(srv.id)"
-                                class="w-[28px] h-[28px] rounded-[8px] hover-surface flex items-center justify-center text-red-400 hover:text-red-300 t-apple">
-                                <i class="fa-solid fa-trash text-[11px]"></i>
+                            <button @click="deleteMCP(srv.id)" class="sm-icon-btn" style="color:#f87171;">
+                                <i class="fa-solid fa-trash" style="font-size:11px;"></i>
                             </button>
                         </div>
                     </div>
                 </template>
                 <template x-if="mcpServers.length === 0">
-                    <div class="flex flex-col items-center py-12 text-center">
-                        <div class="w-14 h-14 rounded-[14px] bg-accent-sub flex items-center justify-center mb-3">
-                            <i class="fa-solid fa-plug text-accent-c text-[22px]"></i>
+                    <div style="display:flex; flex-direction:column; align-items:center; padding:48px 0; text-align:center;">
+                        <div style="width:56px; height:56px; border-radius:16px; background:var(--accent-subtle); display:flex; align-items:center; justify-content:center; margin-bottom:14px;">
+                            <i class="fa-solid fa-plug" style="color:var(--accent); font-size:22px;"></i>
                         </div>
-                        <p class="text-[14px] font-semibold text-1 mb-1">No MCP Servers</p>
-                        <p class="text-[12px] text-3">Add your first server to give characters access to tools.</p>
+                        <p style="font-size:15px; font-weight:600; color:var(--text-primary); margin-bottom:4px;">No MCP Servers</p>
+                        <p style="font-size:12px; color:var(--text-tertiary);">Add your first server to give characters access to tools.</p>
                     </div>
                 </template>
             </div>
 
             <!-- Test Result Toast -->
             <div x-show="testResult" x-transition
-                class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-[14px] shadow-t-lg t-apple text-[13px] font-medium max-w-sm"
-                :class="testResult?.ok ? 'bg-green-500/90 text-white' : 'bg-red-500/90 text-white'">
+                style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:50; padding:12px 20px; border-radius:16px; font-size:13px; font-weight:500; max-width:400px; width:90%; word-break:break-word; max-height:200px; overflow-y:auto;"
+                :style="testResult?.ok ? 'background:rgba(34,197,94,0.9); color:#fff; box-shadow:var(--shadow-lg);' : 'background:rgba(239,68,68,0.9); color:#fff; box-shadow:var(--shadow-lg);'">
                 <template x-if="testResult?.ok">
-                    <span><i class="fa-solid fa-check-circle mr-1.5"></i> Connected! Found <span x-text="testResult.count"></span> tools</span>
+                    <span><i class="fa-solid fa-check-circle" style="margin-right:6px;"></i> Connected! Found <span x-text="testResult.count"></span> tools</span>
                 </template>
                 <template x-if="testResult && !testResult.ok">
-                    <span><i class="fa-solid fa-times-circle mr-1.5"></i> <span x-text="testResult.error"></span></span>
+                    <div style="display:flex; align-items:flex-start; gap:8px;">
+                        <i class="fa-solid fa-times-circle" style="margin-top:2px;"></i>
+                        <span x-text="testResult.error" style="line-height:1.4;"></span>
+                    </div>
                 </template>
             </div>
         </div>
 
-        <!-- ── About ── -->
-        <div class="mt-8 material-elevated border border-themed rounded-[14px] p-5">
-            <h3 class="text-[15px] font-semibold text-1 mb-2">About Kokomi AI</h3>
-            <div class="space-y-1.5 text-[13px] text-3">
-                <p><span class="text-2 font-medium">Chat Model:</span> qwen/qwen3-32b via Groq</p>
-                <p><span class="text-2 font-medium">Title Model:</span> llama-4-scout-17b</p>
-                <p><span class="text-2 font-medium">MCP SDK:</span> v1.27+</p>
+        <!-- ═══════════ TAB: APPEARANCE ═══════════ -->
+        <div x-show="tab === 'appearance'" x-transition class="tab-panel">
+            <div style="margin-bottom:20px;">
+                <h2 class="section-title">Appearance</h2>
+                <p class="section-subtitle">Customize the visual theme and background.</p>
+            </div>
+
+            <div class="glass-card">
+                <!-- Custom Accent Color -->
+                <div class="card-row">
+                    <label class="apple-label" style="margin-bottom:12px;">Custom Accent Color</label>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <input type="color" x-model="customAccent" @change="saveAppearance()"
+                            style="width:40px; height:40px; padding:0; border:none; border-radius:8px; cursor:pointer; background:transparent;">
+                        <button @click="customAccent = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:6px 12px;">Reset to Default</button>
+                    </div>
+                </div>
+
+                <!-- Custom Wallpaper -->
+                <div class="card-row">
+                    <label class="apple-label" style="margin-bottom:10px;">Custom Wallpaper</label>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <input type="file" @change="uploadWallpaper" accept="image/*" class="apple-field" style="padding:8px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <input type="text" x-model="customWallpaper" @blur="saveAppearance()"
+                                placeholder="Or enter image URL..." class="apple-field" style="flex:1;">
+                            <button @click="customWallpaper = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:6px 12px; white-space:nowrap;">Clear Wallpaper</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wallpaper Blur -->
+                <div class="card-row" x-show="customWallpaper">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label class="apple-label" style="margin-bottom:0;">Wallpaper Blur</label>
+                        <span style="font-size:11px; font-weight:600; color:var(--text-tertiary);" x-text="customBlur + 'px'"></span>
+                    </div>
+                    <input type="range" min="0" max="100" step="1" x-model="customBlur" @change="saveAppearance()"
+                        style="width:100%; height:4px; appearance:none; background:var(--bg-input); border-radius:10px; outline:none; cursor:pointer; accent-color:var(--accent);">
+                    <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:9px; color:var(--text-quaternary); text-transform:uppercase; letter-spacing:0.05em;">
+                        <span>Sharp</span>
+                        <span>Frosted</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── About Footer ── -->
+        <div class="about-footer">
+            <h3 style="font-size:15px; font-weight:700; color:var(--text-primary); margin-bottom:10px;">About Kokomi AI</h3>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--text-tertiary);">
+                <p><span style="font-weight:600; color:var(--text-secondary);">Chat Model:</span> qwen/qwen3-32b via Groq</p>
+                <p><span style="font-weight:600; color:var(--text-secondary);">Title Model:</span> llama-4-scout-17b</p>
+                <p><span style="font-weight:600; color:var(--text-secondary);">MCP SDK:</span> v1.27+</p>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════════ CHARACTER MODAL ═══════════════ -->
-    <div x-show="charModal" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    <!-- ═══════════ CHARACTER MODAL ═══════════ -->
+    <div x-show="charModal" x-cloak class="modal-overlay"
         @keydown.escape.window="charModal = false">
-        <div class="absolute inset-0" style="background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);" @click="charModal = false"
+        <div class="modal-backdrop" @click="charModal = false"
             x-show="charModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
-        <div class="relative w-full sm:max-w-lg mx-4 material-elevated border border-themed rounded-t-[20px] sm:rounded-[20px] p-6 z-10 max-h-[85vh] overflow-y-auto"
+        <div class="modal-sheet"
             x-show="charModal"
             x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
-            <div class="sm:hidden w-10 h-1 rounded-full mx-auto mb-4" style="background: var(--text-quaternary)"></div>
-            <h3 class="text-[17px] font-bold text-1 mb-5" x-text="charEditId ? 'Edit Character' : 'New Character'"></h3>
-
-            <form @submit.prevent="saveChar()" class="space-y-4">
+            <div class="modal-handle"></div>
+            <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:24px;" x-text="charEditId ? 'Edit Character' : 'New Character'"></h3>
+            <form @submit.prevent="saveChar()" style="display:flex; flex-direction:column; gap:18px;">
                 <!-- Templates -->
                 <div x-show="!charEditId">
-                    <label class="block text-[12px] font-semibold text-2 uppercase tracking-[0.04em] mb-2">Quick Templates</label>
-                    <div class="flex gap-2">
+                    <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Quick Templates</label>
+                    <div style="display:flex; gap:8px;">
                         <button type="button" @click="charName='Nahida'; charPersona='You are Nahida, the Lesser Lord Kusanali. You are wise, curious, and speak in beautiful metaphors. You treat everyone with kindness and wonder.'"
-                            class="px-3 py-1.5 rounded-[8px] bg-accent-sub text-accent-c text-[12px] font-medium border border-themed hover-accent-sub t-apple">Nahida</button>
+                            class="template-btn">Nahida</button>
                         <button type="button" @click="charName='Kokomi'; charPersona='You are Kokomi, the Divine Priestess of Watatsumi Island. You are a brilliant strategist and a gentle, thoughtful leader.'"
-                            class="px-3 py-1.5 rounded-[8px] bg-accent-sub text-accent-c text-[12px] font-medium border border-themed hover-accent-sub t-apple">Kokomi</button>
+                            class="template-btn">Kokomi</button>
                     </div>
                 </div>
-
                 <!-- Avatar -->
-                <div class="flex items-center gap-4">
-                    <label class="cursor-pointer group">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <label style="cursor:pointer;">
                         <template x-if="charAvatarPreview">
-                            <img :src="charAvatarPreview" class="w-[64px] h-[64px] rounded-[14px] object-cover shadow-t group-hover:opacity-80 t-apple" />
-                        </template>
-                        <template x-if="!charAvatarPreview">
-                            <div class="w-[64px] h-[64px] rounded-[14px] flex flex-col items-center justify-center shadow-t group-hover:opacity-80 t-apple border-2 border-dashed border-themed"
-                                style="background: var(--accent-subtle);">
-                                <i class="fa-solid fa-camera text-accent-c text-[16px]"></i>
-                                <span class="text-[9px] text-3 mt-1 font-medium">Avatar</span>
+                            <div class="avatar-circle" style="width:68px; height:68px;">
+                                <img :src="charAvatarPreview" style="width:100%; height:100%; border-radius:16px; object-fit:cover;" />
                             </div>
                         </template>
-                        <input type="file" accept="image/*" class="hidden" @change="previewCharAvatar($event)" />
+                        <template x-if="!charAvatarPreview">
+                            <div class="upload-area">
+                                <i class="fa-solid fa-camera" style="color:var(--accent); font-size:16px;"></i>
+                                <span style="font-size:9px; color:var(--text-tertiary); margin-top:4px; font-weight:500;">Avatar</span>
+                            </div>
+                        </template>
+                        <input type="file" accept="image/*" style="display:none;" @change="previewCharAvatar($event)" />
                     </label>
                     <div>
-                        <p class="text-[13px] font-semibold text-1">Profile Picture</p>
-                        <p class="text-[11px] text-4">Click to upload. PNG, JPG, WebP.</p>
+                        <p style="font-size:13px; font-weight:600; color:var(--text-primary);">Profile Picture</p>
+                        <p style="font-size:11px; color:var(--text-quaternary);">Click to upload. PNG, JPG, WebP.</p>
                     </div>
                 </div>
-
                 <!-- Name -->
                 <div>
                     <label class="apple-label">Name</label>
-                    <input x-model="charName" type="text" required placeholder="e.g. Luna, Sensei, CodeBot..."
-                        class="apple-field" />
+                    <input x-model="charName" type="text" required placeholder="e.g. Luna, Sensei, CodeBot..." class="apple-field" />
                 </div>
-
                 <!-- Persona -->
                 <div>
                     <label class="apple-label">Persona / System Prompt</label>
                     <textarea x-model="charPersona" rows="4" required
                         placeholder="You are Luna, a gentle and wise mentor..."
-                        class="apple-field resize-none leading-relaxed"></textarea>
-                    <p class="text-[10px] text-4 mt-1">This is the system prompt. Be descriptive about tone and expertise.</p>
+                        class="apple-field" style="resize:none; line-height:1.65;"></textarea>
+                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">This is the system prompt. Be descriptive about tone and expertise.</p>
                 </div>
-
+                <!-- Per-Provider Model Override -->
+                <div>
+                    <label class="apple-label" x-text="'Preferred ' + (prefs.llm_provider === 'google' ? 'Gemini' : prefs.llm_provider === 'local' ? 'Local' : 'Groq') + ' Model'"></label>
+                    <div style="position:relative;">
+                        <select x-model="currentCharModel" class="apple-field" style="padding-right:40px; cursor:pointer;">
+                            <option value="default" style="background:var(--bg-canvas); color:var(--text-primary);">Default (Global Setting)</option>
+                            <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
+                                <option :value="m.id" x-text="m.name || m.id" style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                            </template>
+                        </select>
+                        <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">Each provider has its own model slot. Switch providers in General to set the others.</p>
+                </div>
+                <!-- Voice Selection -->
+                <div>
+                    <label class="apple-label">Voice (Gemini Live)</label>
+                    <div style="position:relative;">
+                        <select x-model="charVoice" class="apple-field" style="padding-right:40px; cursor:pointer;">
+                            <option value="aoede" style="background:var(--bg-canvas); color:var(--text-primary);">Aoede (Warm, feminine)</option>
+                            <option value="kore" style="background:var(--bg-canvas); color:var(--text-primary);">Kore (Clear, neutral feminine)</option>
+                            <option value="puck" style="background:var(--bg-canvas); color:var(--text-primary);">Puck (Playful, energetic)</option>
+                            <option value="charon" style="background:var(--bg-canvas); color:var(--text-primary);">Charon (Deep, calm)</option>
+                            <option value="fenrir" style="background:var(--bg-canvas); color:var(--text-primary);">Fenrir (Strong, assertive)</option>
+                        </select>
+                        <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
                 <!-- MCP Servers -->
                 <div x-show="mcpServers.length > 0">
-                    <label class="block text-[12px] font-semibold text-2 uppercase tracking-[0.04em] mb-2">Granular MCP Tool Access</label>
-                    <div class="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                    <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Granular MCP Tool Access</label>
+                    <div style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; padding-right:4px;">
                         <template x-for="srv in mcpServers" :key="srv.id">
-                            <div class="rounded-[12px] border border-themed p-3 t-apple"
-                                 :style="charMCPServers.includes(srv.id) ? 'background: var(--accent-subtle); border-color: var(--accent)' : 'background: var(--surface-input)'">
-                                <label class="flex items-center gap-3 cursor-pointer">
+                            <div style="border-radius:14px; border:1px solid var(--border); padding:12px; transition:all 0.2s ease;"
+                                 :style="charMCPServers.includes(srv.id) ? 'background:var(--accent-subtle); border-color:var(--accent)' : 'background:var(--bg-input)'">
+                                <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
                                     <input type="checkbox" :value="srv.id"
                                         :checked="charMCPServers.includes(srv.id)"
                                         @change="toggleCharMCP(srv.id)"
-                                        class="w-4 h-4 rounded-[4px]" style="accent-color: var(--accent);" />
-                                    <div class="flex-grow min-w-0">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-[13px] font-bold text-1" x-text="srv.name"></span>
-                                            <i :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'" class="text-[10px] text-3"></i>
+                                        style="width:16px; height:16px; border-radius:4px; accent-color:var(--accent);" />
+                                    <div style="flex-grow:1; min-width:0;">
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <span style="font-size:13px; font-weight:700; color:var(--text-primary);" x-text="srv.name"></span>
+                                            <i :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'" style="font-size:10px; color:var(--text-tertiary);"></i>
                                         </div>
                                     </div>
                                     <button type="button" @click="fetchMCPTools(srv.id)"
-                                            class="text-[10px] font-semibold text-accent-c hover:underline">
+                                        style="font-size:10px; font-weight:600; color:var(--accent); background:none; border:none; cursor:pointer; text-decoration:none;"
+                                        onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
                                         Browse Tools
                                     </button>
                                 </label>
-                                <!-- Tool List (Dynamic) -->
-                                <div x-show="mcpTools[srv.id]" class="mt-2 pt-2 border-t border-themed">
-                                    <div class="text-[10px] text-3 mb-1 font-bold italic">Available Tools:</div>
-                                    <div class="flex flex-wrap gap-1">
+                                <div x-show="mcpTools[srv.id]" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--separator);">
+                                    <div style="font-size:10px; color:var(--text-tertiary); margin-bottom:6px; font-weight:700; font-style:italic;">Available Tools:</div>
+                                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
                                         <template x-for="t in mcpTools[srv.id]" :key="t">
-                                            <span class="text-[9px] px-1.5 py-0.5 rounded-[4px] bg-canvas border border-themed font-mono" x-text="t"></span>
+                                            <span class="tool-pill" x-text="t"></span>
                                         </template>
                                     </div>
                                 </div>
@@ -372,96 +890,89 @@
                         </template>
                     </div>
                 </div>
-
                 <!-- Buttons -->
-                <div class="flex items-center justify-end gap-2 pt-2">
-                    <button type="button" @click="charModal = false"
-                        class="px-4 py-2 rounded-[10px] text-[13px] font-medium text-2 hover-surface t-apple">Cancel</button>
-                    <button type="submit" :disabled="saving"
-                        class="px-5 py-2 rounded-[10px] text-[13px] font-semibold t-apple shadow-t"
-                        style="background: var(--accent); color: var(--accent-text);">
+                <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-top:8px;">
+                    <button type="button" @click="charModal = false" class="btn-ghost">Cancel</button>
+                    <button type="submit" :disabled="saving" class="btn-accent">
                         <span x-show="!saving" x-text="charEditId ? 'Save' : 'Create Character'"></span>
-                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin text-[12px]"></i></span>
+                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:12px;"></i></span>
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- ═══════════════ MCP SERVER MODAL ═══════════════ -->
-    <div x-show="mcpModal" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+    <!-- ═══════════ MCP SERVER MODAL ═══════════ -->
+    <div x-show="mcpModal" x-cloak class="modal-overlay"
         @keydown.escape.window="mcpModal = false">
-        <div class="absolute inset-0" style="background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);" @click="mcpModal = false"
+        <div class="modal-backdrop" @click="mcpModal = false"
             x-show="mcpModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
-        <div class="relative w-full sm:max-w-lg mx-4 material-elevated border border-themed rounded-t-[20px] sm:rounded-[20px] p-6 z-10 max-h-[85vh] overflow-y-auto"
+        <div class="modal-sheet"
             x-show="mcpModal"
             x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
-            <div class="sm:hidden w-10 h-1 rounded-full mx-auto mb-4" style="background: var(--text-quaternary)"></div>
-            <h3 class="text-[17px] font-bold text-1 mb-5" x-text="mcpEditId ? 'Edit MCP Server' : 'Add MCP Server'"></h3>
-
-            <form @submit.prevent="saveMCP()" class="space-y-4">
+            <div class="modal-handle"></div>
+            <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:24px;" x-text="mcpEditId ? 'Edit MCP Server' : 'Add MCP Server'"></h3>
+            <form @submit.prevent="saveMCP()" style="display:flex; flex-direction:column; gap:18px;">
                 <!-- Name -->
                 <div>
                     <label class="apple-label">Server Name</label>
-                    <input x-model="mcpName" type="text" required placeholder="e.g. Filesystem, Web Search, GitHub..."
-                        class="apple-field" />
+                    <input x-model="mcpName" type="text" required placeholder="e.g. Filesystem, Web Search, GitHub..." class="apple-field" />
                 </div>
-
                 <!-- Transport -->
                 <div>
-                    <label class="block text-[12px] font-semibold text-2 uppercase tracking-[0.04em] mb-1.5">Transport</label>
-                    <div class="flex flex-wrap gap-2">
+                    <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Transport</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
                         <button type="button" @click="mcpTransport = 'stdio'"
-                            :class="mcpTransport === 'stdio' ? 'border-2 text-1 font-semibold' : 'border border-themed text-3'"
-                            :style="mcpTransport === 'stdio' ? 'border-color: var(--accent); background: var(--accent-subtle)' : ''"
-                            class="flex-1 min-w-[100px] px-3 py-2.5 rounded-[10px] text-[13px] t-apple flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-terminal text-[11px]"></i> stdio
+                            class="transport-btn" :class="mcpTransport === 'stdio' ? 'selected' : ''">
+                            <i class="fa-solid fa-terminal" style="font-size:11px;"></i> stdio
                         </button>
                         <button type="button" @click="mcpTransport = 'sse'"
-                            :class="mcpTransport === 'sse' ? 'border-2 text-1 font-semibold' : 'border border-themed text-3'"
-                            :style="mcpTransport === 'sse' ? 'border-color: var(--accent); background: var(--accent-subtle)' : ''"
-                            class="flex-1 min-w-[100px] px-3 py-2.5 rounded-[10px] text-[13px] t-apple flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-cloud text-[11px]"></i> SSE
+                            class="transport-btn" :class="mcpTransport === 'sse' ? 'selected' : ''">
+                            <i class="fa-solid fa-cloud" style="font-size:11px;"></i> SSE
                         </button>
                         <button type="button" @click="mcpTransport = 'streamable-http'"
-                            :class="mcpTransport === 'streamable-http' ? 'border-2 text-1 font-semibold' : 'border border-themed text-3'"
-                            :style="mcpTransport === 'streamable-http' ? 'border-color: var(--accent); background: var(--accent-subtle)' : ''"
-                            class="flex-1 min-w-[150px] px-3 py-2.5 rounded-[10px] text-[13px] t-apple flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-network-wired text-[11px]"></i> Streamable HTTP
+                            class="transport-btn" :class="mcpTransport === 'streamable-http' ? 'selected' : ''">
+                            <i class="fa-solid fa-network-wired" style="font-size:11px;"></i> Streamable HTTP
                         </button>
                     </div>
                 </div>
-
                 <!-- stdio fields -->
                 <template x-if="mcpTransport === 'stdio'">
-                    ...
+                    <div style="display:flex; flex-direction:column; gap:16px;">
+                        <div>
+                            <label class="apple-label">Command</label>
+                            <input x-model="mcpCommand" type="text" required placeholder="e.g. npx, python3, node..." class="apple-field" />
+                        </div>
+                        <div>
+                            <label class="apple-label">Arguments (one per line)</label>
+                            <textarea x-model="mcpArgs" rows="3" placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;/path/to/data" class="apple-field" style="resize:none; font-family:'SF Mono',monospace;"></textarea>
+                        </div>
+                        <div>
+                            <label class="apple-label">Environment Variables (KEY=VALUE, one per line)</label>
+                            <textarea x-model="mcpEnv" rows="2" placeholder="API_KEY=your_key_here" class="apple-field" style="resize:none; font-family:'SF Mono',monospace;"></textarea>
+                        </div>
+                    </div>
                 </template>
-
                 <!-- URL-based fields (SSE & Streamable HTTP) -->
                 <template x-if="mcpTransport === 'sse' || mcpTransport === 'streamable-http'">
                     <div>
                         <label class="apple-label">Server URL</label>
-                        <input x-model="mcpUrl" type="url" required 
+                        <input x-model="mcpUrl" type="url" required
                             :placeholder="mcpTransport === 'sse' ? 'http://localhost:3001/sse' : 'http://localhost:3001/mcp'"
-                            class="apple-field font-mono" />
+                            class="apple-field" style="font-family:'SF Mono','JetBrains Mono',monospace;" />
                     </div>
                 </template>
-
                 <!-- Enabled -->
-                <label class="flex items-center gap-3 cursor-pointer px-1 mt-2">
-                    <input type="checkbox" x-model="mcpEnabled" class="w-4 h-4 rounded-[4px]" style="accent-color: var(--accent);" />
-                    <span class="text-[13px] font-medium text-1">Enabled</span>
+                <label style="display:flex; align-items:center; gap:12px; cursor:pointer; padding:0 4px;">
+                    <input type="checkbox" x-model="mcpEnabled" style="width:16px; height:16px; border-radius:4px; accent-color:var(--accent);" />
+                    <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Enabled</span>
                 </label>
-
                 <!-- Buttons -->
-                <div class="flex items-center justify-end gap-2 pt-2">
-                    <button type="button" @click="mcpModal = false"
-                        class="px-4 py-2 rounded-[10px] text-[13px] font-medium text-2 hover-surface t-apple">Cancel</button>
-                    <button type="submit" :disabled="saving"
-                        class="px-5 py-2 rounded-[10px] text-[13px] font-semibold t-apple shadow-t"
-                        style="background: var(--accent); color: var(--accent-text);">
+                <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-top:8px;">
+                    <button type="button" @click="mcpModal = false" class="btn-ghost">Cancel</button>
+                    <button type="submit" :disabled="saving" class="btn-accent">
                         <span x-show="!saving" x-text="mcpEditId ? 'Save' : 'Add Server'"></span>
-                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin text-[12px]"></i></span>
+                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:12px;"></i></span>
                     </button>
                 </div>
             </form>
@@ -476,18 +987,69 @@ function settingsApp() {
         characters: [],
         mcpServers: [],
         models: [],
-        prefs: { model_name: '', user_persona: '' },
+        prefs: { 
+            model_name: '', 
+            user_persona: '', 
+            whatsapp_enabled: false, 
+            whatsapp_character_id: 'kokomi',
+            whatsapp_api_url: 'http://localhost:3013'
+        },
         prefSaving: false,
         saving: false,
+
+        customAccent: localStorage.getItem('customAccent') || '',
+        customWallpaper: localStorage.getItem('customWallpaper') || '',
+        customBlur: localStorage.getItem('customBlur') || '0',
+
+        saveAppearance() {
+            if (this.customAccent) localStorage.setItem('customAccent', this.customAccent);
+            else localStorage.removeItem('customAccent');
+            
+            localStorage.setItem('customBlur', this.customBlur);
+            
+            if (this.customWallpaper.trim()) localStorage.setItem('customWallpaper', this.customWallpaper.trim());
+            else localStorage.removeItem('customWallpaper');
+            
+            location.reload();
+        },
+
+        uploadWallpaper(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.customWallpaper = ev.target.result; // Data URL
+                this.saveAppearance();
+            };
+            reader.readAsDataURL(file);
+        },
 
         // Character modal state
         charModal: false,
         charEditId: null,
         charName: '',
         charPersona: '',
+        charGroqModel: 'default',
+        charGoogleModel: 'default',
+        charLocalModel: 'default',
+        charVoice: 'aoede',
         charAvatarPreview: null,
         charAvatarFile: null,
         charMCPServers: [],
+
+        // Computed-like getter/setter that maps to the active provider's slot
+        get currentCharModel() {
+            const p = this.prefs.llm_provider;
+            if (p === 'google') return this.charGoogleModel;
+            if (p === 'local') return this.charLocalModel;
+            return this.charGroqModel;
+        },
+        set currentCharModel(v) {
+            const p = this.prefs.llm_provider;
+            if (p === 'google') this.charGoogleModel = v;
+            else if (p === 'local') this.charLocalModel = v;
+            else this.charGroqModel = v;
+        },
         mcpTools: {}, 
 
         // MCP modal state
@@ -564,12 +1126,20 @@ function settingsApp() {
                 this.charEditId = char.id;
                 this.charName = char.name;
                 this.charPersona = char.persona;
+                this.charGroqModel = char.groq_model || 'default';
+                this.charGoogleModel = char.google_model || 'default';
+                this.charLocalModel = char.local_model || 'default';
+                this.charVoice = char.voice || 'aoede';
                 this.charAvatarPreview = char.avatar;
                 this.charMCPServers = [...(char.mcp_servers || [])];
             } else {
                 this.charEditId = null;
                 this.charName = '';
                 this.charPersona = '';
+                this.charGroqModel = 'default';
+                this.charGoogleModel = 'default';
+                this.charLocalModel = 'default';
+                this.charVoice = 'aoede';
                 this.charAvatarPreview = null;
                 this.charMCPServers = [];
             }
@@ -612,6 +1182,10 @@ function settingsApp() {
             const fd = new FormData();
             fd.append('name', this.charName.trim());
             fd.append('persona', this.charPersona.trim());
+            fd.append('groq_model', this.charGroqModel.trim());
+            fd.append('google_model', this.charGoogleModel.trim());
+            fd.append('local_model', this.charLocalModel.trim());
+            fd.append('voice', this.charVoice.trim());
             fd.append('mcp_servers', this.charMCPServers.join(','));
             if (this.charAvatarFile) fd.append('avatar', this.charAvatarFile);
 

@@ -1,0 +1,594 @@
+{% extends "base.html" %}
+{% block title %}Voice Call · Kokomi AI{% endblock %}
+
+{% block head %}
+<style>
+    .call-page { height:100vh; display:flex; flex-direction:column; background:transparent; overflow:hidden; }
+
+    /* ── Contact List ── */
+    .contacts-view { flex:1; display:flex; flex-direction:column; }
+    .contacts-header { padding:20px 24px 12px; }
+    .contacts-header h1 { font-size:32px; font-weight:800; letter-spacing:-0.03em; color:var(--text-primary); }
+    .contacts-search { margin:0 20px 16px; position:relative; }
+    .contacts-search input { width:100%; padding:10px 14px 10px 38px; border-radius:12px; border:none; background:var(--bg-input); color:var(--text-primary); font-size:14px; outline:none; }
+    .contacts-search i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-quaternary); font-size:13px; }
+    .section-title { font-size:18px; font-weight:700; color:var(--text-primary); margin:0 20px 14px; letter-spacing:-0.01em; }
+    
+    .horizontal-contacts-container { margin-bottom:32px; }
+    .horizontal-contacts { display:flex; gap:16px; overflow-x:auto; padding:0 20px 12px; scrollbar-width:none; -ms-overflow-style:none; }
+    .horizontal-contacts::-webkit-scrollbar { display:none; }
+    
+    .contact-card { position:relative; width:120px; aspect-ratio:3/4; border-radius:20px; overflow:hidden; cursor:pointer; background:var(--bg-surface); transition:all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow:0 8px 24px rgba(0,0,0,0.08); flex-shrink:0; }
+    .contact-card:active { transform:scale(0.96); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    .contact-card img { width:100%; height:100%; object-fit:cover; transition:transform 0.5s ease; }
+    .contact-card .placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:40px; font-weight:700; color:#fff; background:linear-gradient(135deg, #505081, #8686AC); }
+    .card-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, transparent 40%, rgba(15,14,71,0.9) 100%); pointer-events:none; }
+    .card-info { position:absolute; bottom:0; left:0; right:0; padding:12px; z-index:2; }
+    .card-name { font-size:14px; font-weight:700; color:#fff; letter-spacing:-0.02em; margin-bottom:2px; text-shadow:0 2px 8px rgba(0,0,0,0.5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .card-call-icon { position:absolute; right:8px; bottom:8px; width:28px; height:28px; border-radius:14px; background:rgba(52,199,89,0.9); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; backdrop-filter:blur(20px); opacity:0; transform:translateY(10px); transition:all 0.3s ease; }
+    .contact-card:hover .card-call-icon { opacity:1; transform:translateY(0); }
+
+    .vertical-recents-container { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+    .contact-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:16px; padding:0 20px 24px; overflow-y:auto; flex:1; align-content:start; }
+    .contact-card { position:relative; aspect-ratio:3/4; border-radius:24px; overflow:hidden; cursor:pointer; background:var(--bg-surface); transition:all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow:0 8px 24px rgba(0,0,0,0.08); }
+    .contact-card:hover { transform:translateY(-4px) scale(1.02); box-shadow:0 12px 32px rgba(0,0,0,0.15); }
+    .contact-card:active { transform:scale(0.96); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    .contact-card img { width:100%; height:100%; object-fit:cover; transition:transform 0.5s ease; }
+    .contact-card:hover img { transform:scale(1.05); }
+    .contact-card .placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:48px; font-weight:700; color:#fff; background:linear-gradient(135deg, #505081, #8686AC); }
+    .card-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, transparent 40%, rgba(15,14,71,0.9) 100%); pointer-events:none; }
+    .card-info { position:absolute; bottom:0; left:0; right:0; padding:16px; z-index:2; }
+    .card-name { font-size:16px; font-weight:700; color:#fff; letter-spacing:-0.02em; margin-bottom:2px; text-shadow:0 2px 8px rgba(0,0,0,0.5); }
+    .card-persona { font-size:11px; color:rgba(255,255,255,0.7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .card-call-icon { position:absolute; right:12px; bottom:16px; width:36px; height:36px; border-radius:18px; background:rgba(52,199,89,0.9); color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; backdrop-filter:blur(20px); box-shadow:0 4px 12px rgba(52,199,89,0.4); opacity:0; transform:translateY(10px); transition:all 0.3s ease; }
+    .contact-card:hover .card-call-icon { opacity:1; transform:translateY(0); }
+
+    /* ── Active Call Screen ── */
+    .call-screen { position:fixed; inset:0; z-index:500; display:flex; flex-direction:column; }
+    .call-bg { position:absolute; inset:0; background:var(--bg-canvas); backdrop-filter:var(--vibrancy); -webkit-backdrop-filter:var(--vibrancy); opacity:0.85; }
+    .call-header { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:1; padding:20px; }
+    .call-bottom { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; padding-bottom:50px; width:100%; }
+    .call-avatar-ring-container { position:relative; width:140px; height:140px; margin-bottom:20px; cursor:pointer; }
+    .call-avatar-ring { position:absolute; inset:5px; border-radius:50%; padding:4px; background:var(--bg-elevated); box-shadow:var(--shadow-lg); z-index:2; transition:transform 0.2s; }
+    .call-avatar-ring:active { transform:scale(0.95); }
+    .call-avatar-ring img, .call-avatar-ring .placeholder { border-radius:50% !important; width:100%; height:100%; object-fit:cover; }
+    
+    /* Reactive speaking aura */
+    .speak-aura { position:absolute; inset:0; border-radius:50%; background:var(--accent); opacity:0; transition:opacity 0.1s, transform 0.1s; z-index:1; filter:blur(12px); }
+    
+    /* Revolving thinking/tool aura */
+    .think-aura { position:absolute; inset:-4px; border-radius:50%; background:conic-gradient(from 0deg, transparent 70%, #0A84FF 100%); z-index:1; animation:spin 1s linear infinite; opacity:0; transition:opacity 0.3s; }
+    @keyframes spin { 100% { transform:rotate(360deg); } }
+
+    .call-avatar-ring.connecting { animation:pulse-ring 2s ease-in-out infinite; }
+    .call-avatar-ring img, .call-avatar-ring .placeholder { width:100%; height:100%; border-radius:34px; object-fit:cover; }
+    .call-avatar-ring .placeholder { display:flex; align-items:center; justify-content:center; font-size:48px; font-weight:700; color:var(--text-primary); background:var(--bg-surface-hover); }
+    .call-char-name { font-size:28px; font-weight:800; color:var(--text-primary); letter-spacing:-0.03em; margin-bottom:6px; }
+    .call-status { font-size:15px; color:var(--text-tertiary); font-weight:500; margin-bottom:20px; }
+    .call-status.active-status { color:var(--accent); }
+
+    /* ── Waveform ── */
+    .waveform { display:flex; align-items:center; justify-content:center; gap:3px; height:40px; margin-bottom:20px; }
+    .waveform .bar { width:3px; border-radius:2px; background:rgba(255,255,255,0.3); transition:height 0.1s ease; }
+    .waveform.speaking .bar { background:rgba(52,199,89,0.7); }
+
+    /* Adjust contacts-view */
+    .contacts-view { flex:1; display:flex; flex-direction:column; }
+    .contact-grid { padding:0 20px 24px; overflow-y:auto; flex:1; align-content:start; }
+    .recents-list { padding:0 20px 24px; overflow-y:auto; flex:1; }
+
+    /* ── Recents List ── */
+    .recent-item { display:flex; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; transition:background 0.2s; }
+    .recent-item:active { background:rgba(255,255,255,0.05); }
+    .recent-avatar { width:44px; height:44px; border-radius:22px; background:var(--bg-surface-hover); margin-right:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; font-weight:700; color:var(--text-primary); }
+    .recent-avatar img { width:100%; height:100%; object-fit:cover; }
+    .recent-info { flex:1; }
+    .recent-name { font-size:17px; font-weight:600; color:var(--text-primary); }
+    .recent-meta { font-size:14px; color:var(--text-tertiary); margin-top:2px; display:flex; gap:6px; align-items:center; }
+    .recent-time { font-size:14px; color:var(--text-tertiary); margin-right:8px; }
+    .recent-info-btn { width:28px; height:28px; color:#0A84FF; font-size:20px; display:flex; align-items:center; justify-content:center; }
+
+    /* ── iOS Call Controls ── */
+    .call-controls { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 28px; margin-bottom:40px; max-width:320px; width:100%; }
+    .call-btn-wrapper { display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .call-btn { width:72px; height:72px; border-radius:36px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:28px; transition:all 0.2s ease; backdrop-filter:blur(12px); background:rgba(255,255,255,0.15); color:#fff; }
+    .call-btn:active { transform:scale(0.92); }
+    .call-btn.on { background:#fff; color:#000; }
+    .call-btn-label { font-size:14px; font-weight:500; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,0.3); }
+    
+    .end-btn-container { width:100%; display:flex; justify-content:center; margin-bottom:24px; }
+    .call-btn.end-btn { width:72px; height:72px; border-radius:36px; background:#FF3B30; color:#fff; font-size:28px; box-shadow:0 8px 32px rgba(255,59,48,0.35); transform:rotate(135deg); }
+    .call-btn.end-btn:hover { background:#E0342B; transform:scale(1.05) rotate(135deg); }
+
+    /* ── Transcript ── */
+    .transcript-area { text-align:center; padding:0 32px; width:100%; max-width:400px; margin-top:20px; }
+    .transcript-text { font-size:16px; color:var(--text-secondary); font-weight:500; line-height:1.5; max-height:120px; overflow-y:auto; }
+    
+    .mcp-status-bubble { background:rgba(10,132,255,0.15); color:#0A84FF; padding:8px 16px; border-radius:20px; display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:14px; margin-bottom:12px; }
+
+    /* ── Back button ── */
+    .back-bar { padding:12px 20px; display:flex; align-items:center; gap:8px; }
+    .back-bar a { display:flex; align-items:center; gap:6px; color:var(--text-secondary); font-size:14px; font-weight:600; text-decoration:none; padding:6px 12px; border-radius:10px; transition:all 0.2s ease; }
+    .back-bar a:hover { background:var(--bg-surface-hover); color:var(--text-primary); }
+
+    @keyframes pulse-ring {
+        0%,100% { box-shadow:0 0 0 0 var(--accent-subtle); }
+        50% { box-shadow:0 0 0 16px transparent; }
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="call-page" x-data="callApp()" x-cloak>
+
+    <!-- ═══════ CONTACTS VIEW ═══════ -->
+    <div class="contacts-view" x-show="!inCall" x-transition>
+        <div class="back-bar">
+            <a href="/"><i class="fa-solid fa-chevron-left text-[12px]"></i> Chats</a>
+        </div>
+        <div class="contacts-header" style="display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px;">
+            <div>
+                <h1>Calls</h1>
+                <p style="font-size:13px; color:var(--text-tertiary); margin-top:4px;">Voice call your AI characters with Gemini Live.</p>
+            </div>
+            
+            <div x-show="spaces.length > 0" style="display:flex; align-items:center; gap:8px; background:var(--bg-input); padding:6px 12px; border-radius:10px; border:1px solid var(--border);">
+                <i class="fa-regular fa-object-ungroup text-[10px] color:var(--text-tertiary);"></i>
+                <select x-model="activeSpaceId" style="background:transparent; border:none; color:var(--text-secondary); font-size:12px; font-weight:600; outline:none; cursor:pointer;">
+                    <option :value="null">No Space Linked</option>
+                    <template x-for="s in spaces" :key="s.id">
+                        <option :value="s.id" x-text="s.name"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+        
+        <div class="contacts-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" x-model="search" placeholder="Search contacts..." />
+        </div>
+
+        <!-- Horizontal Contacts List -->
+        <div class="horizontal-contacts-container">
+            <h2 class="section-title">Contacts</h2>
+            <div class="horizontal-contacts">
+                <template x-for="char in filteredChars" :key="char.id">
+                    <div class="contact-card" @click="startCall(char)">
+                        <template x-if="char.avatar">
+                            <img :src="char.avatar" />
+                        </template>
+                        <template x-if="!char.avatar">
+                            <div class="placeholder" x-text="char.name.charAt(0)"></div>
+                        </template>
+                        <div class="card-overlay"></div>
+                        <div class="card-info">
+                            <div class="card-name" x-text="char.name"></div>
+                        </div>
+                        <div class="card-call-icon">
+                            <i class="fa-solid fa-phone"></i>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="filteredChars.length === 0">
+                    <div style="padding:0 20px; color:var(--text-tertiary); font-size:14px;">No contacts found.</div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Vertical Recents List -->
+        <div class="vertical-recents-container">
+            <h2 class="section-title">Recent Calls</h2>
+            <div class="recents-list">
+                <template x-for="r in recents" :key="r.id">
+                    <div class="recent-item" @click="startCall(characters.find(c => c.id === r.charId) || {name:r.name, id:r.charId, avatar:r.avatar})">
+                        <div class="recent-avatar">
+                            <template x-if="r.avatar"><img :src="r.avatar" /></template>
+                            <template x-if="!r.avatar"><span x-text="r.name.charAt(0)"></span></template>
+                        </div>
+                        <div class="recent-info">
+                            <div class="recent-name" x-text="r.name"></div>
+                            <div class="recent-meta">
+                                <i class="fa-solid fa-phone" style="font-size:10px;"></i>
+                                <span x-text="r.durationStr"></span>
+                            </div>
+                        </div>
+                        <div class="recent-time" x-text="r.timestamp"></div>
+                        <div class="recent-info-btn"><i class="fa-solid fa-circle-info"></i></div>
+                    </div>
+                </template>
+                <template x-if="recents.length === 0">
+                    <div style="text-align:center; padding:48px 0; color:var(--text-tertiary);">No Recent Calls</div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Placeholder to remove old junk -->
+    </div>
+
+    <!-- ═══════ ACTIVE CALL SCREEN ═══════ -->
+    <div class="call-screen" x-show="inCall" x-cloak
+         x-transition:enter="transition ease-out duration-400"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0">
+
+        <div class="call-bg"></div>
+
+        <div class="call-header">
+            <!-- Avatar Container -->
+            <div class="call-avatar-ring-container" @click="showTranscript = !showTranscript">
+                <!-- Auras -->
+                <div class="think-aura" :style="(callStatus === 'connecting' || callStatus.startsWith('Using tool') || isThinking) ? 'opacity:1;' : 'opacity:0;'"></div>
+                <div class="speak-aura" :style="(callStatus === 'active' && aiVolume > 0.05) ? `opacity:${0.4 + aiVolume * 0.6}; transform:scale(${1 + aiVolume * 0.3});` : 'opacity:0;'"></div>
+                
+                <div class="call-avatar-ring">
+                    <template x-if="callChar?.avatar">
+                        <img :src="callChar.avatar" />
+                    </template>
+                    <template x-if="!callChar?.avatar">
+                        <div class="placeholder" x-text="callChar?.name?.charAt(0) || '?'"></div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Name & Status -->
+            <div class="call-char-name" x-text="callChar?.name || 'Unknown'"></div>
+            
+            <template x-if="callStatus.startsWith('Using tool')">
+                <div class="mcp-status-bubble" x-transition>
+                    <i class="fa-solid fa-server fa-bounce"></i> <span x-text="callStatus"></span>
+                </div>
+            </template>
+            <template x-if="!callStatus.startsWith('Using tool')">
+                <div class="call-status" :class="callStatus === 'active' && 'active-status'"
+                     x-text="callStatus === 'connecting' ? 'Connecting...' : (callStatus === 'active' ? callDurationStr : 'Ended')">
+                </div>
+            </template>
+
+            <!-- Waveform Visualizer -->
+            <div class="waveform" :class="isSpeaking && 'speaking'" x-show="!callStatus.startsWith('Using tool')">
+                <template x-for="i in 16" :key="i">
+                    <div class="bar" :style="'height:' + waveHeights[i-1] + 'px'"></div>
+                </template>
+            </div>
+
+            <!-- Transcript overlay -->
+            <div class="transcript-area" x-show="showTranscript && transcript" x-transition>
+                <p class="transcript-text" x-text="transcript"></p>
+            </div>
+        </div>
+
+        <div class="call-bottom">
+            <!-- Controls -->
+            <div class="call-controls">
+                <div class="call-btn-wrapper">
+                    <button class="call-btn" :class="isMuted && 'on'" @click="toggleMute()">
+                        <i :class="isMuted ? 'fa-solid fa-microphone-slash' : 'fa-solid fa-microphone'"></i>
+                    </button>
+                    <div class="call-btn-label">mute</div>
+                </div>
+                <div class="call-btn-wrapper">
+                    <button class="call-btn"><i class="fa-solid fa-table-cells"></i></button>
+                    <div class="call-btn-label">keypad</div>
+                </div>
+                <div class="call-btn-wrapper">
+                    <button class="call-btn" :class="speakerOn && 'on'" @click="toggleSpeaker()">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <div class="call-btn-label">speaker</div>
+                </div>
+                <div class="call-btn-wrapper">
+                    <button class="call-btn" style="opacity:0.6;"><i class="fa-solid fa-plus"></i></button>
+                    <div class="call-btn-label" style="opacity:0.6;">add call</div>
+                </div>
+                <div class="call-btn-wrapper">
+                    <button class="call-btn" style="opacity:0.6;"><i class="fa-solid fa-video"></i></button>
+                    <div class="call-btn-label" style="opacity:0.6;">FaceTime</div>
+                </div>
+                <div class="call-btn-wrapper">
+                    <button class="call-btn" style="opacity:0.6;"><i class="fa-solid fa-circle-user"></i></button>
+                    <div class="call-btn-label" style="opacity:0.6;">contacts</div>
+                </div>
+            </div>
+
+            <div class="end-btn-container">
+                <button class="call-btn end-btn" @click="endCall()">
+                    <i class="fa-solid fa-phone"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function callApp() {
+    return {
+
+        recents: JSON.parse(localStorage.getItem('kokomi_call_recents') || '[]'),
+        characters: [],
+        search: '',
+        inCall: false,
+        showTranscript: false,
+        spaces: [],
+        activeSpaceId: null,
+        callChar: null,
+        callStatus: 'idle', // idle | connecting | active | ended
+        isMuted: false,
+        speakerOn: false,
+        isSpeaking: false,
+        isThinking: false,
+        transcript: '',
+        callDuration: 0,
+        callDurationStr: '00:00',
+        waveHeights: Array(16).fill(4),
+        aiVolume: 0,
+
+        // internals
+        _ws: null,
+        _mediaStream: null,
+        _audioCtx: null,
+        _scriptNode: null,
+        _playbackCtx: null,
+        _timer: null,
+        _waveInterval: null,
+        _analyser: null,
+        _aiAnalyser: null,
+        _nextTime: 0,
+
+        get filteredChars() {
+            const q = this.search.toLowerCase();
+            return q ? this.characters.filter(c => c.name.toLowerCase().includes(q)) : this.characters;
+        },
+
+        async init() {
+            try {
+                const [charsRes, spacesRes] = await Promise.all([
+                    fetch('/api/characters'),
+                    fetch('/api/spaces')
+                ]);
+                if (charsRes.ok) this.characters = await charsRes.json();
+                if (spacesRes.ok) this.spaces = await spacesRes.json();
+            } catch(e) { console.error(e); }
+        },
+
+        async startCall(char) {
+            this.callChar = char;
+            this.inCall = true;
+            this.callStatus = 'connecting';
+            this.transcript = '';
+            this.callDuration = 0;
+            this.callDurationStr = '00:00';
+            this.isMuted = false;
+            this.isSpeaking = false;
+            this.aiVolume = 0;
+            this._nextTime = 0;
+
+            try {
+                // Get mic access
+                this._mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+                });
+
+                // Set up audio capture (resample to 16kHz PCM16)
+                this._audioCtx = new AudioContext({ sampleRate: 16000 });
+                const source = this._audioCtx.createMediaStreamSource(this._mediaStream);
+
+                // Analyser for waveform visualization
+                this._analyser = this._audioCtx.createAnalyser();
+                this._analyser.fftSize = 64;
+                source.connect(this._analyser);
+
+                // ScriptProcessor to capture raw PCM
+                this._scriptNode = this._audioCtx.createScriptProcessor(4096, 1, 1);
+                source.connect(this._scriptNode);
+                this._scriptNode.connect(this._audioCtx.destination);
+
+                // Playback context at 24kHz for Gemini output
+                this._playbackCtx = new AudioContext({ sampleRate: 24000 });
+                this._aiAnalyser = this._playbackCtx.createAnalyser();
+                this._aiAnalyser.fftSize = 64;
+                this._aiAnalyser.connect(this._playbackCtx.destination);
+
+                // Connect WebSocket
+                const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+                let wsUrl = `${proto}://${location.host}/ws/voice/${char.id}`;
+                if (this.activeSpaceId) wsUrl += `?space_id=${this.activeSpaceId}`;
+                this._ws = new WebSocket(wsUrl);
+                this._ws.binaryType = 'arraybuffer';
+
+                this._ws.onopen = () => {
+                    console.log('[call] WebSocket connected');
+                };
+
+                this._ws.onmessage = (evt) => {
+                    try {
+                        const msg = JSON.parse(evt.data);
+                        if (msg.type === 'status') {
+                            if (msg.message === 'connected') {
+                                this.callStatus = 'active';
+                                this._startTimer();
+                                this._startWaveform();
+                                this._startSendingAudio();
+                            }
+                        } else if (msg.type === 'audio') {
+                            if (this.callStatus !== 'active') this.callStatus = 'active';
+                            this._playAudio(msg.data);
+                            this.isSpeaking = true;
+                            clearTimeout(this._speakTimeout);
+                            this._speakTimeout = setTimeout(() => { this.isSpeaking = false; }, 400);
+                        } else if (msg.type === 'transcript') {
+                            if (this.callStatus !== 'active') this.callStatus = 'active';
+                            this.transcript = msg.text;
+                        } else if (msg.type === 'turn_complete') {
+                            this._nextTime = 0;
+                            // Keep transcript visible briefly
+                            setTimeout(() => { this.transcript = ''; }, 3000);
+                        } else if (msg.type === 'error') {
+                            console.error('[call] Server error:', msg.message);
+                            this.endCall();
+                        }
+                    } catch(e) { console.error('[call] parse error:', e); }
+                };
+
+                this._ws.onerror = () => {
+                    console.error('[call] WebSocket error');
+                    this.endCall();
+                };
+
+                this._ws.onclose = () => {
+                    if (this.callStatus === 'active' || this.callStatus === 'connecting') {
+                        this.callStatus = 'ended';
+                        setTimeout(() => { this.inCall = false; this.callStatus = 'idle'; }, 1500);
+                    }
+                };
+
+            } catch(e) {
+                console.error('[call] Failed to start:', e);
+                alert('Could not access microphone. Please allow mic permissions.');
+                this.inCall = false;
+                this.callStatus = 'idle';
+            }
+        },
+
+        _startSendingAudio() {
+            if (!this._scriptNode) return;
+            this._scriptNode.onaudioprocess = (e) => {
+                if (this.isMuted || !this._ws || this._ws.readyState !== 1) return;
+                const float32 = e.inputBuffer.getChannelData(0);
+                const int16 = new Int16Array(float32.length);
+                for (let i = 0; i < float32.length; i++) {
+                    int16[i] = Math.max(-32768, Math.min(32767, Math.floor(float32[i] * 32768)));
+                }
+                this._ws.send(int16.buffer);
+            };
+        },
+
+        _playAudio(b64) {
+            try {
+                const raw = atob(b64);
+                const bytes = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+                const int16 = new Int16Array(bytes.buffer);
+                const float32 = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+                const buf = this._playbackCtx.createBuffer(1, float32.length, 24000);
+                buf.getChannelData(0).set(float32);
+                const src = this._playbackCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(this._aiAnalyser); // Connect to AI analyser instead of destination
+                
+                if (this._nextTime < this._playbackCtx.currentTime) {
+                    this._nextTime = this._playbackCtx.currentTime + 0.05;
+                }
+                src.start(this._nextTime);
+                this._nextTime += buf.duration;
+            } catch(e) { console.error('[call] playback error:', e); }
+        },
+
+        _startTimer() {
+            this._timer = setInterval(() => {
+                this.callDuration++;
+                const m = String(Math.floor(this.callDuration / 60)).padStart(2, '0');
+                const s = String(this.callDuration % 60).padStart(2, '0');
+                this.callDurationStr = `${m}:${s}`;
+            }, 1000);
+        },
+
+        _startWaveform() {
+            this._waveInterval = setInterval(() => {
+                if (this._analyser && this.callStatus === 'active') {
+                    const data = new Uint8Array(this._analyser.frequencyBinCount);
+                    this._analyser.getByteFrequencyData(data);
+                    const newH = [];
+                    for (let i = 0; i < 16; i++) {
+                        const idx = Math.floor(i * data.length / 16);
+                        newH.push(Math.max(4, (data[idx] / 255) * 36));
+                    }
+                    this.waveHeights = newH;
+
+                    // AI Volume
+                    if (this._aiAnalyser) {
+                        const aiData = new Uint8Array(this._aiAnalyser.frequencyBinCount);
+                        this._aiAnalyser.getByteFrequencyData(aiData);
+                        let sum = 0;
+                        for(let i = 0; i < aiData.length; i++) sum += aiData[i];
+                        this.aiVolume = Math.min(1, (sum / aiData.length) / 128);
+                    } else {
+                        this.aiVolume = 0;
+                    }
+
+                } else {
+                    this.waveHeights = Array(16).fill(4);
+                    this.aiVolume = 0;
+                }
+            }, 50);
+        },
+
+        toggleMute() {
+            this.isMuted = !this.isMuted;
+            if (this._mediaStream) {
+                this._mediaStream.getAudioTracks().forEach(t => { t.enabled = !this.isMuted; });
+            }
+        },
+
+        toggleSpeaker() {
+            this.speakerOn = !this.speakerOn;
+            // Best-effort to switch sink on supported browsers
+            if (this._audioCtx && typeof this._audioCtx.setSinkId === 'function') {
+                // In a real app we would enumerateDevices and find the speaker vs earpiece ID
+                // For now, this drives the UI state smoothly.
+            }
+        },
+
+        endCall() {
+            if (this.callChar && this.callDuration > 0) {
+                this.recents.unshift({
+                    id: Date.now().toString(),
+                    charId: this.callChar.id,
+                    name: this.callChar.name,
+                    avatar: this.callChar.avatar,
+                    durationStr: this.callDurationStr,
+                    timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                });
+                if (this.recents.length > 50) this.recents.pop();
+                localStorage.setItem('kokomi_call_recents', JSON.stringify(this.recents));
+            }
+            // Send end signal
+            if (this._ws && this._ws.readyState === 1) {
+                try { this._ws.send(JSON.stringify({ type: 'end' })); } catch {}
+                this._ws.close();
+            }
+            this._ws = null;
+
+            // Stop mic
+            if (this._mediaStream) {
+                this._mediaStream.getTracks().forEach(t => t.stop());
+                this._mediaStream = null;
+            }
+
+            // Stop audio contexts
+            if (this._scriptNode) { this._scriptNode.disconnect(); this._scriptNode = null; }
+            if (this._audioCtx) { this._audioCtx.close().catch(() => {}); this._audioCtx = null; }
+            if (this._playbackCtx) { this._playbackCtx.close().catch(() => {}); this._playbackCtx = null; }
+            this._analyser = null;
+            this._aiAnalyser = null;
+
+            // Stop timers
+            clearInterval(this._timer);
+            clearInterval(this._waveInterval);
+            this._timer = null;
+            this._waveInterval = null;
+
+            this.callStatus = 'ended';
+            this.isSpeaking = false;
+            this.waveHeights = Array(16).fill(4);
+            setTimeout(() => { this.inCall = false; this.callStatus = 'idle'; }, 1500);
+        },
+    };
+}
+</script>
+{% endblock %}

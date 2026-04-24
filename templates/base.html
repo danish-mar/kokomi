@@ -7,9 +7,6 @@
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- AlpineJS + Collapse -->
-    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- FontAwesome (SF Symbols substitute) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <!-- Marked + Highlight.js -->
@@ -28,6 +25,7 @@
                         mono: ['"SF Mono"', '"JetBrains Mono"', '"Fira Code"', 'monospace']
                     },
                     colors: {
+                        accent:    'var(--accent)',
                         midnight:  '#272757',
                         lavender:  '#8686AC',
                         indigo_m:  '#505081',
@@ -42,6 +40,30 @@
                 }
             }
         }
+    </script>
+    <script>
+        (function() {
+            var customAccent = localStorage.getItem('customAccent');
+            var customWallpaper = localStorage.getItem('customWallpaper');
+            var customBlur = localStorage.getItem('customBlur') || '0';
+            var css = '';
+            if (customAccent) {
+                css += ':root, .dark { --accent: ' + customAccent + ' !important; }\n';
+            }
+            if (customWallpaper) {
+                var isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                css += 'body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: url(' + customWallpaper + ') !important; background-size: cover !important; background-position: center !important; background-attachment: fixed !important; filter: blur(' + customBlur + 'px); z-index: -1; transform: scale(1.1); }\n';
+                css += 'body { background: transparent !important; }\n';
+                if (isDark) {
+                    css += ':root, .dark { --bg-canvas: rgba(0, 0, 0, 0.35) !important; --bg-sidebar: rgba(12, 11, 20, 0.5) !important; --bg-surface: rgba(0, 0, 0, 0.45) !important; --bg-elevated: rgba(0, 0, 0, 0.5) !important; --bg-input: rgba(0, 0, 0, 0.55) !important; --bg-surface-hover: rgba(255, 255, 255, 0.05) !important; }\n';
+                } else {
+                    css += ':root { --bg-canvas: rgba(255, 255, 255, 0.4) !important; --bg-sidebar: rgba(255, 255, 255, 0.5) !important; --bg-surface: rgba(255, 255, 255, 0.55) !important; --bg-elevated: rgba(255, 255, 255, 0.6) !important; --bg-input: rgba(255, 255, 255, 0.65) !important; --bg-surface-hover: rgba(0, 0, 0, 0.05) !important; }\n';
+                }
+            }
+            if (css) {
+                document.write('<style>' + css + '</style>');
+            }
+        })();
     </script>
 
     <style>
@@ -195,14 +217,22 @@
         .text-3        { color: var(--text-tertiary); }
         .text-4        { color: var(--text-quaternary); }
         .bg-accent-c   { background: var(--accent); }
+        .bg-accent { background: var(--accent); }
         .bg-accent-sub { background: var(--accent-subtle); }
         .text-accent-c { color: var(--accent); }
         .text-accent-t { color: var(--accent-text); }
-        .shadow-t      { box-shadow: var(--shadow-sm); }
-        .shadow-t-md   { box-shadow: var(--shadow-md); }
-        .hover-surface:hover { background: var(--bg-surface-hover); }
-        .hover-accent-sub:hover { background: var(--accent-subtle-h); }
+        .shadow-t-md { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); }
+        .shadow-t-lg { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
+        .shadow-t-2xl { box-shadow: 0 12px 48px rgba(0, 0, 0, 0.28); }
 
+        .rounded-squircle { border-radius: 20px; }
+        @supports (clip-path: inset(0 round 20px)) {
+            .rounded-squircle { border-radius: 24px; }
+        }
+
+        .hover-surface { transition: background 0.2s ease, transform 0.1s ease; }
+        .hover-surface:hover { background: var(--hover); }
+        .hover-surface:active { transform: scale(0.98); }
         .t-apple {
             transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
         }
@@ -239,9 +269,12 @@
             padding-left: 0.9em; color: var(--text-tertiary);
             margin: 0.8em 0; font-style: italic;
         }
-        .chat-prose table { width: 100%; border-collapse: collapse; margin: 0.8em 0; }
-        .chat-prose th { background: var(--accent-subtle); padding: 0.45em 0.7em; text-align: left; border: 1px solid var(--border); font-weight: 600; font-size: 0.85em; }
-        .chat-prose td { padding: 0.45em 0.7em; border: 1px solid var(--border); font-size: 0.9em; }
+        .chat-prose .table-wrapper { width: 100%; overflow-x: auto; margin: 1.2em 0; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-surface); }
+        .chat-prose table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 400px; }
+        .chat-prose th { background: var(--bg-surface-hover); padding: 0.6em 0.9em; text-align: left; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+        .chat-prose td { padding: 0.65em 0.9em; border-bottom: 1px solid var(--separator); font-size: 0.9em; color: var(--text-primary); transition: background 0.2s ease; }
+        .chat-prose tr:last-child td { border-bottom: none; }
+        .chat-prose tbody tr:hover td { background: var(--accent-subtle); }
         .chat-prose a { color: var(--accent); text-decoration: none; }
         .chat-prose a:hover { text-decoration: underline; }
         .chat-prose strong { color: var(--text-primary); font-weight: 600; }
@@ -305,6 +338,72 @@
         }
         .fade-in { animation: fadeIn 0.3s ease-out forwards; }
 
+        @keyframes glass-shine {
+            0% { left: -100%; }
+            45% { left: 150%; }
+            100% { left: 150%; }
+        }
+        .thinking-streaming {
+            position: relative;
+            overflow: hidden !important;
+            border-color: var(--accent) !important;
+            background: var(--accent-subtle) !important;
+        }
+        .thinking-streaming::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            width: 100px;
+            height: 100%;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255, 255, 255, 0.08),
+                rgba(255, 255, 255, 0.2),
+                rgba(255, 255, 255, 0.08),
+                transparent
+            );
+            transform: skewX(-20deg);
+            animation: glass-shine 2.5s infinite cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+        }
+
+        @keyframes fish-swim {
+            0% { transform: translateY(0) rotate(0); }
+            25% { transform: translateY(-2px) rotate(-10deg); }
+            75% { transform: translateY(2px) rotate(10deg); }
+            100% { transform: translateY(0) rotate(0); }
+        }
+        .fish-typing {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            vertical-align: middle;
+            margin-left: 6px;
+            color: var(--accent);
+            animation: fish-swim 0.8s infinite ease-in-out;
+        }
+
+        /* ═══════════ ROOM CAPSULE ═══════════ */
+        .room-capsule { position: relative; }
+        .avatar-stack-item {
+            position: relative;
+            transition: transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+        .room-capsule:hover .avatar-stack-item {
+            transform: translateX(0);
+        }
+        .hover-accent-sub:hover {
+            background: var(--accent-subtle-h) !important;
+        }
+
+        /* ═══════════ BG THEMED RING ═══════════ */
+        .ring-canvas {
+            --tw-ring-color: var(--bg-canvas);
+        }
+
         [x-cloak] { display: none; }
     </style>
     {% block head %}{% endblock %}
@@ -312,5 +411,7 @@
 <body>
     {% block body %}{% endblock %}
     <script src="/static/js/app.js"></script>
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 </html>
