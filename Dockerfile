@@ -1,5 +1,5 @@
 # Use the official uv image for dependency management
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 # Set the working directory
 WORKDIR /app
@@ -11,10 +11,10 @@ ENV UV_COMPILE_BYTECODE=1
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies without the project itself
-RUN uv sync --frozen --no-install-project
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Final stage
-FROM python:3.11-slim-bookworm
+FROM python:3.12-slim-bookworm
 
 # Set working directory
 WORKDIR /app
