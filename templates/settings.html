@@ -3,7 +3,7 @@
 
 {% block head %}
 <style>
-    /* ═══ Settings Page — Premium Apple HIG ═══ */
+    /* ═══ Settings Page — macOS Tahoe HIG ═══ */
     .settings-page { min-height: 100vh; background: var(--bg-canvas); }
 
     /* Frosted top bar */
@@ -22,7 +22,7 @@
         letter-spacing: -0.02em;
     }
 
-    /* Rounded icon buttons */
+    /* Icon buttons */
     .icon-btn {
         width: 36px; height: 36px;
         border-radius: 10px; border: none;
@@ -34,30 +34,82 @@
     .icon-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
     .icon-btn:active { transform: scale(0.92); }
 
-    /* Apple segmented control */
-    .seg-control {
-        display: flex; gap: 4px; padding: 3px;
-        background: var(--bg-input);
-        border: 1px solid var(--border);
-        border-radius: 14px;
+    /* ── macOS Tahoe sidebar nav ── */
+    .tahoe-layout {
+        display: flex;
+        max-width: 860px;
+        margin: 0 auto;
+        gap: 0;
+        padding: 24px 20px 48px;
+        align-items: flex-start;
     }
-    .seg-btn {
-        flex: 1; padding: 8px 12px;
-        border-radius: 11px; border: none;
-        font-size: 13px; font-weight: 500;
-        color: var(--text-tertiary);
-        background: transparent; cursor: pointer;
-        display: flex; align-items: center; justify-content: center; gap: 6px;
-        transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+
+    .tahoe-sidebar {
+        width: 200px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 76px;
+        padding-right: 16px;
     }
-    .seg-btn:hover:not(.seg-active) { color: var(--text-secondary); }
-    .seg-btn.seg-active {
-        background: var(--bg-elevated);
+
+    .tahoe-sidebar-section {
+        margin-bottom: 24px;
+    }
+
+    .tahoe-sidebar-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-quaternary);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        padding: 0 10px;
+        margin-bottom: 4px;
+    }
+
+    .tahoe-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 10px;
+        border-radius: 9px;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.18s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .tahoe-nav-item:hover:not(.active) {
+        background: var(--accent-subtle);
         color: var(--text-primary);
-        font-weight: 600;
-        box-shadow: var(--shadow-md);
     }
-    .seg-btn:active { transform: scale(0.97); }
+    .tahoe-nav-item.active {
+        background: var(--accent);
+        color: var(--accent-text);
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(80,80,129,0.25);
+    }
+    .tahoe-nav-item .nav-icon {
+        width: 22px; height: 22px;
+        border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px;
+        flex-shrink: 0;
+        background: transparent;
+        transition: all 0.18s ease;
+    }
+    .tahoe-nav-item.active .nav-icon {
+        background: rgba(255,255,255,0.2);
+    }
+
+    /* ── Main content ── */
+    .tahoe-content {
+        flex: 1;
+        min-width: 0;
+    }
 
     /* Glass card */
     .glass-card {
@@ -65,21 +117,22 @@
         backdrop-filter: blur(var(--material-blur));
         -webkit-backdrop-filter: blur(var(--material-blur));
         border: 1px solid var(--border);
-        border-radius: 18px;
+        border-radius: 16px;
         box-shadow: var(--shadow-md);
         overflow: hidden;
+        margin-bottom: 16px;
     }
 
-    /* Card row with separator */
+    /* Card row */
     .card-row {
-        padding: 18px 22px;
+        padding: 14px 18px;
         border-bottom: 1px solid var(--separator);
         transition: background 0.2s ease;
     }
     .card-row:last-child { border-bottom: none; }
     .card-row:hover { background: var(--accent-subtle); }
 
-    /* Apple toggle switch */
+    /* Apple toggle */
     .apple-toggle {
         position: relative;
         width: 46px; height: 26px;
@@ -102,24 +155,24 @@
 
     /* Section heading */
     .section-title {
-        font-size: 22px; font-weight: 700;
+        font-size: 20px; font-weight: 700;
         color: var(--text-primary);
         letter-spacing: -0.025em;
         margin-bottom: 4px;
     }
     .section-subtitle {
-        font-size: 13px; color: var(--text-tertiary);
+        font-size: 12px; color: var(--text-tertiary);
         letter-spacing: -0.005em;
+        margin-bottom: 16px;
     }
 
     /* Character card */
     .char-card {
         background: var(--bg-elevated);
-        backdrop-filter: blur(var(--material-blur));
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 16px;
-        display: flex; gap: 14px;
+        border-radius: 14px;
+        padding: 14px;
+        display: flex; gap: 12px;
         box-shadow: var(--shadow-sm);
         transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
     }
@@ -129,14 +182,13 @@
         transform: translateY(-1px);
     }
 
-    /* MCP server row */
+    /* MCP row */
     .mcp-row {
         background: var(--bg-elevated);
-        backdrop-filter: blur(var(--material-blur));
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 16px 20px;
-        display: flex; align-items: center; gap: 16px;
+        border-radius: 14px;
+        padding: 14px 18px;
+        display: flex; align-items: center; gap: 14px;
         box-shadow: var(--shadow-sm);
         transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
     }
@@ -148,7 +200,7 @@
     /* Accent button */
     .btn-accent {
         display: inline-flex; align-items: center; gap: 7px;
-        padding: 9px 16px; border-radius: 12px;
+        padding: 8px 14px; border-radius: 10px;
         font-size: 13px; font-weight: 600;
         background: var(--accent); color: var(--accent-text);
         border: none; cursor: pointer;
@@ -160,7 +212,7 @@
 
     /* Ghost btn */
     .btn-ghost {
-        padding: 8px 14px; border-radius: 10px;
+        padding: 7px 12px; border-radius: 9px;
         font-size: 13px; font-weight: 500;
         background: transparent; color: var(--text-secondary);
         border: none; cursor: pointer;
@@ -170,11 +222,11 @@
 
     /* Info banner */
     .info-banner {
-        padding: 14px 18px;
-        border-radius: 14px;
+        padding: 12px 16px;
+        border-radius: 12px;
         background: var(--accent-subtle);
         border: 1px solid var(--border);
-        display: flex; align-items: flex-start; gap: 12px;
+        display: flex; align-items: flex-start; gap: 10px;
     }
 
     /* Saved toast */
@@ -193,9 +245,7 @@
         position: fixed; inset: 0; z-index: 50;
         display: flex; align-items: flex-end; justify-content: center;
     }
-    @media (min-width: 640px) {
-        .modal-overlay { align-items: center; }
-    }
+    @media (min-width: 640px) { .modal-overlay { align-items: center; } }
     .modal-backdrop {
         position: absolute; inset: 0;
         background: rgba(0,0,0,0.45);
@@ -208,78 +258,65 @@
         background: var(--bg-elevated);
         backdrop-filter: blur(var(--material-blur));
         border: 1px solid var(--border);
-        border-radius: 22px 22px 0 0;
+        border-radius: 20px 20px 0 0;
         box-shadow: var(--shadow-lg);
-        padding: 28px;
+        padding: 26px;
         max-height: 85vh; overflow-y: auto;
     }
-    @media (min-width: 640px) {
-        .modal-sheet { border-radius: 22px; }
-    }
+    @media (min-width: 640px) { .modal-sheet { border-radius: 20px; } }
     .modal-handle {
         width: 40px; height: 4px;
         border-radius: 2px;
         background: var(--text-quaternary);
-        margin: 0 auto 20px;
+        margin: 0 auto 18px;
     }
-    @media (min-width: 640px) {
-        .modal-handle { display: none; }
-    }
+    @media (min-width: 640px) { .modal-handle { display: none; } }
 
-    /* Avatar placeholder */
+    /* Avatar */
     .avatar-circle {
-        width: 50px; height: 50px;
-        border-radius: 14px;
+        width: 44px; height: 44px;
+        border-radius: 12px;
         display: flex; align-items: center; justify-content: center;
         background: linear-gradient(135deg, #505081, #8686AC);
-        color: #fff; font-weight: 700; font-size: 19px;
+        color: #fff; font-weight: 700; font-size: 17px;
         box-shadow: var(--shadow-sm);
         flex-shrink: 0;
     }
-    .avatar-circle img {
-        width: 100%; height: 100%;
-        border-radius: 14px;
-        object-fit: cover;
-    }
+    .avatar-circle img { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; }
 
     /* Mini badge */
     .mini-badge {
         font-size: 9px; font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        padding: 2px 7px;
-        border-radius: 6px;
+        padding: 2px 6px;
+        border-radius: 5px;
     }
 
-    /* Smooth page transitions */
-    .tab-panel { animation: tabFadeIn 0.3s ease-out; }
+    /* Page transition */
+    .tab-panel { animation: tabFadeIn 0.25s ease-out; }
     @keyframes tabFadeIn {
-        from { opacity: 0; transform: translateY(8px); }
+        from { opacity: 0; transform: translateY(6px); }
         to { opacity: 1; transform: translateY(0); }
     }
 
     /* About footer */
     .about-footer {
         background: var(--bg-elevated);
-        backdrop-filter: blur(var(--material-blur));
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 20px 24px;
+        border-radius: 14px;
+        padding: 16px 20px;
         box-shadow: var(--shadow-sm);
-        margin-top: 32px;
+        margin-top: 24px;
     }
-
-    /* Surface vars for themed bg */
-    .bg-themed-surface { background: var(--bg-input); }
 
     /* Action btns on hover */
     .action-btns { opacity: 0; transition: opacity 0.2s ease; }
-    .group:hover .action-btns, .char-card:hover .action-btns, .mcp-row:hover .action-btns { opacity: 1; }
+    .char-card:hover .action-btns, .mcp-row:hover .action-btns { opacity: 1; }
 
-    /* Inline small icon btn */
     .sm-icon-btn {
-        width: 30px; height: 30px;
-        border-radius: 9px; border: none;
+        width: 28px; height: 28px;
+        border-radius: 8px; border: none;
         display: flex; align-items: center; justify-content: center;
         cursor: pointer; background: transparent;
         transition: all 0.2s ease;
@@ -287,16 +324,16 @@
     .sm-icon-btn:hover { background: var(--bg-surface-hover); }
     .sm-icon-btn:active { transform: scale(0.9); }
 
-    /* Transport picker btn */
+    /* Transport picker */
     .transport-btn {
-        flex: 1; min-width: 100px;
-        padding: 10px 12px;
-        border-radius: 12px;
+        flex: 1; min-width: 90px;
+        padding: 9px 10px;
+        border-radius: 10px;
         border: 1px solid var(--border);
-        font-size: 13px;
+        font-size: 12px;
         color: var(--text-tertiary);
         background: transparent; cursor: pointer;
-        display: flex; align-items: center; justify-content: center; gap: 7px;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
         transition: all 0.2s ease;
     }
     .transport-btn.selected {
@@ -306,17 +343,17 @@
         font-weight: 600;
     }
 
-    /* MCP tool pills in modal */
+    /* Tool pills */
     .tool-pill {
-        font-size: 10px; padding: 3px 8px;
-        border-radius: 6px; font-family: "SF Mono","JetBrains Mono",monospace;
+        font-size: 10px; padding: 2px 7px;
+        border-radius: 5px; font-family: "SF Mono","JetBrains Mono",monospace;
         background: var(--bg-canvas); border: 1px solid var(--border);
     }
 
-    /* Template badge btn */
+    /* Template badge */
     .template-btn {
-        padding: 6px 12px;
-        border-radius: 9px;
+        padding: 5px 11px;
+        border-radius: 8px;
         background: var(--accent-subtle);
         color: var(--accent);
         border: 1px solid var(--border);
@@ -326,10 +363,10 @@
     }
     .template-btn:hover { background: var(--accent-subtle-h); }
 
-    /* Upload avatar area */
+    /* Upload area */
     .upload-area {
-        width: 68px; height: 68px;
-        border-radius: 16px;
+        width: 60px; height: 60px;
+        border-radius: 14px;
         border: 2px dashed var(--border);
         background: var(--accent-subtle);
         display: flex; flex-direction: column;
@@ -339,7 +376,40 @@
     }
     .upload-area:hover { border-color: var(--accent); background: var(--accent-subtle-h); }
 
-    .surface-secondary { background: var(--surface-secondary, var(--bg-input)); }
+    /* Inline seg control (for provider) */
+    .seg-control {
+        display: flex; gap: 3px; padding: 3px;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+    }
+    .seg-btn {
+        flex: 1; padding: 7px 10px;
+        border-radius: 9px; border: none;
+        font-size: 12px; font-weight: 500;
+        color: var(--text-tertiary);
+        background: transparent; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; gap: 5px;
+        transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+    }
+    .seg-btn:hover:not(.seg-active) { color: var(--text-secondary); }
+    .seg-btn.seg-active {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        font-weight: 600;
+        box-shadow: var(--shadow-md);
+    }
+
+    [x-cloak] { display: none !important; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+        .tahoe-layout { flex-direction: column; padding: 16px; }
+        .tahoe-sidebar { width: 100%; position: static; padding-right: 0; }
+        .tahoe-sidebar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+        .tahoe-sidebar-section { margin-bottom: 0; }
+        .tahoe-sidebar-label { display: none; }
+    }
 </style>
 {% endblock %}
 
@@ -349,464 +419,467 @@
     <!-- ── Frosted Top Bar ── -->
     <header class="settings-topbar">
         <a href="/" class="icon-btn" style="text-decoration:none;">
-            <i class="fa-solid fa-arrow-left" style="font-size:14px;"></i>
+            <i class="fa-solid fa-arrow-left" style="font-size:13px;"></i>
         </a>
         <h1>Settings</h1>
         <div style="flex-grow:1;"></div>
         <button @click="toggleTheme()" class="icon-btn">
             <i :class="darkMode ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"
                :style="darkMode ? 'color:#FBBF24' : ''"
-               style="font-size:14px;"></i>
+               style="font-size:13px;"></i>
         </button>
     </header>
 
-    <div style="max-width:680px; margin:0 auto; padding:24px 20px 48px;">
+    <div class="tahoe-layout">
 
-        <!-- ── Segmented Control ── -->
-        <div class="seg-control" style="margin-bottom:28px;">
-            <button @click="tab = 'general'"
-                :class="tab === 'general' ? 'seg-active' : ''" class="seg-btn">
-                <i class="fa-solid fa-gear" style="font-size:11px;"></i> General
-            </button>
-            <button @click="tab = 'characters'"
-                :class="tab === 'characters' ? 'seg-active' : ''" class="seg-btn">
-                <i class="fa-solid fa-users" style="font-size:11px;"></i> Characters
-            </button>
-            <button @click="tab = 'mcp'"
-                :class="tab === 'mcp' ? 'seg-active' : ''" class="seg-btn">
-                <i class="fa-solid fa-plug" style="font-size:11px;"></i> MCP
-            </button>
-            <button @click="tab = 'appearance'"
-                :class="tab === 'appearance' ? 'seg-active' : ''" class="seg-btn">
-                <i class="fa-solid fa-palette" style="font-size:11px;"></i> Appearance
-            </button>
-        </div>
+        <!-- ── macOS Tahoe Sidebar ── -->
+        <aside class="tahoe-sidebar">
+            <div class="tahoe-sidebar-section">
+                <p class="tahoe-sidebar-label">Preferences</p>
+                <button @click="tab = 'general'" class="tahoe-nav-item" :class="tab === 'general' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-gear" style="font-size:10px;"></i></span>
+                    General
+                </button>
+                <button @click="tab = 'appearance'" class="tahoe-nav-item" :class="tab === 'appearance' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-palette" style="font-size:10px;"></i></span>
+                    Appearance
+                </button>
+            </div>
+            <div class="tahoe-sidebar-section">
+                <p class="tahoe-sidebar-label">AI</p>
+                <button @click="tab = 'characters'" class="tahoe-nav-item" :class="tab === 'characters' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-users" style="font-size:10px;"></i></span>
+                    Characters
+                </button>
+                <button @click="tab = 'mcp'" class="tahoe-nav-item" :class="tab === 'mcp' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-plug" style="font-size:10px;"></i></span>
+                    MCP Servers
+                </button>
+            </div>
+            <div class="tahoe-sidebar-section">
+                <p class="tahoe-sidebar-label">Info</p>
+                <button @click="tab = 'about'" class="tahoe-nav-item" :class="tab === 'about' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-circle-info" style="font-size:10px;"></i></span>
+                    About
+                </button>
+            </div>
+        </aside>
 
-        <!-- ═══════════ TAB: GENERAL ═══════════ -->
-        <div x-show="tab === 'general'" x-transition class="tab-panel">
-            <div style="margin-bottom:20px;">
+        <!-- ── Main Content ── -->
+        <main class="tahoe-content">
+
+            <!-- ═══ TAB: GENERAL ═══ -->
+            <div x-show="tab === 'general'" x-transition class="tab-panel">
                 <h2 class="section-title">General</h2>
                 <p class="section-subtitle">Manage global AI behavior and model preferences.</p>
-            </div>
 
-            <div class="glass-card">
-                <!-- LLM Provider Selection -->
-                <div class="card-row">
-                    <label class="apple-label" style="margin-bottom:12px;">Intelligence Provider</label>
-                    <div class="seg-control" style="margin-bottom:20px; max-width: 400px;">
-                        <button @click="prefs.llm_provider = 'groq'; savePrefs()"
-                            :class="prefs.llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
-                            <i class="fa-solid fa-cloud" style="font-size:10px;"></i> Groq Cloud
-                        </button>
-                        <button @click="prefs.llm_provider = 'google'; savePrefs()"
-                            :class="prefs.llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
-                            <i class="fa-solid fa-wand-sparkles" style="font-size:10px;"></i> Gemini
-                        </button>
-                        <button @click="prefs.llm_provider = 'local'; savePrefs()"
-                            :class="prefs.llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
-                            <i class="fa-solid fa-desktop" style="font-size:10px;"></i> Local Llama
-                        </button>
-
-                    </div>
-
-                    <!-- Cloud Models (Groq & Google) -->
-                    <div x-show="prefs.llm_provider === 'groq' || prefs.llm_provider === 'google'" x-transition>
-                        <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);" 
-                               x-text="prefs.llm_provider === 'groq' ? 'Groq Model Selection' : 'Gemini Model Selection'"></label>
-
-                        <div style="position:relative;">
-                            <select x-model="prefs.model_name" @change="savePrefs()"
-                                class="apple-field" style="padding-right:40px; cursor:pointer;">
-                                <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
-                                    <option :value="m.id" x-text="m.name || m.id"
-                                        :selected="m.id === prefs.model_name"
-                                        style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                </template>
-
-                            </select>
-                            <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
-                                <i class="fa-solid fa-chevron-down"></i>
-                            </div>
+                <!-- Provider -->
+                <div class="glass-card">
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:10px;">Intelligence Provider</label>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:380px;">
+                            <button @click="prefs.llm_provider = 'groq'; savePrefs()"
+                                :class="prefs.llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-cloud" style="font-size:9px;"></i> Groq
+                            </button>
+                            <button @click="prefs.llm_provider = 'google'; savePrefs()"
+                                :class="prefs.llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-wand-sparkles" style="font-size:9px;"></i> Gemini
+                            </button>
+                            <button @click="prefs.llm_provider = 'local'; savePrefs()"
+                                :class="prefs.llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
+                            </button>
                         </div>
-                    </div>
 
-                    <!-- Local Specific -->
-                    <div x-show="prefs.llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:16px;">
-                        <div>
-                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">llama.cpp Server URL</label>
-                            <input type="text" x-model="prefs.local_url" @blur="savePrefs()"
-                                placeholder="http://localhost:8080/v1" class="apple-field">
-                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">Full OpenAI-compatible endpoint URL.</p>
-                        </div>
-                        <div>
-                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">Local Model Identifier</label>
-                            <input type="text" x-model="prefs.local_model" @blur="savePrefs()"
-                                placeholder="local-model" class="apple-field">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Embedding Model -->
-                <div class="card-row">
-                    <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">RAG Embedding Model</label>
-                    <div style="position:relative;">
-                        <select x-model="prefs.embedding_model" @change="savePrefs()"
-                            class="apple-field" style="padding-right:40px; cursor:pointer;">
-                            <option value="models/gemini-embedding-2">Gemini Embedding 2 (Latest, Multimodal)</option>
-                            <option value="models/gemini-embedding-001">Gemini Embedding 001 (Stable)</option>
-                        </select>
-                        <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
-                            <i class="fa-solid fa-chevron-down"></i>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- User Persona -->
-                <div class="card-row">
-                    <label class="apple-label" style="margin-bottom:10px;">About Me (User Persona)</label>
-                    <textarea x-model="prefs.user_persona" @blur="savePrefs()" rows="5"
-                        placeholder="e.g. I am a software engineer who prefers concise answers and Python code examples..."
-                        class="apple-field" style="resize:none; line-height:1.65;"></textarea>
-                    <p style="font-size:11px; color:var(--text-quaternary); margin-top:8px; margin-left:2px;">This context is provided to the AI in every conversation.</p>
-                </div>
-
-                <!-- Smart Suggestions -->
-                <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                    <div>
-                        <label class="apple-label" style="margin-bottom:2px;">Smart Suggestions</label>
-                        <p style="font-size:11px; color:var(--text-quaternary);">Use AI to generate persona-aware chat starters.</p>
-                    </div>
-                    <button @click="prefs.dynamic_suggestions = !prefs.dynamic_suggestions; savePrefs()"
-                        class="apple-toggle" :class="prefs.dynamic_suggestions ? 'on' : 'off'">
-                        <div class="toggle-knob"></div>
-                    </button>
-                </div>
-
-                <!-- Streaming Mode -->
-                <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                    <div>
-                        <label class="apple-label" style="margin-bottom:2px;">Streaming Mode</label>
-                        <p style="font-size:11px; color:var(--text-quaternary);">Stream responses in real-time as they are being generated.</p>
-                    </div>
-                    <button @click="prefs.streaming_mode = !prefs.streaming_mode; savePrefs()"
-                        class="apple-toggle" :class="prefs.streaming_mode ? 'on' : 'off'">
-                        <div class="toggle-knob"></div>
-                    </button>
-                </div>
-
-                <!-- Inject Current Time -->
-                <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                    <div>
-                        <label class="apple-label" style="margin-bottom:2px;">Inject Current Time</label>
-                        <p style="font-size:11px; color:var(--text-quaternary);">Automatically provide the AI with the current system date & time.</p>
-                    </div>
-                    <button @click="prefs.inject_time = !prefs.inject_time; savePrefs()"
-                        class="apple-toggle" :class="prefs.inject_time ? 'on' : 'off'">
-                        <div class="toggle-knob"></div>
-                    </button>
-                </div>
-                <!-- WhatsApp Integration -->
-                <div class="card-row" style="background: var(--accent-subtle);">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <div style="width:32px; height:32px; border-radius:8px; background:#25D366; display:flex; align-items:center; justify-content:center; color:#fff;">
-                                <i class="fa-brands fa-whatsapp"></i>
-                            </div>
-                            <div>
-                                <label class="apple-label" style="margin-bottom:0;">WhatsApp Integration</label>
-                                <p style="font-size:11px; color:var(--text-tertiary);">Receive & reply to messages via WhatsApp.</p>
-                            </div>
-                        </div>
-                        <button @click="prefs.whatsapp_enabled = !prefs.whatsapp_enabled; savePrefs()"
-                            class="apple-toggle" :class="prefs.whatsapp_enabled ? 'on' : 'off'">
-                            <div class="toggle-knob"></div>
-                        </button>
-                    </div>
-                    
-                    <div x-show="prefs.whatsapp_enabled" x-transition>
-                        <div style="margin-bottom:16px;">
-                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">Main WhatsApp Character</label>
+                        <!-- Cloud model -->
+                        <div x-show="prefs.llm_provider === 'groq' || prefs.llm_provider === 'google'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
+                                x-text="prefs.llm_provider === 'groq' ? 'Groq Model' : 'Gemini Model'"></label>
                             <div style="position:relative;">
-                                <select x-model="prefs.whatsapp_character_id" @change="savePrefs()"
-                                    class="apple-field" style="padding-right:40px; cursor:pointer;">
-                                    <template x-for="char in characters" :key="char.id">
-                                        <option :value="char.id" x-text="char.name"
-                                            :selected="char.id === prefs.whatsapp_character_id"
+                                <select x-model="prefs.model_name" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                    <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
+                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.model_name"
                                             style="background:var(--bg-canvas); color:var(--text-primary);"></option>
                                     </template>
                                 </select>
-                                <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
+                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
                                     <i class="fa-solid fa-chevron-down"></i>
                                 </div>
                             </div>
                         </div>
 
-                        <div style="margin-bottom:16px;">
-                            <label class="apple-label" style="margin-bottom:10px; font-size:11px; color:var(--text-tertiary);">WhatsApp REST API URL</label>
-                            <input type="text" x-model="prefs.whatsapp_api_url" @blur="savePrefs()"
-                                placeholder="http://localhost:3013" class="apple-field" style="font-family:'SF Mono',monospace;">
-                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">
-                                The direct REST API endpoint of your WhatsApp bridge.
-                            </p>
+                        <!-- Local -->
+                        <div x-show="prefs.llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">llama.cpp Server URL</label>
+                                <input type="text" x-model="prefs.local_url" @blur="savePrefs()" placeholder="http://localhost:8080/v1" class="apple-field">
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Full OpenAI-compatible endpoint.</p>
+                            </div>
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model Identifier</label>
+                                <input type="text" x-model="prefs.local_model" @blur="savePrefs()" placeholder="local-model" class="apple-field">
+                            </div>
                         </div>
-
-                        <p style="font-size:10px; color:var(--text-quaternary);">
-                            The selected character will receive all incoming messages and can use tools to reply or deploy other agents.
-                        </p>
                     </div>
-                </div>
 
-            <!-- Saved indicator -->
-            <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:16px;">
-                <div class="saved-toast">
-                    <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
-                </div>
-            </div>
-        </div>
+                    <!-- Embedding -->
+                    <div class="card-row">
+                        <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">RAG Embedding Model</label>
+                        <div style="position:relative;">
+                            <select x-model="prefs.embedding_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                <option value="models/gemini-embedding-2" style="background:var(--bg-canvas); color:var(--text-primary);">Gemini Embedding 2 (Latest)</option>
+                                <option value="models/gemini-embedding-001" style="background:var(--bg-canvas); color:var(--text-primary);">Gemini Embedding 001 (Stable)</option>
+                            </select>
+                            <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
+                        </div>
+                    </div>
 
-        <!-- ═══════════ TAB: CHARACTERS ═══════════ -->
-        <div x-show="tab === 'characters'" x-transition class="tab-panel">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
-                <div>
-                    <h2 class="section-title">Characters</h2>
-                    <p class="section-subtitle">Create personas with custom system prompts and tool access.</p>
-                </div>
-                <button @click="openCharModal()" class="btn-accent">
-                    <i class="fa-solid fa-plus" style="font-size:11px;"></i> New
-                </button>
-            </div>
+                    <!-- User Persona -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:8px;">About Me</label>
+                        <textarea x-model="prefs.user_persona" @blur="savePrefs()" rows="4"
+                            placeholder="e.g. I am a software engineer who prefers concise answers and Python examples..."
+                            class="apple-field" style="resize:none; line-height:1.65;"></textarea>
+                        <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">Provided to the AI in every conversation.</p>
+                    </div>
 
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:12px;">
-                <template x-for="char in characters" :key="char.id">
-                    <div class="char-card">
-                        <!-- Avatar -->
+                    <!-- Smart Suggestions -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
                         <div>
-                            <template x-if="char.avatar">
-                                <div class="avatar-circle"><img :src="char.avatar" /></div>
-                            </template>
-                            <template x-if="!char.avatar">
-                                <div class="avatar-circle">
-                                    <span x-text="char.name.charAt(0).toUpperCase()"></span>
+                            <label class="apple-label" style="margin-bottom:1px;">Smart Suggestions</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">AI-powered persona-aware chat starters.</p>
+                        </div>
+                        <button @click="prefs.dynamic_suggestions = !prefs.dynamic_suggestions; savePrefs()"
+                            class="apple-toggle" :class="prefs.dynamic_suggestions ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
+
+                    <!-- Streaming -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px;">Streaming Mode</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Stream responses in real-time.</p>
+                        </div>
+                        <button @click="prefs.streaming_mode = !prefs.streaming_mode; savePrefs()"
+                            class="apple-toggle" :class="prefs.streaming_mode ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
+
+                    <!-- Inject Time -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px;">Inject Current Time</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Provide AI with system date &amp; time.</p>
+                        </div>
+                        <button @click="prefs.inject_time = !prefs.inject_time; savePrefs()"
+                            class="apple-toggle" :class="prefs.inject_time ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- WhatsApp card -->
+                <div class="glass-card">
+                    <div class="card-row" style="background: var(--accent-subtle);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:30px; height:30px; border-radius:8px; background:#25D366; display:flex; align-items:center; justify-content:center; color:#fff;">
+                                    <i class="fa-brands fa-whatsapp" style="font-size:14px;"></i>
                                 </div>
-                            </template>
-                        </div>
-                        <!-- Info -->
-                        <div style="flex-grow:1; min-width:0;">
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                <p style="font-size:14px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.name"></p>
-                                <template x-if="char.id === 'kokomi'">
-                                    <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent);">Default</span>
-                                </template>
+                                <div>
+                                    <label class="apple-label" style="margin-bottom:0;">WhatsApp Integration</label>
+                                    <p style="font-size:11px; color:var(--text-tertiary);">Receive &amp; reply via WhatsApp.</p>
+                                </div>
                             </div>
-                            <p style="font-size:12px; color:var(--text-tertiary); display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.55;" x-text="char.persona"></p>
-                            <!-- MCP badges -->
-                            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;" x-show="char.mcp_servers && char.mcp_servers.length">
-                                <template x-for="sid in (char.mcp_servers || [])" :key="sid">
-                                    <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent); max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                        x-text="getMCPName(sid)"></span>
-                                </template>
-                            </div>
-                        </div>
-                        <!-- Actions -->
-                        <div class="action-btns" style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">
-                            <button @click="openCharModal(char)" class="sm-icon-btn" style="color:var(--text-tertiary);">
-                                <i class="fa-solid fa-pen" style="font-size:11px;"></i>
+                            <button @click="prefs.whatsapp_enabled = !prefs.whatsapp_enabled; savePrefs()"
+                                class="apple-toggle" :class="prefs.whatsapp_enabled ? 'on' : 'off'">
+                                <div class="toggle-knob"></div>
                             </button>
-                            <template x-if="char.id !== 'kokomi'">
-                                <button @click="deleteChar(char.id)" class="sm-icon-btn" style="color:#f87171;">
-                                    <i class="fa-solid fa-trash" style="font-size:11px;"></i>
+                        </div>
+
+                        <div x-show="prefs.whatsapp_enabled" x-transition>
+                            <div style="margin-bottom:14px;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Main WhatsApp Character</label>
+                                <div style="position:relative;">
+                                    <select x-model="prefs.whatsapp_character_id" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                        <template x-for="char in characters" :key="char.id">
+                                            <option :value="char.id" x-text="char.name" :selected="char.id === prefs.whatsapp_character_id"
+                                                style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                        </template>
+                                    </select>
+                                    <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">WhatsApp REST API URL</label>
+                                <input type="text" x-model="prefs.whatsapp_api_url" @blur="savePrefs()"
+                                    placeholder="http://localhost:3013" class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved indicator -->
+                <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
+                    <div class="saved-toast">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: CHARACTERS ═══ -->
+            <div x-show="tab === 'characters'" x-transition class="tab-panel">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <div>
+                        <h2 class="section-title">Characters</h2>
+                        <p class="section-subtitle" style="margin-bottom:0;">Personas with custom system prompts and tool access.</p>
+                    </div>
+                    <button @click="openCharModal()" class="btn-accent">
+                        <i class="fa-solid fa-plus" style="font-size:10px;"></i> New
+                    </button>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:10px;">
+                    <template x-for="char in characters" :key="char.id">
+                        <div class="char-card">
+                            <div>
+                                <template x-if="char.avatar">
+                                    <div class="avatar-circle"><img :src="char.avatar" /></div>
+                                </template>
+                                <template x-if="!char.avatar">
+                                    <div class="avatar-circle">
+                                        <span x-text="char.name.charAt(0).toUpperCase()"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <div style="flex-grow:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:7px; margin-bottom:3px;">
+                                    <p style="font-size:13px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.name"></p>
+                                    <template x-if="char.id === 'kokomi'">
+                                        <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent);">Default</span>
+                                    </template>
+                                </div>
+                                <p style="font-size:11px; color:var(--text-tertiary); display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.5;" x-text="char.persona"></p>
+                                <div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:6px;" x-show="char.mcp_servers && char.mcp_servers.length">
+                                    <template x-for="sid in (char.mcp_servers || [])" :key="sid">
+                                        <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                            x-text="getMCPName(sid)"></span>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="action-btns" style="display:flex; flex-direction:column; gap:3px; flex-shrink:0;">
+                                <button @click="openCharModal(char)" class="sm-icon-btn" style="color:var(--text-tertiary);">
+                                    <i class="fa-solid fa-pen" style="font-size:10px;"></i>
                                 </button>
-                            </template>
-                        </div>
-                    </div>
-                </template>
-            </div>
-        </div>
-
-        <!-- ═══════════ TAB: MCP SERVERS ═══════════ -->
-        <div x-show="tab === 'mcp'" x-transition class="tab-panel">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
-                <div>
-                    <h2 class="section-title">MCP Servers</h2>
-                    <p class="section-subtitle">Connect tools via the Model Context Protocol.</p>
-                </div>
-                <button @click="openMCPModal()" class="btn-accent">
-                    <i class="fa-solid fa-plus" style="font-size:11px;"></i> Add Server
-                </button>
-            </div>
-
-            <!-- Info Banner -->
-            <div class="info-banner" style="margin-bottom:16px;">
-                <i class="fa-solid fa-circle-info" style="color:var(--accent); font-size:14px; margin-top:2px; flex-shrink:0;"></i>
-                <div style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
-                    <p style="font-weight:600; color:var(--text-primary); margin-bottom:3px;">What are MCP Servers?</p>
-                    <p>MCP (Model Context Protocol) lets your AI use external tools — file systems, databases, APIs — by connecting to tool servers. Add a server here, then assign it to a character in the Characters tab.</p>
-                </div>
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <template x-for="srv in mcpServers" :key="srv.id">
-                    <div class="mcp-row">
-                        <!-- Icon -->
-                        <div style="width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"
-                            :style="srv.enabled ? 'background:var(--accent-subtle)' : 'background:var(--bg-input)'">
-                            <i style="font-size:16px;"
-                                :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'"
-                                :style="srv.transport === 'sse' ? 'color:#60A5FA' : 'color:var(--accent)'"></i>
-                        </div>
-                        <!-- Info -->
-                        <div style="flex-grow:1; min-width:0;">
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
-                                <p style="font-size:14px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="srv.name"></p>
-                                <span class="mini-badge"
-                                    :style="srv.enabled ? 'background:rgba(34,197,94,0.12); color:#4ADE80;' : 'background:rgba(248,113,113,0.12); color:#f87171;'"
-                                    x-text="srv.enabled ? 'Active' : 'Disabled'"></span>
+                                <template x-if="char.id !== 'kokomi'">
+                                    <button @click="deleteChar(char.id)" class="sm-icon-btn" style="color:#f87171;">
+                                        <i class="fa-solid fa-trash" style="font-size:10px;"></i>
+                                    </button>
+                                </template>
                             </div>
-                            <p style="font-size:11px; color:var(--text-quaternary); font-family:'SF Mono','JetBrains Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                x-text="srv.transport === 'stdio' ? (srv.command + ' ' + (srv.args || []).join(' ')) : srv.url"></p>
                         </div>
-                        <!-- Actions -->
-                        <div class="action-btns" style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
-                            <button @click="testMCP(srv.id)" :disabled="testingId === srv.id"
-                                style="padding:5px 10px; border-radius:8px; border:none; cursor:pointer; font-size:11px; font-weight:600; color:var(--accent); background:transparent; transition:all 0.2s ease;"
-                                onmouseover="this.style.background='var(--bg-surface-hover)'" onmouseout="this.style.background='transparent'">
-                                <span x-show="testingId !== srv.id"><i class="fa-solid fa-bolt" style="font-size:10px;"></i> Test</span>
-                                <span x-show="testingId === srv.id"><i class="fa-solid fa-spinner fa-spin" style="font-size:10px;"></i></span>
-                            </button>
-                            <button @click="openMCPModal(srv)" class="sm-icon-btn" style="color:var(--text-tertiary);">
-                                <i class="fa-solid fa-pen" style="font-size:11px;"></i>
-                            </button>
-                            <button @click="deleteMCP(srv.id)" class="sm-icon-btn" style="color:#f87171;">
-                                <i class="fa-solid fa-trash" style="font-size:11px;"></i>
-                            </button>
-                        </div>
-                    </div>
-                </template>
-                <template x-if="mcpServers.length === 0">
-                    <div style="display:flex; flex-direction:column; align-items:center; padding:48px 0; text-align:center;">
-                        <div style="width:56px; height:56px; border-radius:16px; background:var(--accent-subtle); display:flex; align-items:center; justify-content:center; margin-bottom:14px;">
-                            <i class="fa-solid fa-plug" style="color:var(--accent); font-size:22px;"></i>
-                        </div>
-                        <p style="font-size:15px; font-weight:600; color:var(--text-primary); margin-bottom:4px;">No MCP Servers</p>
-                        <p style="font-size:12px; color:var(--text-tertiary);">Add your first server to give characters access to tools.</p>
-                    </div>
-                </template>
+                    </template>
+                </div>
             </div>
 
-            <!-- Test Result Toast -->
-            <div x-show="testResult" x-transition
-                style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:50; padding:12px 20px; border-radius:16px; font-size:13px; font-weight:500; max-width:400px; width:90%; word-break:break-word; max-height:200px; overflow-y:auto;"
-                :style="testResult?.ok ? 'background:rgba(34,197,94,0.9); color:#fff; box-shadow:var(--shadow-lg);' : 'background:rgba(239,68,68,0.9); color:#fff; box-shadow:var(--shadow-lg);'">
-                <template x-if="testResult?.ok">
-                    <span><i class="fa-solid fa-check-circle" style="margin-right:6px;"></i> Connected! Found <span x-text="testResult.count"></span> tools</span>
-                </template>
-                <template x-if="testResult && !testResult.ok">
-                    <div style="display:flex; align-items:flex-start; gap:8px;">
-                        <i class="fa-solid fa-times-circle" style="margin-top:2px;"></i>
-                        <span x-text="testResult.error" style="line-height:1.4;"></span>
+            <!-- ═══ TAB: MCP SERVERS ═══ -->
+            <div x-show="tab === 'mcp'" x-transition class="tab-panel">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <div>
+                        <h2 class="section-title">MCP Servers</h2>
+                        <p class="section-subtitle" style="margin-bottom:0;">Connect tools via the Model Context Protocol.</p>
                     </div>
-                </template>
-            </div>
-        </div>
+                    <button @click="openMCPModal()" class="btn-accent">
+                        <i class="fa-solid fa-plus" style="font-size:10px;"></i> Add Server
+                    </button>
+                </div>
 
-        <!-- ═══════════ TAB: APPEARANCE ═══════════ -->
-        <div x-show="tab === 'appearance'" x-transition class="tab-panel">
-            <div style="margin-bottom:20px;">
+                <div class="info-banner" style="margin-bottom:14px;">
+                    <i class="fa-solid fa-circle-info" style="color:var(--accent); font-size:13px; margin-top:2px; flex-shrink:0;"></i>
+                    <div style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
+                        <p style="font-weight:600; color:var(--text-primary); margin-bottom:2px;">What are MCP Servers?</p>
+                        <p>MCP lets your AI use external tools — file systems, databases, APIs. Add a server here, then assign it to a character.</p>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <template x-for="srv in mcpServers" :key="srv.id">
+                        <div class="mcp-row">
+                            <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"
+                                :style="srv.enabled ? 'background:var(--accent-subtle)' : 'background:var(--bg-input)'">
+                                <i style="font-size:14px;"
+                                    :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'"
+                                    :style="srv.transport === 'sse' ? 'color:#60A5FA' : 'color:var(--accent)'"></i>
+                            </div>
+                            <div style="flex-grow:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:7px; margin-bottom:2px;">
+                                    <p style="font-size:13px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="srv.name"></p>
+                                    <span class="mini-badge"
+                                        :style="srv.enabled ? 'background:rgba(34,197,94,0.12); color:#4ADE80;' : 'background:rgba(248,113,113,0.12); color:#f87171;'"
+                                        x-text="srv.enabled ? 'Active' : 'Disabled'"></span>
+                                </div>
+                                <p style="font-size:10px; color:var(--text-quaternary); font-family:'SF Mono','JetBrains Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                    x-text="srv.transport === 'stdio' ? (srv.command + ' ' + (srv.args || []).join(' ')) : srv.url"></p>
+                            </div>
+                            <div class="action-btns" style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
+                                <button @click="testMCP(srv.id)" :disabled="testingId === srv.id"
+                                    style="padding:4px 9px; border-radius:7px; border:none; cursor:pointer; font-size:11px; font-weight:600; color:var(--accent); background:transparent; transition:all 0.2s ease;"
+                                    onmouseover="this.style.background='var(--bg-surface-hover)'" onmouseout="this.style.background='transparent'">
+                                    <span x-show="testingId !== srv.id"><i class="fa-solid fa-bolt" style="font-size:9px;"></i> Test</span>
+                                    <span x-show="testingId === srv.id"><i class="fa-solid fa-spinner fa-spin" style="font-size:9px;"></i></span>
+                                </button>
+                                <button @click="openMCPModal(srv)" class="sm-icon-btn" style="color:var(--text-tertiary);">
+                                    <i class="fa-solid fa-pen" style="font-size:10px;"></i>
+                                </button>
+                                <button @click="deleteMCP(srv.id)" class="sm-icon-btn" style="color:#f87171;">
+                                    <i class="fa-solid fa-trash" style="font-size:10px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="mcpServers.length === 0">
+                        <div style="display:flex; flex-direction:column; align-items:center; padding:40px 0; text-align:center;">
+                            <div style="width:50px; height:50px; border-radius:14px; background:var(--accent-subtle); display:flex; align-items:center; justify-content:center; margin-bottom:12px;">
+                                <i class="fa-solid fa-plug" style="color:var(--accent); font-size:20px;"></i>
+                            </div>
+                            <p style="font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:3px;">No MCP Servers</p>
+                            <p style="font-size:12px; color:var(--text-tertiary);">Add your first server to give characters tool access.</p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Test Result Toast -->
+                <div x-show="testResult" x-transition
+                    style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:50; padding:10px 18px; border-radius:14px; font-size:13px; font-weight:500; max-width:380px; width:90%; word-break:break-word; max-height:180px; overflow-y:auto;"
+                    :style="testResult?.ok ? 'background:rgba(34,197,94,0.9); color:#fff; box-shadow:var(--shadow-lg);' : 'background:rgba(239,68,68,0.9); color:#fff; box-shadow:var(--shadow-lg);'">
+                    <template x-if="testResult?.ok">
+                        <span><i class="fa-solid fa-check-circle" style="margin-right:6px;"></i> Connected! Found <span x-text="testResult.count"></span> tools</span>
+                    </template>
+                    <template x-if="testResult && !testResult.ok">
+                        <div style="display:flex; align-items:flex-start; gap:7px;">
+                            <i class="fa-solid fa-times-circle" style="margin-top:2px;"></i>
+                            <span x-text="testResult.error" style="line-height:1.4;"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: APPEARANCE ═══ -->
+            <div x-show="tab === 'appearance'" x-transition class="tab-panel">
                 <h2 class="section-title">Appearance</h2>
                 <p class="section-subtitle">Customize the visual theme and background.</p>
-            </div>
 
-            <div class="glass-card">
-                <!-- Custom Accent Color -->
-                <div class="card-row">
-                    <label class="apple-label" style="margin-bottom:12px;">Custom Accent Color</label>
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <input type="color" x-model="customAccent" @change="saveAppearance()"
-                            style="width:40px; height:40px; padding:0; border:none; border-radius:8px; cursor:pointer; background:transparent;">
-                        <button @click="customAccent = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:6px 12px;">Reset to Default</button>
+                <div class="glass-card">
+                    <!-- Accent Color -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:10px;">Custom Accent Color</label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="color" x-model="customAccent" @change="saveAppearance()"
+                                style="width:38px; height:38px; padding:0; border:none; border-radius:8px; cursor:pointer; background:transparent;">
+                            <button @click="customAccent = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:5px 10px;">Reset Default</button>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Custom Wallpaper -->
-                <div class="card-row">
-                    <label class="apple-label" style="margin-bottom:10px;">Custom Wallpaper</label>
-                    <div style="display:flex; flex-direction:column; gap:10px;">
-                        <input type="file" @change="uploadWallpaper" accept="image/*" class="apple-field" style="padding:8px;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <input type="text" x-model="customWallpaper" @blur="saveAppearance()"
-                                placeholder="Or enter image URL..." class="apple-field" style="flex:1;">
-                            <button @click="customWallpaper = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:6px 12px; white-space:nowrap;">Clear Wallpaper</button>
+                    <!-- Wallpaper -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:8px;">Custom Wallpaper</label>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <input type="file" @change="uploadWallpaper" accept="image/*" class="apple-field" style="padding:7px; font-size:12px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="text" x-model="customWallpaper" @blur="saveAppearance()"
+                                    placeholder="Or enter image URL..." class="apple-field" style="flex:1;">
+                                <button @click="customWallpaper = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:5px 10px; white-space:nowrap;">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Blur -->
+                    <div class="card-row" x-show="customWallpaper">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <label class="apple-label" style="margin-bottom:0;">Wallpaper Blur</label>
+                            <span style="font-size:11px; font-weight:600; color:var(--text-tertiary);" x-text="customBlur + 'px'"></span>
+                        </div>
+                        <input type="range" min="0" max="100" step="1" x-model="customBlur" @change="saveAppearance()"
+                            style="width:100%; height:4px; appearance:none; background:var(--bg-input); border-radius:10px; outline:none; cursor:pointer; accent-color:var(--accent);">
+                        <div style="display:flex; justify-content:space-between; margin-top:5px; font-size:9px; color:var(--text-quaternary); text-transform:uppercase; letter-spacing:0.05em;">
+                            <span>Sharp</span><span>Frosted</span>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Wallpaper Blur -->
-                <div class="card-row" x-show="customWallpaper">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <label class="apple-label" style="margin-bottom:0;">Wallpaper Blur</label>
-                        <span style="font-size:11px; font-weight:600; color:var(--text-tertiary);" x-text="customBlur + 'px'"></span>
+            <!-- ═══ TAB: ABOUT ═══ -->
+            <div x-show="tab === 'about'" x-transition class="tab-panel">
+                <h2 class="section-title">About</h2>
+                <p class="section-subtitle">Version info and model details.</p>
+
+                <div class="glass-card">
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:13px; color:var(--text-secondary);">Chat Model</span>
+                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">qwen3-32b via Groq</span>
                     </div>
-                    <input type="range" min="0" max="100" step="1" x-model="customBlur" @change="saveAppearance()"
-                        style="width:100%; height:4px; appearance:none; background:var(--bg-input); border-radius:10px; outline:none; cursor:pointer; accent-color:var(--accent);">
-                    <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:9px; color:var(--text-quaternary); text-transform:uppercase; letter-spacing:0.05em;">
-                        <span>Sharp</span>
-                        <span>Frosted</span>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:13px; color:var(--text-secondary);">Title Model</span>
+                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">llama-4-scout-17b</span>
+                    </div>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:13px; color:var(--text-secondary);">MCP SDK</span>
+                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">v1.27+</span>
+                    </div>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <span style="font-size:13px; color:var(--text-secondary);">App</span>
+                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Kokomi AI</span>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- ── About Footer ── -->
-        <div class="about-footer">
-            <h3 style="font-size:15px; font-weight:700; color:var(--text-primary); margin-bottom:10px;">About Kokomi AI</h3>
-            <div style="display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--text-tertiary);">
-                <p><span style="font-weight:600; color:var(--text-secondary);">Chat Model:</span> qwen/qwen3-32b via Groq</p>
-                <p><span style="font-weight:600; color:var(--text-secondary);">Title Model:</span> llama-4-scout-17b</p>
-                <p><span style="font-weight:600; color:var(--text-secondary);">MCP SDK:</span> v1.27+</p>
-            </div>
-        </div>
+        </main>
     </div>
 
-    <!-- ═══════════ CHARACTER MODAL ═══════════ -->
-    <div x-show="charModal" x-cloak class="modal-overlay"
-        @keydown.escape.window="charModal = false">
+    <!-- ═══ CHARACTER MODAL ═══ -->
+    <div x-show="charModal" x-cloak class="modal-overlay" @keydown.escape.window="charModal = false">
         <div class="modal-backdrop" @click="charModal = false"
-            x-show="charModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
-        <div class="modal-sheet"
-            x-show="charModal"
-            x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
+            x-show="charModal" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="charModal"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
             <div class="modal-handle"></div>
-            <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:24px;" x-text="charEditId ? 'Edit Character' : 'New Character'"></h3>
-            <form @submit.prevent="saveChar()" style="display:flex; flex-direction:column; gap:18px;">
+            <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin-bottom:20px;" x-text="charEditId ? 'Edit Character' : 'New Character'"></h3>
+            <div style="display:flex; flex-direction:column; gap:16px;">
                 <!-- Templates -->
                 <div x-show="!charEditId">
-                    <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Quick Templates</label>
-                    <div style="display:flex; gap:8px;">
-                        <button type="button" @click="charName='Nahida'; charPersona='You are Nahida, the Lesser Lord Kusanali. You are wise, curious, and speak in beautiful metaphors. You treat everyone with kindness and wonder.'"
-                            class="template-btn">Nahida</button>
-                        <button type="button" @click="charName='Kokomi'; charPersona='You are Kokomi, the Divine Priestess of Watatsumi Island. You are a brilliant strategist and a gentle, thoughtful leader.'"
-                            class="template-btn">Kokomi</button>
+                    <label style="display:block; font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:7px;">Quick Templates</label>
+                    <div style="display:flex; gap:7px;">
+                        <button type="button" @click="charName='Nahida'; charPersona='You are Nahida, the Lesser Lord Kusanali. You are wise, curious, and speak in beautiful metaphors.'" class="template-btn">Nahida</button>
+                        <button type="button" @click="charName='Kokomi'; charPersona='You are Kokomi, the Divine Priestess of Watatsumi Island. You are a brilliant strategist and gentle leader.'" class="template-btn">Kokomi</button>
                     </div>
                 </div>
                 <!-- Avatar -->
-                <div style="display:flex; align-items:center; gap:16px;">
+                <div style="display:flex; align-items:center; gap:14px;">
                     <label style="cursor:pointer;">
                         <template x-if="charAvatarPreview">
-                            <div class="avatar-circle" style="width:68px; height:68px;">
-                                <img :src="charAvatarPreview" style="width:100%; height:100%; border-radius:16px; object-fit:cover;" />
-                            </div>
+                            <div class="avatar-circle" style="width:60px; height:60px;"><img :src="charAvatarPreview" style="width:100%; height:100%; border-radius:14px; object-fit:cover;" /></div>
                         </template>
                         <template x-if="!charAvatarPreview">
                             <div class="upload-area">
-                                <i class="fa-solid fa-camera" style="color:var(--accent); font-size:16px;"></i>
-                                <span style="font-size:9px; color:var(--text-tertiary); margin-top:4px; font-weight:500;">Avatar</span>
+                                <i class="fa-solid fa-camera" style="color:var(--accent); font-size:14px;"></i>
+                                <span style="font-size:9px; color:var(--text-tertiary); margin-top:3px; font-weight:500;">Avatar</span>
                             </div>
                         </template>
                         <input type="file" accept="image/*" style="display:none;" @change="previewCharAvatar($event)" />
                     </label>
                     <div>
                         <p style="font-size:13px; font-weight:600; color:var(--text-primary);">Profile Picture</p>
-                        <p style="font-size:11px; color:var(--text-quaternary);">Click to upload. PNG, JPG, WebP.</p>
+                        <p style="font-size:11px; color:var(--text-quaternary);">PNG, JPG, WebP.</p>
                     </div>
                 </div>
                 <!-- Name -->
@@ -817,70 +890,58 @@
                 <!-- Persona -->
                 <div>
                     <label class="apple-label">Persona / System Prompt</label>
-                    <textarea x-model="charPersona" rows="4" required
-                        placeholder="You are Luna, a gentle and wise mentor..."
-                        class="apple-field" style="resize:none; line-height:1.65;"></textarea>
-                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">This is the system prompt. Be descriptive about tone and expertise.</p>
+                    <textarea x-model="charPersona" rows="4" required placeholder="You are Luna, a gentle and wise mentor..." class="apple-field" style="resize:none; line-height:1.65;"></textarea>
+                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Be descriptive about tone and expertise.</p>
                 </div>
-                <!-- Per-Provider Model Override -->
+                <!-- Per-Provider Model -->
                 <div>
                     <label class="apple-label" x-text="'Preferred ' + (prefs.llm_provider === 'google' ? 'Gemini' : prefs.llm_provider === 'local' ? 'Local' : 'Groq') + ' Model'"></label>
                     <div style="position:relative;">
-                        <select x-model="currentCharModel" class="apple-field" style="padding-right:40px; cursor:pointer;">
+                        <select x-model="currentCharModel" class="apple-field" style="padding-right:36px; cursor:pointer;">
                             <option value="default" style="background:var(--bg-canvas); color:var(--text-primary);">Default (Global Setting)</option>
                             <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
                                 <option :value="m.id" x-text="m.name || m.id" style="background:var(--bg-canvas); color:var(--text-primary);"></option>
                             </template>
                         </select>
-                        <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
-                            <i class="fa-solid fa-chevron-down"></i>
-                        </div>
+                        <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;"><i class="fa-solid fa-chevron-down"></i></div>
                     </div>
-                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">Each provider has its own model slot. Switch providers in General to set the others.</p>
                 </div>
-                <!-- Voice Selection -->
+                <!-- Voice -->
                 <div>
                     <label class="apple-label">Voice (Gemini Live)</label>
                     <div style="position:relative;">
-                        <select x-model="charVoice" class="apple-field" style="padding-right:40px; cursor:pointer;">
+                        <select x-model="charVoice" class="apple-field" style="padding-right:36px; cursor:pointer;">
                             <option value="aoede" style="background:var(--bg-canvas); color:var(--text-primary);">Aoede (Warm, feminine)</option>
                             <option value="kore" style="background:var(--bg-canvas); color:var(--text-primary);">Kore (Clear, neutral feminine)</option>
                             <option value="puck" style="background:var(--bg-canvas); color:var(--text-primary);">Puck (Playful, energetic)</option>
                             <option value="charon" style="background:var(--bg-canvas); color:var(--text-primary);">Charon (Deep, calm)</option>
                             <option value="fenrir" style="background:var(--bg-canvas); color:var(--text-primary);">Fenrir (Strong, assertive)</option>
                         </select>
-                        <div style="position:absolute; right:16px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:11px;">
-                            <i class="fa-solid fa-chevron-down"></i>
-                        </div>
+                        <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;"><i class="fa-solid fa-chevron-down"></i></div>
                     </div>
                 </div>
                 <!-- MCP Servers -->
                 <div x-show="mcpServers.length > 0">
-                    <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">Granular MCP Tool Access</label>
-                    <div style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; padding-right:4px;">
+                    <label style="display:block; font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px;">MCP Tool Access</label>
+                    <div style="display:flex; flex-direction:column; gap:7px; max-height:220px; overflow-y:auto; padding-right:3px;">
                         <template x-for="srv in mcpServers" :key="srv.id">
-                            <div style="border-radius:14px; border:1px solid var(--border); padding:12px; transition:all 0.2s ease;"
+                            <div style="border-radius:12px; border:1px solid var(--border); padding:10px 12px; transition:all 0.2s ease;"
                                  :style="charMCPServers.includes(srv.id) ? 'background:var(--accent-subtle); border-color:var(--accent)' : 'background:var(--bg-input)'">
-                                <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
-                                    <input type="checkbox" :value="srv.id"
-                                        :checked="charMCPServers.includes(srv.id)"
-                                        @change="toggleCharMCP(srv.id)"
-                                        style="width:16px; height:16px; border-radius:4px; accent-color:var(--accent);" />
+                                <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                    <input type="checkbox" :value="srv.id" :checked="charMCPServers.includes(srv.id)" @change="toggleCharMCP(srv.id)"
+                                        style="width:15px; height:15px; border-radius:4px; accent-color:var(--accent);" />
                                     <div style="flex-grow:1; min-width:0;">
-                                        <div style="display:flex; align-items:center; gap:8px;">
+                                        <div style="display:flex; align-items:center; gap:7px;">
                                             <span style="font-size:13px; font-weight:700; color:var(--text-primary);" x-text="srv.name"></span>
-                                            <i :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'" style="font-size:10px; color:var(--text-tertiary);"></i>
+                                            <i :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'" style="font-size:9px; color:var(--text-tertiary);"></i>
                                         </div>
                                     </div>
                                     <button type="button" @click="fetchMCPTools(srv.id)"
-                                        style="font-size:10px; font-weight:600; color:var(--accent); background:none; border:none; cursor:pointer; text-decoration:none;"
-                                        onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-                                        Browse Tools
-                                    </button>
+                                        style="font-size:10px; font-weight:600; color:var(--accent); background:none; border:none; cursor:pointer;">Browse Tools</button>
                                 </label>
-                                <div x-show="mcpTools[srv.id]" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--separator);">
-                                    <div style="font-size:10px; color:var(--text-tertiary); margin-bottom:6px; font-weight:700; font-style:italic;">Available Tools:</div>
-                                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                                <div x-show="mcpTools[srv.id]" style="margin-top:8px; padding-top:8px; border-top:1px solid var(--separator);">
+                                    <div style="font-size:10px; color:var(--text-tertiary); margin-bottom:5px; font-weight:700;">Available Tools:</div>
+                                    <div style="display:flex; flex-wrap:wrap; gap:3px;">
                                         <template x-for="t in mcpTools[srv.id]" :key="t">
                                             <span class="tool-pill" x-text="t"></span>
                                         </template>
@@ -891,91 +952,83 @@
                     </div>
                 </div>
                 <!-- Buttons -->
-                <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-top:8px;">
+                <div style="display:flex; align-items:center; justify-content:flex-end; gap:7px; padding-top:6px;">
                     <button type="button" @click="charModal = false" class="btn-ghost">Cancel</button>
-                    <button type="submit" :disabled="saving" class="btn-accent">
+                    <button type="button" @click="saveChar()" :disabled="saving" class="btn-accent">
                         <span x-show="!saving" x-text="charEditId ? 'Save' : 'Create Character'"></span>
-                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:12px;"></i></span>
+                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:11px;"></i></span>
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
-    <!-- ═══════════ MCP SERVER MODAL ═══════════ -->
-    <div x-show="mcpModal" x-cloak class="modal-overlay"
-        @keydown.escape.window="mcpModal = false">
+    <!-- ═══ MCP SERVER MODAL ═══ -->
+    <div x-show="mcpModal" x-cloak class="modal-overlay" @keydown.escape.window="mcpModal = false">
         <div class="modal-backdrop" @click="mcpModal = false"
-            x-show="mcpModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
-        <div class="modal-sheet"
-            x-show="mcpModal"
-            x-transition:enter="transition ease-out duration-250" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
+            x-show="mcpModal" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="mcpModal"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
             <div class="modal-handle"></div>
-            <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:24px;" x-text="mcpEditId ? 'Edit MCP Server' : 'Add MCP Server'"></h3>
-            <form @submit.prevent="saveMCP()" style="display:flex; flex-direction:column; gap:18px;">
-                <!-- Name -->
+            <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin-bottom:20px;" x-text="mcpEditId ? 'Edit MCP Server' : 'Add MCP Server'"></h3>
+            <div style="display:flex; flex-direction:column; gap:16px;">
                 <div>
                     <label class="apple-label">Server Name</label>
                     <input x-model="mcpName" type="text" required placeholder="e.g. Filesystem, Web Search, GitHub..." class="apple-field" />
                 </div>
-                <!-- Transport -->
                 <div>
-                    <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Transport</label>
-                    <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                        <button type="button" @click="mcpTransport = 'stdio'"
-                            class="transport-btn" :class="mcpTransport === 'stdio' ? 'selected' : ''">
-                            <i class="fa-solid fa-terminal" style="font-size:11px;"></i> stdio
+                    <label style="display:block; font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:7px;">Transport</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:7px;">
+                        <button type="button" @click="mcpTransport = 'stdio'" class="transport-btn" :class="mcpTransport === 'stdio' ? 'selected' : ''">
+                            <i class="fa-solid fa-terminal" style="font-size:10px;"></i> stdio
                         </button>
-                        <button type="button" @click="mcpTransport = 'sse'"
-                            class="transport-btn" :class="mcpTransport === 'sse' ? 'selected' : ''">
-                            <i class="fa-solid fa-cloud" style="font-size:11px;"></i> SSE
+                        <button type="button" @click="mcpTransport = 'sse'" class="transport-btn" :class="mcpTransport === 'sse' ? 'selected' : ''">
+                            <i class="fa-solid fa-cloud" style="font-size:10px;"></i> SSE
                         </button>
-                        <button type="button" @click="mcpTransport = 'streamable-http'"
-                            class="transport-btn" :class="mcpTransport === 'streamable-http' ? 'selected' : ''">
-                            <i class="fa-solid fa-network-wired" style="font-size:11px;"></i> Streamable HTTP
+                        <button type="button" @click="mcpTransport = 'streamable-http'" class="transport-btn" :class="mcpTransport === 'streamable-http' ? 'selected' : ''">
+                            <i class="fa-solid fa-network-wired" style="font-size:10px;"></i> Streamable HTTP
                         </button>
                     </div>
                 </div>
-                <!-- stdio fields -->
                 <template x-if="mcpTransport === 'stdio'">
-                    <div style="display:flex; flex-direction:column; gap:16px;">
+                    <div style="display:flex; flex-direction:column; gap:14px;">
                         <div>
                             <label class="apple-label">Command</label>
                             <input x-model="mcpCommand" type="text" required placeholder="e.g. npx, python3, node..." class="apple-field" />
                         </div>
                         <div>
                             <label class="apple-label">Arguments (one per line)</label>
-                            <textarea x-model="mcpArgs" rows="3" placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;/path/to/data" class="apple-field" style="resize:none; font-family:'SF Mono',monospace;"></textarea>
+                            <textarea x-model="mcpArgs" rows="3" placeholder="-y&#10;@modelcontextprotocol/server-filesystem&#10;/path/to/data" class="apple-field" style="resize:none; font-family:'SF Mono',monospace; font-size:12px;"></textarea>
                         </div>
                         <div>
-                            <label class="apple-label">Environment Variables (KEY=VALUE, one per line)</label>
-                            <textarea x-model="mcpEnv" rows="2" placeholder="API_KEY=your_key_here" class="apple-field" style="resize:none; font-family:'SF Mono',monospace;"></textarea>
+                            <label class="apple-label">Environment Variables (KEY=VALUE)</label>
+                            <textarea x-model="mcpEnv" rows="2" placeholder="API_KEY=your_key_here" class="apple-field" style="resize:none; font-family:'SF Mono',monospace; font-size:12px;"></textarea>
                         </div>
                     </div>
                 </template>
-                <!-- URL-based fields (SSE & Streamable HTTP) -->
                 <template x-if="mcpTransport === 'sse' || mcpTransport === 'streamable-http'">
                     <div>
                         <label class="apple-label">Server URL</label>
                         <input x-model="mcpUrl" type="url" required
                             :placeholder="mcpTransport === 'sse' ? 'http://localhost:3001/sse' : 'http://localhost:3001/mcp'"
-                            class="apple-field" style="font-family:'SF Mono','JetBrains Mono',monospace;" />
+                            class="apple-field" style="font-family:'SF Mono','JetBrains Mono',monospace; font-size:12px;" />
                     </div>
                 </template>
-                <!-- Enabled -->
-                <label style="display:flex; align-items:center; gap:12px; cursor:pointer; padding:0 4px;">
-                    <input type="checkbox" x-model="mcpEnabled" style="width:16px; height:16px; border-radius:4px; accent-color:var(--accent);" />
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:0 2px;">
+                    <input type="checkbox" x-model="mcpEnabled" style="width:15px; height:15px; border-radius:4px; accent-color:var(--accent);" />
                     <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Enabled</span>
                 </label>
-                <!-- Buttons -->
-                <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; padding-top:8px;">
+                <div style="display:flex; align-items:center; justify-content:flex-end; gap:7px; padding-top:6px;">
                     <button type="button" @click="mcpModal = false" class="btn-ghost">Cancel</button>
-                    <button type="submit" :disabled="saving" class="btn-accent">
+                    <button type="button" @click="saveMCP()" :disabled="saving" class="btn-accent">
                         <span x-show="!saving" x-text="mcpEditId ? 'Save' : 'Add Server'"></span>
-                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:12px;"></i></span>
+                        <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:11px;"></i></span>
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
@@ -987,10 +1040,14 @@ function settingsApp() {
         characters: [],
         mcpServers: [],
         models: [],
-        prefs: { 
-            model_name: '', 
-            user_persona: '', 
-            whatsapp_enabled: false, 
+        prefs: {
+            model_name: '',
+            user_persona: '',
+            llm_provider: 'groq',
+            dynamic_suggestions: true,
+            streaming_mode: true,
+            inject_time: true,
+            whatsapp_enabled: false,
             whatsapp_character_id: 'kokomi',
             whatsapp_api_url: 'http://localhost:3013'
         },
@@ -1004,12 +1061,9 @@ function settingsApp() {
         saveAppearance() {
             if (this.customAccent) localStorage.setItem('customAccent', this.customAccent);
             else localStorage.removeItem('customAccent');
-            
             localStorage.setItem('customBlur', this.customBlur);
-            
             if (this.customWallpaper.trim()) localStorage.setItem('customWallpaper', this.customWallpaper.trim());
             else localStorage.removeItem('customWallpaper');
-            
             location.reload();
         },
 
@@ -1017,27 +1071,15 @@ function settingsApp() {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (ev) => {
-                this.customWallpaper = ev.target.result; // Data URL
-                this.saveAppearance();
-            };
+            reader.onload = (ev) => { this.customWallpaper = ev.target.result; this.saveAppearance(); };
             reader.readAsDataURL(file);
         },
 
-        // Character modal state
-        charModal: false,
-        charEditId: null,
-        charName: '',
-        charPersona: '',
-        charGroqModel: 'default',
-        charGoogleModel: 'default',
-        charLocalModel: 'default',
-        charVoice: 'aoede',
-        charAvatarPreview: null,
-        charAvatarFile: null,
-        charMCPServers: [],
+        charModal: false, charEditId: null, charName: '', charPersona: '',
+        charGroqModel: 'default', charGoogleModel: 'default', charLocalModel: 'default',
+        charVoice: 'aoede', charAvatarPreview: null, charAvatarFile: null, charMCPServers: [],
+        mcpTools: {},
 
-        // Computed-like getter/setter that maps to the active provider's slot
         get currentCharModel() {
             const p = this.prefs.llm_provider;
             if (p === 'google') return this.charGoogleModel;
@@ -1050,22 +1092,10 @@ function settingsApp() {
             else if (p === 'local') this.charLocalModel = v;
             else this.charGroqModel = v;
         },
-        mcpTools: {}, 
 
-        // MCP modal state
-        mcpModal: false,
-        mcpEditId: null,
-        mcpName: '',
-        mcpTransport: 'stdio',
-        mcpCommand: '',
-        mcpArgs: '',
-        mcpEnv: '',
-        mcpUrl: '',
-        mcpEnabled: true,
-
-        // Test state
-        testingId: null,
-        testResult: null,
+        mcpModal: false, mcpEditId: null, mcpName: '', mcpTransport: 'stdio',
+        mcpCommand: '', mcpArgs: '', mcpEnv: '', mcpUrl: '', mcpEnabled: true,
+        testingId: null, testResult: null,
 
         get darkMode() { return document.documentElement.classList.contains('dark'); },
         toggleTheme() {
@@ -1077,38 +1107,23 @@ function settingsApp() {
         },
 
         async init() {
-            await Promise.all([
-                this.fetchChars(), 
-                this.fetchMCP(),
-                this.fetchPrefs(),
-                this.fetchModels()
-            ]);
+            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels()]);
         },
 
         async fetchPrefs() {
-            try { 
-                const r = await fetch('/api/prefs');
-                this.prefs = await r.json();
-            } catch(e) { console.error(e); }
+            try { const r = await fetch('/api/prefs'); this.prefs = await r.json(); } catch(e) { console.error(e); }
         },
 
         async savePrefs() {
             this.prefSaving = true;
             try {
-                await fetch('/api/prefs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.prefs)
-                });
+                await fetch('/api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.prefs) });
                 setTimeout(() => (this.prefSaving = false), 800);
             } catch(e) { console.error(e); this.prefSaving = false; }
         },
 
         async fetchModels() {
-            try {
-                const r = await fetch('/api/models');
-                this.models = await r.json();
-            } catch(e) { console.error(e); }
+            try { const r = await fetch('/api/models'); this.models = await r.json(); } catch(e) { console.error(e); }
         },
 
         getMCPName(id) {
@@ -1116,35 +1131,22 @@ function settingsApp() {
             return s ? s.name : id;
         },
 
-        // ── Characters ─────────────────────────────────────
         async fetchChars() {
             try { const r = await fetch('/api/characters'); if (r.ok) this.characters = await r.json(); } catch(e) { console.error(e); }
         },
 
         openCharModal(char = null) {
             if (char) {
-                this.charEditId = char.id;
-                this.charName = char.name;
-                this.charPersona = char.persona;
-                this.charGroqModel = char.groq_model || 'default';
-                this.charGoogleModel = char.google_model || 'default';
-                this.charLocalModel = char.local_model || 'default';
-                this.charVoice = char.voice || 'aoede';
-                this.charAvatarPreview = char.avatar;
-                this.charMCPServers = [...(char.mcp_servers || [])];
+                this.charEditId = char.id; this.charName = char.name; this.charPersona = char.persona;
+                this.charGroqModel = char.groq_model || 'default'; this.charGoogleModel = char.google_model || 'default';
+                this.charLocalModel = char.local_model || 'default'; this.charVoice = char.voice || 'aoede';
+                this.charAvatarPreview = char.avatar; this.charMCPServers = [...(char.mcp_servers || [])];
             } else {
-                this.charEditId = null;
-                this.charName = '';
-                this.charPersona = '';
-                this.charGroqModel = 'default';
-                this.charGoogleModel = 'default';
-                this.charLocalModel = 'default';
-                this.charVoice = 'aoede';
-                this.charAvatarPreview = null;
-                this.charMCPServers = [];
+                this.charEditId = null; this.charName = ''; this.charPersona = '';
+                this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default';
+                this.charVoice = 'aoede'; this.charAvatarPreview = null; this.charMCPServers = [];
             }
-            this.charAvatarFile = null;
-            this.charModal = true;
+            this.charAvatarFile = null; this.charModal = true;
         },
 
         previewCharAvatar(e) {
@@ -1161,18 +1163,12 @@ function settingsApp() {
         },
 
         async fetchMCPTools(id) {
-            if (this.mcpTools[id]) {
-                delete this.mcpTools[id];
-                return;
-            }
+            if (this.mcpTools[id]) { delete this.mcpTools[id]; return; }
             try {
                 const r = await fetch(`/api/mcp-servers/${id}/test`, { method: 'POST' });
                 const data = await r.json();
-                if (data.ok) {
-                    this.mcpTools[id] = data.tools;
-                } else {
-                    alert(data.error);
-                }
+                if (data.ok) this.mcpTools = { ...this.mcpTools, [id]: data.tools };
+                else alert(data.error);
             } catch(e) { console.error(e); }
         },
 
@@ -1180,15 +1176,11 @@ function settingsApp() {
             if (!this.charName.trim() || !this.charPersona.trim()) return;
             this.saving = true;
             const fd = new FormData();
-            fd.append('name', this.charName.trim());
-            fd.append('persona', this.charPersona.trim());
-            fd.append('groq_model', this.charGroqModel.trim());
-            fd.append('google_model', this.charGoogleModel.trim());
-            fd.append('local_model', this.charLocalModel.trim());
-            fd.append('voice', this.charVoice.trim());
+            fd.append('name', this.charName.trim()); fd.append('persona', this.charPersona.trim());
+            fd.append('groq_model', this.charGroqModel); fd.append('google_model', this.charGoogleModel);
+            fd.append('local_model', this.charLocalModel); fd.append('voice', this.charVoice);
             fd.append('mcp_servers', this.charMCPServers.join(','));
             if (this.charAvatarFile) fd.append('avatar', this.charAvatarFile);
-
             try {
                 const url = this.charEditId ? `/api/characters/${this.charEditId}` : '/api/characters';
                 const r = await fetch(url, { method: this.charEditId ? 'PUT' : 'POST', body: fd });
@@ -1203,30 +1195,19 @@ function settingsApp() {
             try { await fetch(`/api/characters/${id}`, { method: 'DELETE' }); await this.fetchChars(); } catch(e) { console.error(e); }
         },
 
-        // ── MCP Servers ────────────────────────────────────
         async fetchMCP() {
             try { const r = await fetch('/api/mcp-servers'); if (r.ok) this.mcpServers = await r.json(); } catch(e) { console.error(e); }
         },
 
         openMCPModal(srv = null) {
             if (srv) {
-                this.mcpEditId = srv.id;
-                this.mcpName = srv.name;
-                this.mcpTransport = srv.transport || 'stdio';
-                this.mcpCommand = srv.command || '';
-                this.mcpArgs = (srv.args || []).join('\n');
+                this.mcpEditId = srv.id; this.mcpName = srv.name; this.mcpTransport = srv.transport || 'stdio';
+                this.mcpCommand = srv.command || ''; this.mcpArgs = (srv.args || []).join('\n');
                 this.mcpEnv = Object.entries(srv.env || {}).map(([k,v]) => `${k}=${v}`).join('\n');
-                this.mcpUrl = srv.url || '';
-                this.mcpEnabled = srv.enabled !== false;
+                this.mcpUrl = srv.url || ''; this.mcpEnabled = srv.enabled !== false;
             } else {
-                this.mcpEditId = null;
-                this.mcpName = '';
-                this.mcpTransport = 'stdio';
-                this.mcpCommand = '';
-                this.mcpArgs = '';
-                this.mcpEnv = '';
-                this.mcpUrl = '';
-                this.mcpEnabled = true;
+                this.mcpEditId = null; this.mcpName = ''; this.mcpTransport = 'stdio';
+                this.mcpCommand = ''; this.mcpArgs = ''; this.mcpEnv = ''; this.mcpUrl = ''; this.mcpEnabled = true;
             }
             this.mcpModal = true;
         },
@@ -1234,31 +1215,13 @@ function settingsApp() {
         async saveMCP() {
             if (!this.mcpName.trim()) return;
             this.saving = true;
-
             const args = this.mcpArgs.split('\n').map(s => s.trim()).filter(Boolean);
             const env = {};
-            this.mcpEnv.split('\n').forEach(line => {
-                const eq = line.indexOf('=');
-                if (eq > 0) env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
-            });
-
-            const body = {
-                name: this.mcpName.trim(),
-                transport: this.mcpTransport,
-                command: this.mcpCommand.trim() || null,
-                args,
-                env,
-                url: this.mcpUrl.trim() || null,
-                enabled: this.mcpEnabled,
-            };
-
+            this.mcpEnv.split('\n').forEach(line => { const eq = line.indexOf('='); if (eq > 0) env[line.slice(0,eq).trim()] = line.slice(eq+1).trim(); });
+            const body = { name: this.mcpName.trim(), transport: this.mcpTransport, command: this.mcpCommand.trim() || null, args, env, url: this.mcpUrl.trim() || null, enabled: this.mcpEnabled };
             try {
                 const url = this.mcpEditId ? `/api/mcp-servers/${this.mcpEditId}` : '/api/mcp-servers';
-                const r = await fetch(url, {
-                    method: this.mcpEditId ? 'PUT' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
+                const r = await fetch(url, { method: this.mcpEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                 if (r.ok) { await this.fetchMCP(); this.mcpModal = false; }
                 else { const e = await r.json().catch(() => ({})); alert(e.detail || 'Failed'); }
             } catch { alert('Network error'); }
@@ -1266,13 +1229,12 @@ function settingsApp() {
         },
 
         async deleteMCP(id) {
-            if (!confirm('Delete this MCP server? It will be removed from all characters.')) return;
+            if (!confirm('Delete this MCP server?')) return;
             try { await fetch(`/api/mcp-servers/${id}`, { method: 'DELETE' }); await Promise.all([this.fetchMCP(), this.fetchChars()]); } catch(e) { console.error(e); }
         },
 
         async testMCP(id) {
-            this.testingId = id;
-            this.testResult = null;
+            this.testingId = id; this.testResult = null;
             try {
                 const r = await fetch(`/api/mcp-servers/${id}/test`, { method: 'POST' });
                 this.testResult = await r.json();

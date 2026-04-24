@@ -3,228 +3,445 @@
 
 {% block head %}
 <style>
-    .call-page { height:100vh; display:flex; flex-direction:column; background:transparent; overflow:hidden; }
+    /* ═══ Call Page — macOS Tahoe HIG ═══ */
+    .call-page { height: 100vh; display: flex; flex-direction: column; background: var(--bg-canvas); overflow: hidden; }
 
-    /* ── Contact List ── */
-    .contacts-view { flex:1; display:flex; flex-direction:column; }
-    .contacts-header { padding:20px 24px 12px; }
-    .contacts-header h1 { font-size:32px; font-weight:800; letter-spacing:-0.03em; color:var(--text-primary); }
-    .contacts-search { margin:0 20px 16px; position:relative; }
-    .contacts-search input { width:100%; padding:10px 14px 10px 38px; border-radius:12px; border:none; background:var(--bg-input); color:var(--text-primary); font-size:14px; outline:none; }
-    .contacts-search i { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--text-quaternary); font-size:13px; }
-    .section-title { font-size:18px; font-weight:700; color:var(--text-primary); margin:0 20px 14px; letter-spacing:-0.01em; }
-    
-    .horizontal-contacts-container { margin-bottom:32px; }
-    .horizontal-contacts { display:flex; gap:16px; overflow-x:auto; padding:0 20px 12px; scrollbar-width:none; -ms-overflow-style:none; }
-    .horizontal-contacts::-webkit-scrollbar { display:none; }
-    
-    .contact-card { position:relative; width:120px; aspect-ratio:3/4; border-radius:20px; overflow:hidden; cursor:pointer; background:var(--bg-surface); transition:all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow:0 8px 24px rgba(0,0,0,0.08); flex-shrink:0; }
-    .contact-card:active { transform:scale(0.96); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-    .contact-card img { width:100%; height:100%; object-fit:cover; transition:transform 0.5s ease; }
-    .contact-card .placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:40px; font-weight:700; color:#fff; background:linear-gradient(135deg, #505081, #8686AC); }
-    .card-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, transparent 40%, rgba(15,14,71,0.9) 100%); pointer-events:none; }
-    .card-info { position:absolute; bottom:0; left:0; right:0; padding:12px; z-index:2; }
-    .card-name { font-size:14px; font-weight:700; color:#fff; letter-spacing:-0.02em; margin-bottom:2px; text-shadow:0 2px 8px rgba(0,0,0,0.5); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .card-call-icon { position:absolute; right:8px; bottom:8px; width:28px; height:28px; border-radius:14px; background:rgba(52,199,89,0.9); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; backdrop-filter:blur(20px); opacity:0; transform:translateY(10px); transition:all 0.3s ease; }
-    .contact-card:hover .card-call-icon { opacity:1; transform:translateY(0); }
-
-    .vertical-recents-container { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-
-    .contact-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:16px; padding:0 20px 24px; overflow-y:auto; flex:1; align-content:start; }
-    .contact-card { position:relative; aspect-ratio:3/4; border-radius:24px; overflow:hidden; cursor:pointer; background:var(--bg-surface); transition:all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); box-shadow:0 8px 24px rgba(0,0,0,0.08); }
-    .contact-card:hover { transform:translateY(-4px) scale(1.02); box-shadow:0 12px 32px rgba(0,0,0,0.15); }
-    .contact-card:active { transform:scale(0.96); box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-    .contact-card img { width:100%; height:100%; object-fit:cover; transition:transform 0.5s ease; }
-    .contact-card:hover img { transform:scale(1.05); }
-    .contact-card .placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:48px; font-weight:700; color:#fff; background:linear-gradient(135deg, #505081, #8686AC); }
-    .card-overlay { position:absolute; inset:0; background:linear-gradient(to bottom, transparent 40%, rgba(15,14,71,0.9) 100%); pointer-events:none; }
-    .card-info { position:absolute; bottom:0; left:0; right:0; padding:16px; z-index:2; }
-    .card-name { font-size:16px; font-weight:700; color:#fff; letter-spacing:-0.02em; margin-bottom:2px; text-shadow:0 2px 8px rgba(0,0,0,0.5); }
-    .card-persona { font-size:11px; color:rgba(255,255,255,0.7); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .card-call-icon { position:absolute; right:12px; bottom:16px; width:36px; height:36px; border-radius:18px; background:rgba(52,199,89,0.9); color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; backdrop-filter:blur(20px); box-shadow:0 4px 12px rgba(52,199,89,0.4); opacity:0; transform:translateY(10px); transition:all 0.3s ease; }
-    .contact-card:hover .card-call-icon { opacity:1; transform:translateY(0); }
-
-    /* ── Active Call Screen ── */
-    .call-screen { position:fixed; inset:0; z-index:500; display:flex; flex-direction:column; }
-    .call-bg { position:absolute; inset:0; background:var(--bg-canvas); backdrop-filter:var(--vibrancy); -webkit-backdrop-filter:var(--vibrancy); opacity:0.85; }
-    .call-header { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:1; padding:20px; }
-    .call-bottom { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; padding-bottom:50px; width:100%; }
-    .call-avatar-ring-container { position:relative; width:140px; height:140px; margin-bottom:20px; cursor:pointer; }
-    .call-avatar-ring { position:absolute; inset:5px; border-radius:50%; padding:4px; background:var(--bg-elevated); box-shadow:var(--shadow-lg); z-index:2; transition:transform 0.2s; }
-    .call-avatar-ring:active { transform:scale(0.95); }
-    .call-avatar-ring img, .call-avatar-ring .placeholder { border-radius:50% !important; width:100%; height:100%; object-fit:cover; }
-    
-    /* Reactive speaking aura */
-    .speak-aura { position:absolute; inset:0; border-radius:50%; background:var(--accent); opacity:0; transition:opacity 0.1s, transform 0.1s; z-index:1; filter:blur(12px); }
-    
-    /* Revolving thinking/tool aura */
-    .think-aura { position:absolute; inset:-4px; border-radius:50%; background:conic-gradient(from 0deg, transparent 70%, #0A84FF 100%); z-index:1; animation:spin 1s linear infinite; opacity:0; transition:opacity 0.3s; }
-    @keyframes spin { 100% { transform:rotate(360deg); } }
-
-    .call-avatar-ring.connecting { animation:pulse-ring 2s ease-in-out infinite; }
-    .call-avatar-ring img, .call-avatar-ring .placeholder { width:100%; height:100%; border-radius:34px; object-fit:cover; }
-    .call-avatar-ring .placeholder { display:flex; align-items:center; justify-content:center; font-size:48px; font-weight:700; color:var(--text-primary); background:var(--bg-surface-hover); }
-    .call-char-name { font-size:28px; font-weight:800; color:var(--text-primary); letter-spacing:-0.03em; margin-bottom:6px; }
-    .call-status { font-size:15px; color:var(--text-tertiary); font-weight:500; margin-bottom:20px; }
-    .call-status.active-status { color:var(--accent); }
-
-    /* ── Waveform ── */
-    .waveform { display:flex; align-items:center; justify-content:center; gap:3px; height:40px; margin-bottom:20px; }
-    .waveform .bar { width:3px; border-radius:2px; background:rgba(255,255,255,0.3); transition:height 0.1s ease; }
-    .waveform.speaking .bar { background:rgba(52,199,89,0.7); }
-
-    /* Adjust contacts-view */
-    .contacts-view { flex:1; display:flex; flex-direction:column; }
-    .contact-grid { padding:0 20px 24px; overflow-y:auto; flex:1; align-content:start; }
-    .recents-list { padding:0 20px 24px; overflow-y:auto; flex:1; }
-
-    /* ── Recents List ── */
-    .recent-item { display:flex; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; transition:background 0.2s; }
-    .recent-item:active { background:rgba(255,255,255,0.05); }
-    .recent-avatar { width:44px; height:44px; border-radius:22px; background:var(--bg-surface-hover); margin-right:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; font-weight:700; color:var(--text-primary); }
-    .recent-avatar img { width:100%; height:100%; object-fit:cover; }
-    .recent-info { flex:1; }
-    .recent-name { font-size:17px; font-weight:600; color:var(--text-primary); }
-    .recent-meta { font-size:14px; color:var(--text-tertiary); margin-top:2px; display:flex; gap:6px; align-items:center; }
-    .recent-time { font-size:14px; color:var(--text-tertiary); margin-right:8px; }
-    .recent-info-btn { width:28px; height:28px; color:#0A84FF; font-size:20px; display:flex; align-items:center; justify-content:center; }
-
-    /* ── iOS Call Controls ── */
-    .call-controls { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 28px; margin-bottom:40px; max-width:320px; width:100%; }
-    .call-btn-wrapper { display:flex; flex-direction:column; align-items:center; gap:8px; }
-    .call-btn { width:72px; height:72px; border-radius:36px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:28px; transition:all 0.2s ease; backdrop-filter:blur(12px); background:rgba(255,255,255,0.15); color:#fff; }
-    .call-btn:active { transform:scale(0.92); }
-    .call-btn.on { background:#fff; color:#000; }
-    .call-btn-label { font-size:14px; font-weight:500; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,0.3); }
-    
-    .end-btn-container { width:100%; display:flex; justify-content:center; margin-bottom:24px; }
-    .call-btn.end-btn { width:72px; height:72px; border-radius:36px; background:#FF3B30; color:#fff; font-size:28px; box-shadow:0 8px 32px rgba(255,59,48,0.35); transform:rotate(135deg); }
-    .call-btn.end-btn:hover { background:#E0342B; transform:scale(1.05) rotate(135deg); }
-
-    /* ── Transcript ── */
-    .transcript-area { text-align:center; padding:0 32px; width:100%; max-width:400px; margin-top:20px; }
-    .transcript-text { font-size:16px; color:var(--text-secondary); font-weight:500; line-height:1.5; max-height:120px; overflow-y:auto; }
-    
-    .mcp-status-bubble { background:rgba(10,132,255,0.15); color:#0A84FF; padding:8px 16px; border-radius:20px; display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:14px; margin-bottom:12px; }
-
-    /* ── Back button ── */
-    .back-bar { padding:12px 20px; display:flex; align-items:center; gap:8px; }
-    .back-bar a { display:flex; align-items:center; gap:6px; color:var(--text-secondary); font-size:14px; font-weight:600; text-decoration:none; padding:6px 12px; border-radius:10px; transition:all 0.2s ease; }
-    .back-bar a:hover { background:var(--bg-surface-hover); color:var(--text-primary); }
-
-    @keyframes pulse-ring {
-        0%,100% { box-shadow:0 0 0 0 var(--accent-subtle); }
-        50% { box-shadow:0 0 0 16px transparent; }
+    /* ── Top bar ── */
+    .call-topbar {
+        position: relative; z-index: 10;
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 20px;
+        background: var(--bg-sidebar);
+        backdrop-filter: var(--vibrancy); -webkit-backdrop-filter: var(--vibrancy);
+        border-bottom: 1px solid var(--separator);
+        flex-shrink: 0;
     }
+    .call-topbar h1 { font-size: 17px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+    .icon-btn {
+        width: 34px; height: 34px; border-radius: 9px; border: none;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-tertiary); cursor: pointer; background: transparent;
+        transition: all 0.2s cubic-bezier(0.25,0.1,0.25,1); text-decoration: none;
+    }
+    .icon-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+    .icon-btn:active { transform: scale(0.93); }
+
+    /* ── Tahoe two-column layout ── */
+    .tahoe-layout {
+        display: flex; flex: 1; overflow: hidden;
+    }
+
+    /* ── Left sidebar: contacts ── */
+    .contacts-sidebar {
+        width: 280px; flex-shrink: 0;
+        display: flex; flex-direction: column;
+        border-right: 1px solid var(--separator);
+        background: var(--bg-sidebar);
+        backdrop-filter: var(--vibrancy); -webkit-backdrop-filter: var(--vibrancy);
+        overflow: hidden;
+    }
+
+    .sidebar-search {
+        padding: 12px 14px 10px;
+        flex-shrink: 0;
+    }
+    .sidebar-search-inner {
+        position: relative;
+    }
+    .sidebar-search input {
+        width: 100%; padding: 8px 12px 8px 32px;
+        border-radius: 10px; border: 1px solid var(--border);
+        background: var(--bg-input); color: var(--text-primary);
+        font-size: 13px; outline: none;
+        transition: border-color 0.2s ease;
+    }
+    .sidebar-search input:focus { border-color: var(--accent); }
+    .sidebar-search input::placeholder { color: var(--text-quaternary); }
+    .sidebar-search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-quaternary); font-size: 11px; }
+
+    .sidebar-section-label {
+        font-size: 10px; font-weight: 700; color: var(--text-quaternary);
+        text-transform: uppercase; letter-spacing: 0.07em;
+        padding: 10px 16px 5px;
+    }
+
+    .contacts-scroll { flex: 1; overflow-y: auto; }
+    .contacts-scroll::-webkit-scrollbar { width: 3px; }
+    .contacts-scroll::-webkit-scrollbar-thumb { background: var(--text-quaternary); border-radius: 10px; }
+
+    /* Contact row item */
+    .contact-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 9px 14px; cursor: pointer;
+        transition: background 0.15s ease;
+        border-radius: 10px; margin: 0 6px 2px;
+    }
+    .contact-row:hover { background: var(--accent-subtle); }
+    .contact-row.active { background: var(--accent); }
+    .contact-row.active .contact-row-name { color: var(--accent-text); }
+    .contact-row.active .contact-row-sub { color: rgba(255,255,255,0.6); }
+
+    .contact-avatar {
+        width: 38px; height: 38px; border-radius: 19px; flex-shrink: 0;
+        overflow: hidden; background: linear-gradient(135deg, #505081, #8686AC);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px; font-weight: 700; color: #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    }
+    .contact-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .contact-row-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+    .contact-row-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+
+    .contact-call-btn {
+        margin-left: auto; flex-shrink: 0;
+        width: 28px; height: 28px; border-radius: 14px;
+        background: rgba(52,199,89,0.15); color: #34C759; border: none;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 11px;
+        opacity: 0; transition: all 0.2s ease;
+    }
+    .contact-row:hover .contact-call-btn { opacity: 1; }
+    .contact-row.active .contact-call-btn { opacity: 1; background: rgba(255,255,255,0.2); color: #fff; }
+    .contact-call-btn:hover { background: rgba(52,199,89,0.3) !important; transform: scale(1.1); }
+
+    /* Recents in sidebar */
+    .recent-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 14px; cursor: pointer;
+        transition: background 0.15s ease;
+        border-radius: 10px; margin: 0 6px 2px;
+    }
+    .recent-row:hover { background: var(--accent-subtle); }
+    .recent-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .recent-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+    .recent-time { font-size: 11px; color: var(--text-quaternary); margin-left: auto; flex-shrink: 0; }
+
+    /* ── Right main area ── */
+    .call-main {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        position: relative; overflow: hidden;
+        background: var(--bg-canvas);
+    }
+
+    /* Empty state */
+    .empty-state {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 12px; text-align: center; opacity: 0.5;
+    }
+    .empty-state-icon {
+        width: 64px; height: 64px; border-radius: 20px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 28px; color: var(--text-tertiary);
+        box-shadow: var(--shadow-sm);
+    }
+    .empty-state h2 { font-size: 17px; font-weight: 700; color: var(--text-secondary); }
+    .empty-state p { font-size: 13px; color: var(--text-tertiary); max-width: 220px; line-height: 1.5; }
+
+    /* ── Active call screen (full overlay) ── */
+    .call-screen {
+        position: fixed; inset: 0; z-index: 500;
+        display: flex; flex-direction: column;
+    }
+    .call-bg-layer {
+        position: absolute; inset: 0;
+        background: var(--bg-canvas);
+        backdrop-filter: saturate(200%) blur(40px);
+        -webkit-backdrop-filter: saturate(200%) blur(40px);
+    }
+    /* Blurred avatar bg */
+    .call-bg-avatar {
+        position: absolute; inset: -20%;
+        background-size: cover; background-position: center;
+        filter: blur(60px) saturate(180%);
+        opacity: 0.18;
+        z-index: 0;
+    }
+
+    /* call layout */
+    .call-content {
+        position: relative; z-index: 1;
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 40px 24px 20px;
+    }
+    .call-footer {
+        position: relative; z-index: 1;
+        display: flex; flex-direction: column; align-items: center;
+        padding-bottom: 52px;
+    }
+
+    /* Avatar ring */
+    .call-avatar-wrap {
+        position: relative; width: 148px; height: 148px;
+        margin-bottom: 24px; cursor: pointer;
+    }
+    .speak-aura {
+        position: absolute; inset: -8px; border-radius: 50%;
+        background: var(--accent);
+        opacity: 0; filter: blur(16px);
+        transition: opacity 0.1s, transform 0.1s; z-index: 0;
+    }
+    .think-aura {
+        position: absolute; inset: -6px; border-radius: 50%;
+        background: conic-gradient(from 0deg, transparent 65%, #0A84FF 100%);
+        opacity: 0; z-index: 0;
+        animation: spin 1s linear infinite;
+        transition: opacity 0.3s;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    .call-avatar-ring {
+        position: absolute; inset: 4px; border-radius: 50%;
+        background: var(--bg-elevated);
+        box-shadow: var(--shadow-lg);
+        z-index: 1; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        transition: transform 0.2s;
+    }
+    .call-avatar-ring img { width: 100%; height: 100%; object-fit: cover; }
+    .call-avatar-ring .placeholder {
+        width: 100%; height: 100%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 52px; font-weight: 800;
+        color: var(--text-primary);
+        background: var(--bg-surface-hover);
+    }
+    .call-avatar-ring.pulse { animation: pulse-ring 2s ease-in-out infinite; }
+    @keyframes pulse-ring {
+        0%,100% { box-shadow: var(--shadow-lg), 0 0 0 0 var(--accent-subtle); }
+        50% { box-shadow: var(--shadow-lg), 0 0 0 16px transparent; }
+    }
+
+    .call-char-name {
+        font-size: 30px; font-weight: 800;
+        color: var(--text-primary); letter-spacing: -0.035em;
+        margin-bottom: 6px;
+    }
+    .call-status-line {
+        font-size: 15px; font-weight: 500;
+        color: var(--text-tertiary); margin-bottom: 24px;
+    }
+    .call-status-line.active-color { color: var(--accent); }
+
+    /* MCP tool badge */
+    .mcp-badge {
+        background: rgba(10,132,255,0.12); color: #0A84FF;
+        padding: 7px 14px; border-radius: 18px;
+        display: inline-flex; align-items: center; gap: 7px;
+        font-weight: 600; font-size: 13px; margin-bottom: 8px;
+        border: 1px solid rgba(10,132,255,0.2);
+    }
+
+    /* Waveform */
+    .waveform {
+        display: flex; align-items: center; justify-content: center;
+        gap: 3px; height: 44px; margin-bottom: 24px;
+    }
+    .waveform .bar {
+        width: 3px; border-radius: 2px;
+        background: var(--border);
+        transition: height 0.08s ease;
+    }
+    .waveform.speaking .bar { background: rgba(52,199,89,0.7); }
+    .waveform.ai-speaking .bar { background: var(--accent); opacity: 0.7; }
+
+    /* Transcript */
+    .transcript-bubble {
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        border-radius: 16px; padding: 12px 18px;
+        max-width: 360px; text-align: center;
+        font-size: 15px; color: var(--text-secondary);
+        line-height: 1.55; font-weight: 500;
+        max-height: 100px; overflow-y: auto;
+        margin-bottom: 8px;
+    }
+
+    /* Controls grid — macOS style frosted buttons */
+    .call-controls {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: 14px 24px; margin-bottom: 36px;
+        max-width: 300px; width: 100%;
+    }
+    .call-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+    .call-ctrl-btn {
+        width: 66px; height: 66px; border-radius: 33px; border: none;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        font-size: 24px; transition: all 0.18s ease;
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        backdrop-filter: blur(12px);
+    }
+    .call-ctrl-btn:hover { box-shadow: var(--shadow-md); transform: scale(1.04); }
+    .call-ctrl-btn:active { transform: scale(0.94); }
+    .call-ctrl-btn.active {
+        background: var(--text-primary);
+        color: var(--bg-canvas);
+        border-color: transparent;
+    }
+    .call-ctrl-btn.dim { opacity: 0.38; pointer-events: none; }
+    .call-btn-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+
+    /* End button */
+    .end-btn-row { display: flex; justify-content: center; }
+    .call-end-btn {
+        width: 66px; height: 66px; border-radius: 33px; border: none;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        font-size: 26px; color: #fff;
+        background: #FF3B30;
+        box-shadow: 0 6px 24px rgba(255,59,48,0.35);
+        transition: all 0.18s ease;
+        transform: rotate(135deg);
+    }
+    .call-end-btn:hover { background: #d93025; box-shadow: 0 8px 32px rgba(255,59,48,0.45); transform: rotate(135deg) scale(1.06); }
+    .call-end-btn:active { transform: rotate(135deg) scale(0.95); }
+
+    /* Space selector pill */
+    .space-pill {
+        display: flex; align-items: center; gap: 7px;
+        padding: 5px 11px; border-radius: 9px;
+        border: 1px solid var(--border);
+        background: var(--bg-input);
+    }
+    .space-pill select {
+        background: transparent; border: none;
+        color: var(--text-secondary); font-size: 12px; font-weight: 600;
+        outline: none; cursor: pointer;
+    }
+
+    [x-cloak] { display: none !important; }
 </style>
 {% endblock %}
 
 {% block body %}
 <div class="call-page" x-data="callApp()" x-cloak>
 
-    <!-- ═══════ CONTACTS VIEW ═══════ -->
-    <div class="contacts-view" x-show="!inCall" x-transition>
-        <div class="back-bar">
-            <a href="/"><i class="fa-solid fa-chevron-left text-[12px]"></i> Chats</a>
+    <!-- ── Top bar ── -->
+    <header class="call-topbar">
+        <a href="/" class="icon-btn">
+            <i class="fa-solid fa-arrow-left" style="font-size:13px;"></i>
+        </a>
+        <h1>Calls</h1>
+        <div style="flex:1;"></div>
+        <!-- Space selector -->
+        <div x-show="spaces.length > 0" class="space-pill">
+            <i class="fa-regular fa-object-ungroup" style="font-size:10px; color:var(--text-tertiary);"></i>
+            <select x-model="activeSpaceId">
+                <option :value="null">No Space</option>
+                <template x-for="s in spaces" :key="s.id">
+                    <option :value="s.id" x-text="s.name"></option>
+                </template>
+            </select>
         </div>
-        <div class="contacts-header" style="display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px;">
-            <div>
-                <h1>Calls</h1>
-                <p style="font-size:13px; color:var(--text-tertiary); margin-top:4px;">Voice call your AI characters with Gemini Live.</p>
-            </div>
-            
-            <div x-show="spaces.length > 0" style="display:flex; align-items:center; gap:8px; background:var(--bg-input); padding:6px 12px; border-radius:10px; border:1px solid var(--border);">
-                <i class="fa-regular fa-object-ungroup text-[10px] color:var(--text-tertiary);"></i>
-                <select x-model="activeSpaceId" style="background:transparent; border:none; color:var(--text-secondary); font-size:12px; font-weight:600; outline:none; cursor:pointer;">
-                    <option :value="null">No Space Linked</option>
-                    <template x-for="s in spaces" :key="s.id">
-                        <option :value="s.id" x-text="s.name"></option>
-                    </template>
-                </select>
-            </div>
-        </div>
-        
-        <div class="contacts-search">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" x-model="search" placeholder="Search contacts..." />
-        </div>
+    </header>
 
-        <!-- Horizontal Contacts List -->
-        <div class="horizontal-contacts-container">
-            <h2 class="section-title">Contacts</h2>
-            <div class="horizontal-contacts">
+    <!-- ── Two-column Tahoe layout ── -->
+    <div class="tahoe-layout">
+
+        <!-- ── LEFT: Contacts sidebar ── -->
+        <aside class="contacts-sidebar">
+            <div class="sidebar-search">
+                <div class="sidebar-search-inner">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" x-model="search" placeholder="Search contacts…" />
+                </div>
+            </div>
+
+            <div class="contacts-scroll">
+                <!-- Contacts -->
+                <div class="sidebar-section-label">Contacts</div>
                 <template x-for="char in filteredChars" :key="char.id">
-                    <div class="contact-card" @click="startCall(char)">
-                        <template x-if="char.avatar">
-                            <img :src="char.avatar" />
-                        </template>
-                        <template x-if="!char.avatar">
-                            <div class="placeholder" x-text="char.name.charAt(0)"></div>
-                        </template>
-                        <div class="card-overlay"></div>
-                        <div class="card-info">
-                            <div class="card-name" x-text="char.name"></div>
+                    <div class="contact-row" @click="startCall(char)">
+                        <div class="contact-avatar">
+                            <template x-if="char.avatar"><img :src="char.avatar" /></template>
+                            <template x-if="!char.avatar"><span x-text="char.name.charAt(0).toUpperCase()"></span></template>
                         </div>
-                        <div class="card-call-icon">
+                        <div style="flex:1; min-width:0;">
+                            <div class="contact-row-name" x-text="char.name"></div>
+                            <div class="contact-row-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.persona ? char.persona.slice(0,36) + '…' : 'AI Character'"></div>
+                        </div>
+                        <button class="contact-call-btn" @click.stop="startCall(char)">
                             <i class="fa-solid fa-phone"></i>
-                        </div>
+                        </button>
                     </div>
                 </template>
                 <template x-if="filteredChars.length === 0">
-                    <div style="padding:0 20px; color:var(--text-tertiary); font-size:14px;">No contacts found.</div>
+                    <div style="padding:24px 16px; text-align:center; color:var(--text-quaternary); font-size:12px;">No contacts found</div>
                 </template>
-            </div>
-        </div>
 
-        <!-- Vertical Recents List -->
-        <div class="vertical-recents-container">
-            <h2 class="section-title">Recent Calls</h2>
-            <div class="recents-list">
+                <!-- Recents -->
+                <div class="sidebar-section-label" style="margin-top:12px;">Recent</div>
                 <template x-for="r in recents" :key="r.id">
-                    <div class="recent-item" @click="startCall(characters.find(c => c.id === r.charId) || {name:r.name, id:r.charId, avatar:r.avatar})">
-                        <div class="recent-avatar">
+                    <div class="recent-row" @click="startCall(characters.find(c => c.id === r.charId) || {name:r.name, id:r.charId, avatar:r.avatar})">
+                        <div class="contact-avatar" style="width:32px; height:32px; border-radius:16px; font-size:13px;">
                             <template x-if="r.avatar"><img :src="r.avatar" /></template>
                             <template x-if="!r.avatar"><span x-text="r.name.charAt(0)"></span></template>
                         </div>
-                        <div class="recent-info">
+                        <div style="flex:1; min-width:0;">
                             <div class="recent-name" x-text="r.name"></div>
                             <div class="recent-meta">
-                                <i class="fa-solid fa-phone" style="font-size:10px;"></i>
+                                <i class="fa-solid fa-phone" style="font-size:9px;"></i>
                                 <span x-text="r.durationStr"></span>
                             </div>
                         </div>
                         <div class="recent-time" x-text="r.timestamp"></div>
-                        <div class="recent-info-btn"><i class="fa-solid fa-circle-info"></i></div>
                     </div>
                 </template>
                 <template x-if="recents.length === 0">
-                    <div style="text-align:center; padding:48px 0; color:var(--text-tertiary);">No Recent Calls</div>
+                    <div style="padding:16px; text-align:center; color:var(--text-quaternary); font-size:12px;">No recent calls</div>
                 </template>
             </div>
-        </div>
+        </aside>
 
-        <!-- Placeholder to remove old junk -->
+        <!-- ── RIGHT: Main area ── -->
+        <main class="call-main">
+            <!-- Empty state when not in call -->
+            <div class="empty-state" x-show="!inCall" x-transition>
+                <div class="empty-state-icon">
+                    <i class="fa-solid fa-phone" style="font-size:26px; color:var(--accent);"></i>
+                </div>
+                <h2>No Active Call</h2>
+                <p>Select a contact from the sidebar to start a voice call.</p>
+            </div>
+        </main>
     </div>
 
-    <!-- ═══════ ACTIVE CALL SCREEN ═══════ -->
+    <!-- ═══ ACTIVE CALL SCREEN (full overlay) ═══ -->
     <div class="call-screen" x-show="inCall" x-cloak
-         x-transition:enter="transition ease-out duration-400"
-         x-transition:enter-start="opacity-0 scale-95"
-         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:enter="transition ease-out duration-350"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0">
 
-        <div class="call-bg"></div>
+        <!-- Backgrounds -->
+        <div class="call-bg-layer"></div>
+        <div class="call-bg-avatar"
+             :style="callChar?.avatar ? `background-image:url('${callChar.avatar}')` : ''"></div>
 
-        <div class="call-header">
-            <!-- Avatar Container -->
-            <div class="call-avatar-ring-container" @click="showTranscript = !showTranscript">
-                <!-- Auras -->
-                <div class="think-aura" :style="(callStatus === 'connecting' || callStatus.startsWith('Using tool') || isThinking) ? 'opacity:1;' : 'opacity:0;'"></div>
-                <div class="speak-aura" :style="(callStatus === 'active' && aiVolume > 0.05) ? `opacity:${0.4 + aiVolume * 0.6}; transform:scale(${1 + aiVolume * 0.3});` : 'opacity:0;'"></div>
-                
-                <div class="call-avatar-ring">
+        <!-- Header row with back-to-contacts -->
+        <div style="position:relative; z-index:1; padding:12px 20px; display:flex; align-items:center; flex-shrink:0;">
+            <button @click="endCall()" style="display:flex; align-items:center; gap:6px; background:transparent; border:none; cursor:pointer; color:var(--accent); font-size:14px; font-weight:600; padding:6px 0;">
+                <i class="fa-solid fa-chevron-left" style="font-size:12px;"></i> Contacts
+            </button>
+        </div>
+
+        <!-- Call content -->
+        <div class="call-content" @click="showTranscript = !showTranscript">
+            <!-- Avatar -->
+            <div class="call-avatar-wrap">
+                <div class="think-aura"
+                     :style="(callStatus === 'connecting' || callStatus.startsWith('Using tool') || isThinking) ? 'opacity:1' : 'opacity:0'"></div>
+                <div class="speak-aura"
+                     :style="(callStatus === 'active' && aiVolume > 0.05)
+                         ? `opacity:${0.35 + aiVolume * 0.55}; transform:scale(${1 + aiVolume * 0.28})`
+                         : 'opacity:0'"></div>
+                <div class="call-avatar-ring" :class="callStatus === 'connecting' ? 'pulse' : ''">
                     <template x-if="callChar?.avatar">
                         <img :src="callChar.avatar" />
                     </template>
@@ -234,68 +451,79 @@
                 </div>
             </div>
 
-            <!-- Name & Status -->
+            <!-- Name -->
             <div class="call-char-name" x-text="callChar?.name || 'Unknown'"></div>
-            
+
+            <!-- Status / MCP badge -->
             <template x-if="callStatus.startsWith('Using tool')">
-                <div class="mcp-status-bubble" x-transition>
-                    <i class="fa-solid fa-server fa-bounce"></i> <span x-text="callStatus"></span>
+                <div class="mcp-badge" x-transition>
+                    <i class="fa-solid fa-server fa-bounce"></i>
+                    <span x-text="callStatus"></span>
                 </div>
             </template>
             <template x-if="!callStatus.startsWith('Using tool')">
-                <div class="call-status" :class="callStatus === 'active' && 'active-status'"
-                     x-text="callStatus === 'connecting' ? 'Connecting...' : (callStatus === 'active' ? callDurationStr : 'Ended')">
+                <div class="call-status-line"
+                     :class="callStatus === 'active' ? 'active-color' : ''"
+                     x-text="callStatus === 'connecting' ? 'Connecting…' : (callStatus === 'active' ? callDurationStr : 'Call Ended')">
                 </div>
             </template>
 
-            <!-- Waveform Visualizer -->
-            <div class="waveform" :class="isSpeaking && 'speaking'" x-show="!callStatus.startsWith('Using tool')">
-                <template x-for="i in 16" :key="i">
+            <!-- Waveform -->
+            <div class="waveform"
+                 :class="isSpeaking ? 'speaking' : (aiVolume > 0.05 ? 'ai-speaking' : '')">
+                <template x-for="i in 18" :key="i">
                     <div class="bar" :style="'height:' + waveHeights[i-1] + 'px'"></div>
                 </template>
             </div>
 
-            <!-- Transcript overlay -->
-            <div class="transcript-area" x-show="showTranscript && transcript" x-transition>
-                <p class="transcript-text" x-text="transcript"></p>
+            <!-- Transcript -->
+            <div x-show="showTranscript && transcript" x-transition>
+                <div class="transcript-bubble" x-text="transcript"></div>
             </div>
         </div>
 
-        <div class="call-bottom">
-            <!-- Controls -->
+        <!-- Call footer controls -->
+        <div class="call-footer">
             <div class="call-controls">
-                <div class="call-btn-wrapper">
-                    <button class="call-btn" :class="isMuted && 'on'" @click="toggleMute()">
-                        <i :class="isMuted ? 'fa-solid fa-microphone-slash' : 'fa-solid fa-microphone'"></i>
+                <!-- Mute -->
+                <div class="call-btn-wrap">
+                    <button class="call-ctrl-btn" :class="isMuted ? 'active' : ''" @click="toggleMute()">
+                        <i :class="isMuted ? 'fa-solid fa-microphone-slash' : 'fa-solid fa-microphone'" style="font-size:22px;"></i>
                     </button>
-                    <div class="call-btn-label">mute</div>
+                    <div class="call-btn-label" x-text="isMuted ? 'unmute' : 'mute'"></div>
                 </div>
-                <div class="call-btn-wrapper">
-                    <button class="call-btn"><i class="fa-solid fa-table-cells"></i></button>
+                <!-- Keypad (decorative) -->
+                <div class="call-btn-wrap">
+                    <button class="call-ctrl-btn dim"><i class="fa-solid fa-table-cells" style="font-size:22px;"></i></button>
                     <div class="call-btn-label">keypad</div>
                 </div>
-                <div class="call-btn-wrapper">
-                    <button class="call-btn" :class="speakerOn && 'on'" @click="toggleSpeaker()">
-                        <i class="fa-solid fa-volume-high"></i>
+                <!-- Speaker -->
+                <div class="call-btn-wrap">
+                    <button class="call-ctrl-btn" :class="speakerOn ? 'active' : ''" @click="toggleSpeaker()">
+                        <i class="fa-solid fa-volume-high" style="font-size:22px;"></i>
                     </button>
                     <div class="call-btn-label">speaker</div>
                 </div>
-                <div class="call-btn-wrapper">
-                    <button class="call-btn" style="opacity:0.6;"><i class="fa-solid fa-plus"></i></button>
-                    <div class="call-btn-label" style="opacity:0.6;">add call</div>
+                <!-- Add call (decorative) -->
+                <div class="call-btn-wrap">
+                    <button class="call-ctrl-btn dim"><i class="fa-solid fa-plus" style="font-size:22px;"></i></button>
+                    <div class="call-btn-label">add call</div>
                 </div>
-                <div class="call-btn-wrapper">
-                    <button class="call-btn" style="opacity:0.6;"><i class="fa-solid fa-video"></i></button>
-                    <div class="call-btn-label" style="opacity:0.6;">FaceTime</div>
+                <!-- FaceTime (decorative) -->
+                <div class="call-btn-wrap">
+                    <button class="call-ctrl-btn dim"><i class="fa-solid fa-video" style="font-size:22px;"></i></button>
+                    <div class="call-btn-label">FaceTime</div>
                 </div>
-                <div class="call-btn-wrapper">
-                    <button class="call-btn" style="opacity:0.6;"><i class="fa-solid fa-circle-user"></i></button>
-                    <div class="call-btn-label" style="opacity:0.6;">contacts</div>
+                <!-- Contacts (decorative) -->
+                <div class="call-btn-wrap">
+                    <button class="call-ctrl-btn dim"><i class="fa-solid fa-circle-user" style="font-size:22px;"></i></button>
+                    <div class="call-btn-label">contacts</div>
                 </div>
             </div>
 
-            <div class="end-btn-container">
-                <button class="call-btn end-btn" @click="endCall()">
+            <!-- End call -->
+            <div class="end-btn-row">
+                <button class="call-end-btn" @click="endCall()">
                     <i class="fa-solid fa-phone"></i>
                 </button>
             </div>
@@ -306,7 +534,6 @@
 <script>
 function callApp() {
     return {
-
         recents: JSON.parse(localStorage.getItem('kokomi_call_recents') || '[]'),
         characters: [],
         search: '',
@@ -315,7 +542,7 @@ function callApp() {
         spaces: [],
         activeSpaceId: null,
         callChar: null,
-        callStatus: 'idle', // idle | connecting | active | ended
+        callStatus: 'idle',
         isMuted: false,
         speakerOn: false,
         isSpeaking: false,
@@ -323,20 +550,14 @@ function callApp() {
         transcript: '',
         callDuration: 0,
         callDurationStr: '00:00',
-        waveHeights: Array(16).fill(4),
+        waveHeights: Array(18).fill(4),
         aiVolume: 0,
 
-        // internals
-        _ws: null,
-        _mediaStream: null,
-        _audioCtx: null,
-        _scriptNode: null,
-        _playbackCtx: null,
-        _timer: null,
-        _waveInterval: null,
-        _analyser: null,
-        _aiAnalyser: null,
-        _nextTime: 0,
+        _ws: null, _mediaStream: null, _audioCtx: null,
+        _scriptNode: null, _playbackCtx: null,
+        _timer: null, _waveInterval: null,
+        _analyser: null, _aiAnalyser: null,
+        _nextTime: 0, _speakTimeout: null,
 
         get filteredChars() {
             const q = this.search.toLowerCase();
@@ -367,41 +588,33 @@ function callApp() {
             this._nextTime = 0;
 
             try {
-                // Get mic access
                 this._mediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
                 });
 
-                // Set up audio capture (resample to 16kHz PCM16)
                 this._audioCtx = new AudioContext({ sampleRate: 16000 });
                 const source = this._audioCtx.createMediaStreamSource(this._mediaStream);
 
-                // Analyser for waveform visualization
                 this._analyser = this._audioCtx.createAnalyser();
                 this._analyser.fftSize = 64;
                 source.connect(this._analyser);
 
-                // ScriptProcessor to capture raw PCM
                 this._scriptNode = this._audioCtx.createScriptProcessor(4096, 1, 1);
                 source.connect(this._scriptNode);
                 this._scriptNode.connect(this._audioCtx.destination);
 
-                // Playback context at 24kHz for Gemini output
                 this._playbackCtx = new AudioContext({ sampleRate: 24000 });
                 this._aiAnalyser = this._playbackCtx.createAnalyser();
                 this._aiAnalyser.fftSize = 64;
                 this._aiAnalyser.connect(this._playbackCtx.destination);
 
-                // Connect WebSocket
                 const proto = location.protocol === 'https:' ? 'wss' : 'ws';
                 let wsUrl = `${proto}://${location.host}/ws/voice/${char.id}`;
                 if (this.activeSpaceId) wsUrl += `?space_id=${this.activeSpaceId}`;
                 this._ws = new WebSocket(wsUrl);
                 this._ws.binaryType = 'arraybuffer';
 
-                this._ws.onopen = () => {
-                    console.log('[call] WebSocket connected');
-                };
+                this._ws.onopen = () => { console.log('[call] WS connected'); };
 
                 this._ws.onmessage = (evt) => {
                     try {
@@ -424,29 +637,23 @@ function callApp() {
                             this.transcript = msg.text;
                         } else if (msg.type === 'turn_complete') {
                             this._nextTime = 0;
-                            // Keep transcript visible briefly
                             setTimeout(() => { this.transcript = ''; }, 3000);
                         } else if (msg.type === 'error') {
-                            console.error('[call] Server error:', msg.message);
+                            console.error('[call] error:', msg.message);
                             this.endCall();
                         }
                     } catch(e) { console.error('[call] parse error:', e); }
                 };
 
-                this._ws.onerror = () => {
-                    console.error('[call] WebSocket error');
-                    this.endCall();
-                };
-
+                this._ws.onerror = () => { console.error('[call] WS error'); this.endCall(); };
                 this._ws.onclose = () => {
                     if (this.callStatus === 'active' || this.callStatus === 'connecting') {
                         this.callStatus = 'ended';
                         setTimeout(() => { this.inCall = false; this.callStatus = 'idle'; }, 1500);
                     }
                 };
-
             } catch(e) {
-                console.error('[call] Failed to start:', e);
+                console.error('[call] failed:', e);
                 alert('Could not access microphone. Please allow mic permissions.');
                 this.inCall = false;
                 this.callStatus = 'idle';
@@ -479,8 +686,8 @@ function callApp() {
                 buf.getChannelData(0).set(float32);
                 const src = this._playbackCtx.createBufferSource();
                 src.buffer = buf;
-                src.connect(this._aiAnalyser); // Connect to AI analyser instead of destination
-                
+                src.connect(this._aiAnalyser);
+
                 if (this._nextTime < this._playbackCtx.currentTime) {
                     this._nextTime = this._playbackCtx.currentTime + 0.05;
                 }
@@ -504,25 +711,21 @@ function callApp() {
                     const data = new Uint8Array(this._analyser.frequencyBinCount);
                     this._analyser.getByteFrequencyData(data);
                     const newH = [];
-                    for (let i = 0; i < 16; i++) {
-                        const idx = Math.floor(i * data.length / 16);
-                        newH.push(Math.max(4, (data[idx] / 255) * 36));
+                    for (let i = 0; i < 18; i++) {
+                        const idx = Math.floor(i * data.length / 18);
+                        newH.push(Math.max(4, (data[idx] / 255) * 38));
                     }
                     this.waveHeights = newH;
 
-                    // AI Volume
                     if (this._aiAnalyser) {
                         const aiData = new Uint8Array(this._aiAnalyser.frequencyBinCount);
                         this._aiAnalyser.getByteFrequencyData(aiData);
                         let sum = 0;
-                        for(let i = 0; i < aiData.length; i++) sum += aiData[i];
+                        for (let i = 0; i < aiData.length; i++) sum += aiData[i];
                         this.aiVolume = Math.min(1, (sum / aiData.length) / 128);
-                    } else {
-                        this.aiVolume = 0;
-                    }
-
+                    } else { this.aiVolume = 0; }
                 } else {
-                    this.waveHeights = Array(16).fill(4);
+                    this.waveHeights = Array(18).fill(4);
                     this.aiVolume = 0;
                 }
             }, 50);
@@ -535,14 +738,7 @@ function callApp() {
             }
         },
 
-        toggleSpeaker() {
-            this.speakerOn = !this.speakerOn;
-            // Best-effort to switch sink on supported browsers
-            if (this._audioCtx && typeof this._audioCtx.setSinkId === 'function') {
-                // In a real app we would enumerateDevices and find the speaker vs earpiece ID
-                // For now, this drives the UI state smoothly.
-            }
-        },
+        toggleSpeaker() { this.speakerOn = !this.speakerOn; },
 
         endCall() {
             if (this.callChar && this.callDuration > 0) {
@@ -552,40 +748,30 @@ function callApp() {
                     name: this.callChar.name,
                     avatar: this.callChar.avatar,
                     durationStr: this.callDurationStr,
-                    timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 });
                 if (this.recents.length > 50) this.recents.pop();
                 localStorage.setItem('kokomi_call_recents', JSON.stringify(this.recents));
             }
-            // Send end signal
+
             if (this._ws && this._ws.readyState === 1) {
                 try { this._ws.send(JSON.stringify({ type: 'end' })); } catch {}
                 this._ws.close();
             }
             this._ws = null;
 
-            // Stop mic
-            if (this._mediaStream) {
-                this._mediaStream.getTracks().forEach(t => t.stop());
-                this._mediaStream = null;
-            }
-
-            // Stop audio contexts
+            if (this._mediaStream) { this._mediaStream.getTracks().forEach(t => t.stop()); this._mediaStream = null; }
             if (this._scriptNode) { this._scriptNode.disconnect(); this._scriptNode = null; }
             if (this._audioCtx) { this._audioCtx.close().catch(() => {}); this._audioCtx = null; }
             if (this._playbackCtx) { this._playbackCtx.close().catch(() => {}); this._playbackCtx = null; }
-            this._analyser = null;
-            this._aiAnalyser = null;
+            this._analyser = null; this._aiAnalyser = null;
 
-            // Stop timers
-            clearInterval(this._timer);
-            clearInterval(this._waveInterval);
-            this._timer = null;
-            this._waveInterval = null;
+            clearInterval(this._timer); clearInterval(this._waveInterval);
+            this._timer = null; this._waveInterval = null;
 
             this.callStatus = 'ended';
             this.isSpeaking = false;
-            this.waveHeights = Array(16).fill(4);
+            this.waveHeights = Array(18).fill(4);
             setTimeout(() => { this.inCall = false; this.callStatus = 'idle'; }, 1500);
         },
     };
