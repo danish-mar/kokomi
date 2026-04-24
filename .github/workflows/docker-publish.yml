@@ -2,10 +2,7 @@ name: Docker Build and Publish
 
 on:
   push:
-    branches: [ "master" ]
     tags: [ 'v*.*.*' ]
-  pull_request:
-    branches: [ "master" ]
 
 env:
   REGISTRY: ghcr.io
@@ -40,12 +37,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
