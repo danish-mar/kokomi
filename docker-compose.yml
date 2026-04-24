@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   app:
-    build: .
+    image: ghcr.io/danish-mar/kokomi:latest
     container_name: kokomi-app
     ports:
       - "8000:8000"
