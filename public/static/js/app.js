@@ -71,6 +71,7 @@ function aiApp() {
         toasts: [],
         isAnonymous: false,
         exitTempModal: false,
+        useWebSearch: false,
 
 
         get activeChar() {
@@ -106,7 +107,14 @@ function aiApp() {
                 this.groupParticipants = [this.activeCharId];
             }
             this.updateSuggestions();
+
+            // Dynamic Tab Title
+            this.$watch('currentTitle', (val) => {
+                document.title = `${val} - KokomiAi`;
+            });
+            document.title = `${this.currentTitle} - KokomiAi`;
         },
+
 
         async fetchSpaces() {
             try {
@@ -425,11 +433,13 @@ function aiApp() {
                         conversation_id: this.currentConvId,
                         character_id: this.activeCharId,
                         space_id: this.activeSpaceId,
-                        is_anonymous: this.isAnonymous
+                        is_anonymous: this.isAnonymous,
+                        use_web_search: this.useWebSearch
                     }),
-
                     signal: this.abortController.signal,
                 });
+                this.useWebSearch = false; // reset after send
+
                 clearTimeout(timer);
 
                 if (!r.ok) {
@@ -480,11 +490,14 @@ function aiApp() {
                         conversation_id: this.currentConvId,
                         participants: this.groupParticipants,
                         space_id: this.activeSpaceId,
-                        is_anonymous: this.isAnonymous
+                        is_anonymous: this.isAnonymous,
+                        use_web_search: this.useWebSearch
                     }),
 
                     signal: this.abortController.signal
                 });
+                this.useWebSearch = false; // reset after send — search is per-message like ChatGPT
+
 
                 if (!response.ok) throw new Error("Failed to start stream");
 
@@ -715,6 +728,7 @@ function aiApp() {
                 let html = marked.parse(c);
                 if (isStreaming) {
                     const fish = '<span class="fish-typing"><i class="fa-solid fa-fish-fins"></i></span>';
+
                     if (html.includes('</p>')) {
                         const parts = html.split('</p>');
                         const last = parts.pop();

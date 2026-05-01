@@ -455,7 +455,12 @@
                     <span class="nav-icon"><i class="fa-solid fa-plug" style="font-size:10px;"></i></span>
                     MCP Servers
                 </button>
+                <button @click="tab = 'integrations'" class="tahoe-nav-item" :class="tab === 'integrations' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-puzzle-piece" style="font-size:10px;"></i></span>
+                    Integrations
+                </button>
             </div>
+
             <div class="tahoe-sidebar-section">
                 <p class="tahoe-sidebar-label">Info</p>
                 <button @click="tab = 'about'" class="tahoe-nav-item" :class="tab === 'about' ? 'active' : ''">
@@ -583,6 +588,47 @@
                     </div>
                 </div>
 
+
+                <!-- Saved indicator -->
+                <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
+                    <div class="saved-toast">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: INTEGRATIONS ═══ -->
+            <div x-show="tab === 'integrations'" x-transition class="tab-panel">
+                <h2 class="section-title">Integrations</h2>
+                <p class="section-subtitle">Connect external services and tools to power up your AI.</p>
+
+                <!-- Tavily Web Search card -->
+                <div class="glass-card">
+                    <div class="card-row" style="background: var(--accent-subtle);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:30px; height:30px; border-radius:8px; background: linear-gradient(135deg, #505081, #8686AC); display:flex; align-items:center; justify-content:center; color:#fff;">
+                                    <i class="fa-solid fa-magnifying-glass" style="font-size:13px;"></i>
+                                </div>
+                                <div>
+                                    <label class="apple-label" style="margin-bottom:0;">Web Search (Tavily)</label>
+                                    <p style="font-size:11px; color:var(--text-tertiary);">Search the web in real-time via Tavily AI.</p>
+                                </div>
+                            </div>
+                            <button @click="prefs.web_search_enabled = !prefs.web_search_enabled; savePrefs()"
+                                class="apple-toggle" :class="prefs.web_search_enabled ? 'on' : 'off'">
+                                <div class="toggle-knob"></div>
+                            </button>
+                        </div>
+                        <div>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Tavily API Key</label>
+                            <input type="password" x-model="prefs.tavily_api_key" @blur="savePrefs()"
+                                placeholder="tvly-xxxxxxxxxxxxxxxxxxxx" class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
+                            <p style="font-size:11px; color:var(--text-quaternary); margin-top:6px;">Get a free key at <a href="https://app.tavily.com" target="_blank" style="color:var(--accent);">app.tavily.com</a> — 1,000 free searches/month.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- WhatsApp card -->
                 <div class="glass-card">
                     <div class="card-row" style="background: var(--accent-subtle);">
@@ -601,7 +647,6 @@
                                 <div class="toggle-knob"></div>
                             </button>
                         </div>
-
                         <div x-show="prefs.whatsapp_enabled" x-transition>
                             <div style="margin-bottom:14px;">
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Main WhatsApp Character</label>
@@ -626,11 +671,8 @@
                     </div>
                 </div>
 
-                <!-- Saved indicator -->
                 <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
-                    <div class="saved-toast">
-                        <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
-                    </div>
+                    <div class="saved-toast"><i class="fa-solid fa-circle-notch fa-spin"></i> Saved</div>
                 </div>
             </div>
 
@@ -1049,8 +1091,11 @@ function settingsApp() {
             inject_time: true,
             whatsapp_enabled: false,
             whatsapp_character_id: 'kokomi',
-            whatsapp_api_url: 'http://localhost:3013'
+            whatsapp_api_url: 'http://localhost:3013',
+            tavily_api_key: '',
+            web_search_enabled: false,
         },
+
         prefSaving: false,
         saving: false,
 

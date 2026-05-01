@@ -6,6 +6,8 @@ load_dotenv()
 # ── API Keys ────────────────────────────────────────────────────────
 GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
 GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
+TAVILY_API_KEY: str | None = os.getenv("TAVILY_API_KEY")
+
 
 # ── Data paths ───────────────────────────────────────────────────────
 DATA_DIR = "data"
@@ -37,4 +39,7 @@ DEFAULT_PREFS: dict = {
     "whatsapp_character_id": "kokomi",
     "whatsapp_api_url": "http://localhost:3013",
     "whatsapp_show_thinking": True,
+    "tavily_api_key": "",
+    "web_search_enabled": False,
 }
+

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Kokomi AI{% endblock %}
+{% block title %}New Conversation - KokomiAi{% endblock %}
+
 
 {% block body %}
 <div id="app" x-data="aiApp()" x-cloak class="flex h-screen overflow-hidden">
@@ -20,6 +21,11 @@
                     </div>
                     <span class="font-semibold text-[15px] tracking-[-0.02em] text-1">Kokomi</span>
                 </div>
+
+
+
+
+
                 <button @click="newChat()" title="New Chat"
                     class="w-[30px] h-[30px] rounded-[10px] hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center text-3 hover:text-1 t-apple">
                     <i class="fa-solid fa-square-pen text-[14px]"></i>
@@ -511,10 +517,12 @@
                                         <img :src="activeChar.avatar" class="w-[60px] h-[60px] rounded-squircle object-cover shadow-t-md mb-4 group-hover:scale-105 t-apple" />
                                     </template>
                                     <template x-if="!activeChar.avatar">
-                                        <div class="w-[60px] h-[60px] rounded-squircle bg-accent-sub flex items-center justify-center mb-4 group-hover:scale-105 t-apple shadow-t-md">
-                                            <i class="fa-solid fa-fish-fins text-accent-c text-[28px]"></i>
+                                        <div class="w-[60px] h-[60px] rounded-full bg-accent-sub flex items-center justify-center mb-4 group-hover:scale-105 t-apple shadow-t-md overflow-hidden ring-4 ring-themed">
+                                            <img src="/images/app_icon/main.png" class="w-full h-full object-cover" />
                                         </div>
                                     </template>
+
+
                                 </div>
                             </template>
                             <!-- Group Avatars Stack -->
@@ -701,13 +709,48 @@
                                             <template x-if="msg.tool_calls && msg.tool_calls.length">
                                                 <div class="mb-3 space-y-1.5">
                                                     <template x-for="(tc, ti) in msg.tool_calls" :key="ti">
-                                                        <div class="rounded-[10px] border border-themed p-2.5 t-apple" style="background: var(--accent-subtle);" x-data="{ expanded: false }">
+                                                        <div class="rounded-[10px] border border-themed p-2.5 t-apple" style="background: var(--accent-subtle);" 
+                                                             x-data="{ 
+                                                                 expanded: false,
+                                                                 init() {
+                                                                     if (tc.name === 'web_search') {
+                                                                         this.expanded = true;
+                                                                         this.$watch('msg.streaming', (val) => {
+                                                                             if (!val) setTimeout(() => this.expanded = false, 500);
+                                                                         });
+                                                                         if (!msg.streaming) this.expanded = false; // if loaded from history
+                                                                     }
+                                                                 }
+                                                             }">
                                                             <div class="flex items-center gap-2 cursor-pointer" @click="expanded = !expanded">
-                                                                <i class="fa-solid fa-wrench text-[10px] text-accent-c"></i>
-                                                                <span class="text-[12px] font-semibold text-accent-c font-mono" x-text="tc.name"></span>
+                                                                <i x-show="tc.name !== 'web_search'" class="fa-solid fa-wrench text-[10px] text-accent-c"></i>
+                                                                <i x-show="tc.name === 'web_search'" class="fa-solid text-[10px] text-accent-c" :class="(tc.result === 'Executing...') ? 'fa-circle-notch fa-spin' : 'fa-globe'"></i>
+
+                                                                <span x-show="tc.name !== 'web_search'" class="text-[12px] font-semibold text-accent-c font-mono" x-text="tc.name"></span>
+                                                                <span x-show="tc.name === 'web_search'" class="text-[12px] font-semibold text-accent-c" x-text="(tc.result === 'Executing...') ? 'Searching the web...' : 'Searched the web'"></span>
+
                                                                 <span class="text-[10px] text-4 ml-auto" x-text="expanded ? '▾' : '▸'"></span>
                                                             </div>
-                                                            <div x-show="expanded" x-collapse class="mt-2 text-[11px] font-mono text-3 whitespace-pre-wrap break-all leading-relaxed" x-text="tc.result"></div>
+                                                            <div x-show="expanded" x-collapse>
+                                                                <template x-if="tc.name === 'web_search' && (function() { try { return Array.isArray(JSON.parse(tc.result)); } catch(e) { return false; } })()">
+                                                                    <div class="mt-2 space-y-1.5">
+                                                                        <template x-for="(res, index) in JSON.parse(tc.result)" :key="res.url || Math.random()">
+                                                                            <a :href="res.url" target="_blank" 
+                                                                               class="flex items-center gap-2.5 p-2 rounded-[8px] bg-black/[0.03] dark:bg-white/[0.03] hover:bg-black/[0.06] dark:hover:bg-white/[0.06] transition-colors" 
+                                                                               :style="`animation: slideInUp 0.3s ease-out forwards; animation-delay: ${index * 0.1}s; opacity: 0; text-decoration: none;`">
+                                                                                <img :src="'https://www.google.com/s2/favicons?domain=' + (function(){ try { return new URL(res.url).hostname; } catch(e) { return ''; } })() + '&sz=32'" class="w-4 h-4 rounded-sm shrink-0" @error="$el.style.display='none'" />
+                                                                                <div class="flex flex-col min-w-0">
+                                                                                    <span class="text-[12px] font-semibold text-1 truncate" x-text="res.title || res.url"></span>
+                                                                                    <span class="text-[10px] text-4 truncate" x-text="(function(){ try { return new URL(res.url).hostname; } catch(e) { return res.url; } })()"></span>
+                                                                                </div>
+                                                                            </a>
+                                                                        </template>
+                                                                    </div>
+                                                                </template>
+                                                                <template x-if="tc.name !== 'web_search' || (tc.result !== 'Executing...' && !(function() { try { return Array.isArray(JSON.parse(tc.result)); } catch(e) { return false; } })())">
+                                                                    <div class="mt-2 text-[11px] font-mono text-3 whitespace-pre-wrap break-all leading-relaxed" x-text="tc.result"></div>
+                                                                </template>
+                                                            </div>
                                                         </div>
                                                     </template>
                                                 </div>
@@ -783,12 +826,29 @@
                         @keydown.enter.prevent="if(!$event.shiftKey) sendMessage()"
                         @input="autoResize()"
                         placeholder="Message..." rows="1"
-                        class="w-full bg-transparent px-4 pt-3.5 pb-11 text-[14.5px] text-1 outline-none resize-none font-sans"
+                        class="w-full bg-transparent pt-3.5 text-[14.5px] text-1 outline-none resize-none font-sans"
+                        :class="(prefs && prefs.web_search_enabled) ? 'pb-11 pl-4 pr-4' : 'pb-3.5 pl-4 pr-12'"
                         style="color: var(--text-primary);"></textarea>
                     <div class="absolute bottom-2.5 left-4 right-4 flex items-center justify-between pointer-events-none">
-                        <div class="flex items-center gap-2.5 text-4">
-                            <span class="text-[11px]"><kbd class="bg-accent-sub px-1.5 py-0.5 rounded-[5px] text-[10px] font-medium text-3">⏎</kbd> send</span>
-                            <span class="hidden sm:inline text-[11px]"><kbd class="bg-accent-sub px-1.5 py-0.5 rounded-[5px] text-[10px] font-medium text-3">⇧⏎</kbd> newline</span>
+                        <div class="flex items-center gap-2 text-4">
+                            <!-- Search pill button -->
+                            <template x-if="prefs && prefs.web_search_enabled">
+                                <button @click="useWebSearch = !useWebSearch" title="Search the web"
+                                    class="pointer-events-auto flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
+                                    :class="useWebSearch
+                                        ? 'bg-accent-sub border-accent-c text-accent-c px-2.5 py-1'
+                                        : 'border-transparent text-4 hover:text-3 hover:border-themed hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-1'">
+                                    <i class="fa-solid fa-magnifying-glass text-[11px] shrink-0"></i>
+                                    <span x-show="useWebSearch"
+                                        x-transition:enter="transition ease-out duration-200"
+                                        x-transition:enter-start="opacity-0 max-w-0"
+                                        x-transition:enter-end="opacity-100 max-w-[60px]"
+                                        x-transition:leave="transition ease-in duration-150"
+                                        x-transition:leave-start="opacity-100 max-w-[60px]"
+                                        x-transition:leave-end="opacity-0 max-w-0"
+                                        class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Search</span>
+                                </button>
+                            </template>
                         </div>
                         <div class="flex items-center gap-2 pointer-events-auto">
                             <button x-show="loading" @click="stopGeneration()"

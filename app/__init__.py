@@ -6,7 +6,9 @@ app = FastAPI(title="Kokomi AI")
 templates = Jinja2Templates(directory="templates")
 
 app.mount("/static", StaticFiles(directory="public/static"), name="static")
+app.mount("/images", StaticFiles(directory="public/images"), name="images")
 app.mount("/avatars", StaticFiles(directory="data/avatars"), name="avatars")
+
 
 # Register all routers
 from app.routers import pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, workflows  # noqa: E402

@@ -9,6 +9,7 @@ class ChatRequest(BaseModel):
     participants: Optional[List[str]] = None
     space_id: Optional[str] = None
     is_anonymous: bool = False
+    use_web_search: bool = False
 
 
 
@@ -45,3 +46,5 @@ class PrefsUpdate(BaseModel):
     whatsapp_character_id: str = "kokomi"
     whatsapp_api_url: str = "http://localhost:3013"
     whatsapp_show_thinking: bool = True
+    tavily_api_key: Optional[str] = ""
+    web_search_enabled: bool = False

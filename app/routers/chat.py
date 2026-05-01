@@ -15,6 +15,23 @@ from app.mcp import connect_mcp_servers
 from app.models import ChatRequest
 from app.storage import load_prefs, load_chars, load_convos, save_convos
 
+
+def _get_tavily_tool(prefs: dict):
+    """Build a TavilySearchResults tool from prefs, or None if not configured."""
+    try:
+        if not prefs.get("web_search_enabled"):
+            return None
+        from langchain_community.tools.tavily_search import TavilySearchResults
+        api_key = prefs.get("tavily_api_key") or ""
+        if not api_key:
+            return None
+        import os
+        os.environ["TAVILY_API_KEY"] = api_key
+        return TavilySearchResults(max_results=5, name="web_search")
+    except ImportError:
+        return None
+
+
 router = APIRouter(prefix="/api")
 
 
@@ -100,6 +117,16 @@ async def chat(req: ChatRequest):
                     "USE the search_knowledge_base tool FIRST to find relevant information before answering."
                 )
 
+            if req.use_web_search:
+                tavily_tool = _get_tavily_tool(prefs)
+                if tavily_tool:
+                    tool_defs.append(tavily_tool)
+                    builtin_tools[tavily_tool.name] = tavily_tool
+                    persona += (
+                        "\n\nYou have access to a real-time web search tool called 'web_search'. "
+                        "USE it to answer questions that require current information, news, facts, or anything you are unsure about."
+                    )
+
             # Re-initialize SystemMessage with updated persona (including MCP/RAG context)
             lc_msgs[0] = SystemMessage(content=persona)
 
@@ -127,7 +154,12 @@ async def chat(req: ChatRequest):
                                 res_txt = "".join([getattr(b, "text", str(b)) for b in result.content])
                             elif bt:
                                 print(f"  [DEBUG] Calling built-in Tool: '{tool_name}' with args: {tool_args}")
-                                res_txt = await bt.ainvoke(tool_args)
+                                result_obj = await bt.ainvoke(tool_args)
+                                if isinstance(result_obj, (dict, list)):
+                                    res_txt = json.dumps(result_obj, ensure_ascii=False)
+                                else:
+                                    res_txt = str(result_obj)
+
                             else:
                                 res_txt = f"Error: '{tool_name}' not found"
                         except Exception as e:
@@ -245,7 +277,13 @@ async def chat_stream(req: ChatRequest):
                     space_tool = get_space_tool(req.space_id)
                     tool_defs.append(space_tool)
                     builtin_tools[space_tool.name] = space_tool
-                
+
+                if req.use_web_search:
+                    tavily_tool = _get_tavily_tool(prefs)
+                    if tavily_tool:
+                        tool_defs.append(tavily_tool)
+                        builtin_tools[tavily_tool.name] = tavily_tool
+
                 for err in mcp_errors:
                     yield f"data: {json.dumps({'type': 'warning', 'message': err})}\n\n"
                 
@@ -286,6 +324,12 @@ async def chat_stream(req: ChatRequest):
                             "\n\nYou have access to a Knowledge Space (RAG database). "
                             "When the user asks about topics that could be in their uploaded documents, "
                             "USE the search_knowledge_base tool FIRST to find relevant information before answering."
+                        )
+
+                    if req.use_web_search and "web_search" in builtin_tools:
+                        p_persona += (
+                            "\n\nYou have access to a real-time web search tool called 'web_search'. "
+                            "USE it to answer questions that require current information, news, facts, or anything you are unsure about."
                         )
 
                     p_persona += (
@@ -367,11 +411,14 @@ async def chat_stream(req: ChatRequest):
                                     tr = f"Error: {e}"
                                 if isinstance(tr, str):
                                     txt = tr
+                                elif isinstance(tr, (dict, list)):
+                                    txt = json.dumps(tr, ensure_ascii=False)
                                 else:
                                     txt = "".join([
                                         getattr(b, "text", str(b))
                                         for b in (tr.content if hasattr(tr, "content") else [])
                                     ]) or str(tr)
+
                                 yield f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'character_id': pid})}\n\n"
                                 p_lc_msgs.append(ToolMessage(content=txt, name=tname, tool_call_id=tid))
                                 char_tool_calls_log.append({"name": tname, "args": targs, "result": txt})

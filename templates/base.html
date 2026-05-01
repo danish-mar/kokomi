@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Kokomi AI{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('images', path='image.png') }}">
+
+
+
+
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -69,6 +74,11 @@
     <style>
         *, *::before, *::after { box-sizing: border-box; }
         html, body { height: 100%; margin: 0; padding: 0; }
+
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* ═══════════════════════════════════════════════════════
            APPLE HIG — CSS CUSTOM PROPERTIES
