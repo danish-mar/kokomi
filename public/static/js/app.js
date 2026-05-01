@@ -556,14 +556,23 @@ function aiApp() {
                             } else if (data.type === 'reasoning' && data.delta && targetIdx !== undefined) {
                                 this.messages[targetIdx].thinking += data.delta;
                             } else if (data.type === 'tool_start') {
-                                const charName = this.getCharById(charId).name;
-                                this.loadingStatus = `${charName}: Running ${data.name}...`;
-                                if (targetIdx !== undefined) {
-                                    if (!this.messages[targetIdx].tool_calls) this.messages[targetIdx].tool_calls = [];
-                                    this.messages[targetIdx].tool_calls.push({ name: data.name, result: "Executing..." });
+                                if (data.name === 'redirect_url') {
+                                    // Hidden from UI
+                                } else {
+                                    const charName = this.getCharById(charId).name;
+                                    this.loadingStatus = `${charName}: Running ${data.name}...`;
+                                    if (targetIdx !== undefined) {
+                                        if (!this.messages[targetIdx].tool_calls) this.messages[targetIdx].tool_calls = [];
+                                        this.messages[targetIdx].tool_calls.push({ name: data.name, result: "Executing..." });
+                                    }
                                 }
                             } else if (data.type === 'tool_end') {
-                                if (targetIdx !== undefined && this.messages[targetIdx].tool_calls) {
+                                if (data.name === 'redirect_url') {
+                                    if (data.args && data.args.url) {
+                                        window.open(data.args.url, '_blank');
+                                        this.showToast(`Opened ${data.args.url}`, 'info');
+                                    }
+                                } else if (targetIdx !== undefined && this.messages[targetIdx].tool_calls) {
                                     const tcs = this.messages[targetIdx].tool_calls;
                                     if (tcs.length > 0) {
                                         tcs[tcs.length - 1].result = data.result;

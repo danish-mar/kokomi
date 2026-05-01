@@ -48,3 +48,4 @@ class PrefsUpdate(BaseModel):
     whatsapp_show_thinking: bool = True
     tavily_api_key: Optional[str] = ""
     web_search_enabled: bool = False
+    browser_redirect_enabled: bool = True

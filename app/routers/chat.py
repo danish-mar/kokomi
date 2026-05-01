@@ -8,12 +8,19 @@ from operator import add
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
+from langchain_core.tools import tool
 
 from app.config import GROQ_API_KEY
 from app.llm import get_llm, generate_title, parse_thinking, _normalize_model, resolve_character_model
 from app.mcp import connect_mcp_servers
 from app.models import ChatRequest
 from app.storage import load_prefs, load_chars, load_convos, save_convos
+
+
+@tool
+def redirect_url(url: str) -> str:
+    """Open a specified URL in a new browser tab for the user. Use ONLY when the user explicitly asks you to open a link, page, or website."""
+    return f"Successfully opened {url} in a new browser tab."
 
 
 def _get_tavily_tool(prefs: dict):
@@ -126,6 +133,11 @@ async def chat(req: ChatRequest):
                         "\n\nYou have access to a real-time web search tool called 'web_search'. "
                         "USE it to answer questions that require current information, news, facts, or anything you are unsure about."
                     )
+            
+            if prefs.get("browser_redirect_enabled", True):
+                tool_defs.append(redirect_url)
+                builtin_tools[redirect_url.name] = redirect_url
+                persona += "\n\nYou have access to the 'redirect_url' tool. Use it to open websites for the user ONLY when requested."
 
             # Re-initialize SystemMessage with updated persona (including MCP/RAG context)
             lc_msgs[0] = SystemMessage(content=persona)
@@ -284,6 +296,10 @@ async def chat_stream(req: ChatRequest):
                         tool_defs.append(tavily_tool)
                         builtin_tools[tavily_tool.name] = tavily_tool
 
+                if prefs.get("browser_redirect_enabled", True):
+                    tool_defs.append(redirect_url)
+                    builtin_tools[redirect_url.name] = redirect_url
+
                 for err in mcp_errors:
                     yield f"data: {json.dumps({'type': 'warning', 'message': err})}\n\n"
                 
@@ -331,6 +347,9 @@ async def chat_stream(req: ChatRequest):
                             "\n\nYou have access to a real-time web search tool called 'web_search'. "
                             "USE it to answer questions that require current information, news, facts, or anything you are unsure about."
                         )
+
+                    if prefs.get("browser_redirect_enabled", True) and "redirect_url" in builtin_tools:
+                        p_persona += "\n\nYou have access to the 'redirect_url' tool. Use it to open websites for the user ONLY when requested."
 
                     p_persona += (
                         "\n\nIMPORTANT: Always wrap internal reasoning inside <think>...</think> tags before your response."
@@ -419,7 +438,7 @@ async def chat_stream(req: ChatRequest):
                                         for b in (tr.content if hasattr(tr, "content") else [])
                                     ]) or str(tr)
 
-                                yield f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'character_id': pid})}\n\n"
+                                yield f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'args': targs, 'character_id': pid})}\n\n"
                                 p_lc_msgs.append(ToolMessage(content=txt, name=tname, tool_call_id=tid))
                                 char_tool_calls_log.append({"name": tname, "args": targs, "result": txt})
 

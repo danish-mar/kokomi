@@ -629,6 +629,27 @@
                     </div>
                 </div>
 
+                <!-- Browser Redirection card -->
+                <div class="glass-card">
+                    <div class="card-row" style="background: var(--accent-subtle);">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:30px; height:30px; border-radius:8px; background: linear-gradient(135deg, #0F0E47, #505081); display:flex; align-items:center; justify-content:center; color:#fff;">
+                                    <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:13px;"></i>
+                                </div>
+                                <div>
+                                    <label class="apple-label" style="margin-bottom:0;">Browser Redirection</label>
+                                    <p style="font-size:11px; color:var(--text-tertiary);">Allow AI to open new tabs when requested.</p>
+                                </div>
+                            </div>
+                            <button @click="prefs.browser_redirect_enabled = !prefs.browser_redirect_enabled; savePrefs()"
+                                class="apple-toggle" :class="prefs.browser_redirect_enabled ? 'on' : 'off'">
+                                <div class="toggle-knob"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- WhatsApp card -->
                 <div class="glass-card">
                     <div class="card-row" style="background: var(--accent-subtle);">
