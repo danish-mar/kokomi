@@ -69,6 +69,9 @@ function aiApp() {
         roomPickerOpen: false,
         currentStreamingCharId: null,
         toasts: [],
+        isAnonymous: false,
+        exitTempModal: false,
+
 
         get activeChar() {
             return this.characters.find(c => c.id === this.activeCharId) || { name: 'Kokomi', avatar: null, id: 'kokomi' };
@@ -317,8 +320,11 @@ function aiApp() {
                 const doc = await r.json();
                 this.currentConvId = id;
                 this.messages = doc.messages || [];
+                this.isAnonymous = false; // Always exit anonymous mode when loading a saved chat
                 // Restore group participants from saved conversation
                 this.groupParticipants = doc.participants || [doc.character_id || 'kokomi'];
+
+
                 if (doc.character_id) this.activeCharId = doc.character_id;
                 else if (this.groupParticipants.length > 0) this.activeCharId = this.groupParticipants[0];
                 
@@ -342,11 +348,52 @@ function aiApp() {
             this.currentConvId = null;
             this.input = '';
             this.currentStreamingCharId = null;
-            // Keep current room participants
+            this.isAnonymous = false;
             if (this.groupParticipants.length === 0) {
                 this.groupParticipants = [this.activeCharId];
             }
             this.$nextTick(() => { this.autoResize(); document.getElementById('user-input')?.focus(); });
+        },
+
+        // Start a fresh anonymous session (no mode toggle — acts like its own chat)
+        startAnonymousChat() {
+            this.messages = [];
+            this.currentConvId = null;
+            this.input = '';
+            this.currentStreamingCharId = null;
+            this.isAnonymous = true;
+            if (this.groupParticipants.length === 0) {
+                this.groupParticipants = [this.activeCharId];
+            }
+            this.$nextTick(() => { this.autoResize(); document.getElementById('user-input')?.focus(); });
+        },
+
+        // Exit anonymous session and return to a normal blank chat
+        exitAnonymousChat() {
+            this.exitTempModal = false;
+            this.newChat();
+        },
+
+        // Show the exit confirmation modal (skip if no messages yet)
+        confirmExitTemp() {
+            if (!this.messages.length) {
+                this.exitAnonymousChat();
+                return;
+            }
+            this.exitTempModal = true;
+        },
+
+        // Save the temporary chat to history then exit
+        async saveAndExitTemp() {
+            if (this.currentConvId) {
+                try {
+                    await fetch(`/api/conversations/${this.currentConvId}/save`, { method: 'POST' });
+                    await this.fetchConversations();
+                } catch (e) { console.warn('Save failed', e); }
+            }
+            this.exitTempModal = false;
+            this.isAnonymous = false;
+            // Stay on the same conversation but now it's saved
         },
 
         // ── Send ───────────────────────────────────────────────
@@ -378,7 +425,9 @@ function aiApp() {
                         conversation_id: this.currentConvId,
                         character_id: this.activeCharId,
                         space_id: this.activeSpaceId,
+                        is_anonymous: this.isAnonymous
                     }),
+
                     signal: this.abortController.signal,
                 });
                 clearTimeout(timer);
@@ -430,8 +479,10 @@ function aiApp() {
                         character_id: this.activeCharId,
                         conversation_id: this.currentConvId,
                         participants: this.groupParticipants,
-                        space_id: this.activeSpaceId
+                        space_id: this.activeSpaceId,
+                        is_anonymous: this.isAnonymous
                     }),
+
                     signal: this.abortController.signal
                 });
 

@@ -8,6 +8,8 @@ class ChatRequest(BaseModel):
     character_id: Optional[str] = "kokomi"
     participants: Optional[List[str]] = None
     space_id: Optional[str] = None
+    is_anonymous: bool = False
+
 
 
 class MCPServerCreate(BaseModel):

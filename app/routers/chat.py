@@ -164,11 +164,22 @@ async def chat(req: ChatRequest):
     if is_new:
         conv_id = str(uuid.uuid4())[:12]
         title = await generate_title(req.message, content)
-        convos[conv_id] = {"title": title, "character_id": char_id, "messages": history, "updated_at": now}
+        convos[conv_id] = {
+            "title": title, 
+            "character_id": char_id, 
+            "messages": history, 
+            "updated_at": now,
+            "is_anonymous": req.is_anonymous
+        }
     else:
-        convos[conv_id].update({"messages": history, "updated_at": now})
+        convos[conv_id].update({
+            "messages": history, 
+            "updated_at": now,
+            "is_anonymous": req.is_anonymous
+        })
 
     save_convos(convos)
+
     return {
         "conversation_id": conv_id,
         "response": content,
@@ -411,11 +422,18 @@ async def chat_stream(req: ChatRequest):
                         "messages": history,
                         "updated_at": now,
                         "participants": pids,
+                        "is_anonymous": req.is_anonymous
                     }
                 else:
-                    convos[conv_id].update({"messages": history, "updated_at": now, "participants": pids})
+                    convos[conv_id].update({
+                        "messages": history, 
+                        "updated_at": now, 
+                        "participants": pids,
+                        "is_anonymous": req.is_anonymous
+                    })
 
                 save_convos(convos)
+
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conv_id, 'title': title})}\n\n"
                 yield "data: [DONE]\n\n"
 

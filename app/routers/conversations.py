@@ -23,7 +23,9 @@ async def list_conversations_api():
             "updated_at": c.get("updated_at", ""),
         }
         for cid, c in convos.items()
+        if not c.get("is_anonymous", False)
     ]
+
     result.sort(key=lambda x: x["updated_at"], reverse=True)
     return result[:50]
 
@@ -44,6 +46,17 @@ async def delete_conversation(conv_id: str):
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     del convos[conv_id]
+    save_convos(convos)
+    return {"ok": True}
+
+
+@router.post("/conversations/{conv_id}/save")
+async def save_temporary_conversation(conv_id: str):
+    """Promote a temporary chat to permanent history by clearing the is_anonymous flag."""
+    convos = load_convos()
+    if conv_id not in convos:
+        raise HTTPException(404, "Not found")
+    convos[conv_id]["is_anonymous"] = False
     save_convos(convos)
     return {"ok": True}
 

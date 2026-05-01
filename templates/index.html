@@ -24,6 +24,7 @@
                     class="w-[30px] h-[30px] rounded-[10px] hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center text-3 hover:text-1 t-apple">
                     <i class="fa-solid fa-square-pen text-[14px]"></i>
                 </button>
+
             </div>
 
             <!-- ── ZONE 2: Scrollable Content ── -->
@@ -415,6 +416,7 @@
             <div class="flex-grow min-w-0 text-right pr-2">
                 <span class="text-[12px] font-medium text-4 hidden sm:inline" x-text="currentTitle"></span>
             </div>
+
             
             <!-- Loading Indicator in Header -->
             <template x-if="loading">
@@ -432,14 +434,69 @@
                 class="sm:hidden w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple shrink-0">
                 <i :class="darkMode ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon'" class="text-[13px]"></i>
             </button>
-            <button @click="newChat()"
+            <button @click="startAnonymousChat()" title="Anonymous Chat"
                 class="w-[34px] h-[34px] rounded-[10px] hover-surface flex items-center justify-center text-3 hover:text-1 t-apple shrink-0">
-                <i class="fa-solid fa-square-pen text-[14px]"></i>
+                <i class="fa-regular fa-circle-dot text-[15px]"></i>
             </button>
+
         </header>
 
         <!-- ═══════════════ MESSAGES ═══════════════ -->
         <main class="flex-grow overflow-y-auto" x-ref="chatBox">
+
+            <!-- Anonymous Chat Banner -->
+            <template x-if="isAnonymous">
+                <div class="sticky top-0 z-10 px-4 py-2.5 flex items-center justify-between gap-3 border-b border-themed"
+                    style="background: color-mix(in srgb, var(--accent) 8%, var(--bg-canvas));">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-[28px] h-[28px] rounded-[8px] flex items-center justify-center shrink-0" style="background: color-mix(in srgb, var(--accent) 15%, transparent);">
+                            <i class="fa-solid fa-user-secret text-[13px] text-accent-c"></i>
+                        </div>
+                        <div>
+                            <p class="text-[12px] font-semibold text-1">Temporary chat</p>
+                            <p class="text-[11px] text-3">This conversation won't be saved to your history.</p>
+                        </div>
+                    </div>
+                    <button @click="confirmExitTemp()" class="px-3 py-1 rounded-full text-[11px] font-medium text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5 t-apple shrink-0">Exit</button>
+                </div>
+            </template>
+
+            <!-- Exit Temp Chat Modal (teleported to body) -->
+            <template x-teleport="body">
+                <div x-show="exitTempModal" x-cloak class="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-4">
+                    <div x-show="exitTempModal" x-transition.opacity @click="exitTempModal = false"
+                        class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+                    <div x-show="exitTempModal"
+                        x-transition:enter="transition ease-out duration-250"
+                        x-transition:enter-start="opacity-0 scale-95 translate-y-6"
+                        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                        class="relative w-full max-w-[360px] material-elevated border border-themed rounded-squircle shadow-t-2xl overflow-hidden p-6 t-apple">
+                        <!-- Incognito icon -->
+                        <div class="flex justify-center mb-5">
+                            <div class="w-[56px] h-[56px] rounded-[18px] flex items-center justify-center" style="background: color-mix(in srgb, var(--accent) 12%, var(--bg-canvas));">
+                                <i class="fa-solid fa-user-secret text-[26px] text-accent-c"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-[18px] font-bold text-1 tracking-tight text-center mb-1">Exit temporary chat?</h3>
+                        <p class="text-[13px] text-3 text-center mb-6 leading-relaxed">
+                            You're about to leave this session. 
+                            <strong class="text-2">This conversation with <span x-text="messages.length"></span> messages will not be saved</strong> and will be lost forever.
+                        </p>
+
+                        <div class="space-y-2.5">
+                            <button @click="saveAndExitTemp()"
+                                class="w-full px-4 py-2.5 rounded-[14px] text-[14px] font-semibold text-accent-t t-apple hover:brightness-110 active:scale-[0.98] transition-all"
+                                style="background: var(--accent);">Save Chat</button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button @click="exitAnonymousChat()"
+                                    class="px-4 py-2.5 rounded-[14px] text-[14px] font-medium text-2 hover:text-1 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 t-apple">Yes, Exit</button>
+                                <button @click="exitTempModal = false"
+                                    class="px-4 py-2.5 rounded-[14px] text-[14px] font-medium text-2 hover:text-1 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 t-apple">No, Stay</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
 
             <!-- Welcome Screen -->
             <template x-if="messages.length === 0">
