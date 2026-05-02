@@ -19,4 +19,7 @@ dependencies = [
     "uvicorn>=0.44.0",
     "langchain-community>=0.4.1",
     "tavily-python>=0.7.24",
+    "qdrant-client>=1.13.2",
+    "pypdf>=5.1.0",
+    "docx2txt>=0.8",
 ]
