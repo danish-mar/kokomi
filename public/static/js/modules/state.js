@@ -38,6 +38,7 @@ export function getInitialState() {
         isAnonymous: false,
         exitTempModal: false,
         useWebSearch: false,
+        isRecording: false,
 
         // Quick prompts 
         quickPrompts: [

@@ -82,6 +82,55 @@ export function getUiActions() {
         },
         getCharById(id) {
             return this.characters.find(c => c.id === id) || { name: id, avatar: null, id };
+        },
+
+        // -- Voice to Text --
+        toggleVoiceInput() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                this.showToast('Speech Recognition not supported in this browser.', 'warning');
+                return;
+            }
+
+            if (this.isRecording) {
+                if (this._recognition) this._recognition.stop();
+                this.isRecording = false;
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = true;
+            recognition.continuous = false;
+
+            recognition.onstart = () => {
+                this.isRecording = true;
+                this.showToast('Listening...', 'info');
+            };
+
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                this.input = transcript;
+                this.$nextTick(() => this.autoResize());
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+                this.isRecording = false;
+                if (event.error !== 'no-speech') {
+                    this.showToast(`Voice Error: ${event.error}`, 'error');
+                }
+            };
+
+            recognition.onend = () => {
+                this.isRecording = false;
+            };
+
+            this._recognition = recognition;
+            recognition.start();
         }
     };
 }

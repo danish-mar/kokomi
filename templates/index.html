@@ -809,8 +809,10 @@
         <!-- ═══════════════ INPUT ═══════════════ -->
         <footer class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
             <div class="max-w-[680px] mx-auto">
-                <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple relative"
+                <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple flex flex-col"
                     style="transition: border-color 0.2s, box-shadow 0.2s;">
+                    
+                    <!-- Space Selector (Top Bar) -->
                     <div x-show="spaces.length > 0" class="px-4 py-2 border-b border-themed bg-black/[0.02] dark:bg-white/[0.02] flex items-center gap-2.5">
                         <i class="fa-regular fa-object-ungroup text-[10px] text-accent-c"></i>
                         <select x-model="activeSpaceId" 
@@ -821,19 +823,22 @@
                             </template>
                         </select>
                     </div>
+
+                    <!-- Textarea -->
                     <textarea id="user-input" x-model="input" x-ref="textarea"
-                        @keydown.enter.prevent="if(!$event.shiftKey) sendMessage()"
+                        @keydown.enter="if(!$event.shiftKey) { $event.preventDefault(); sendMessage(); }"
                         @input="autoResize()"
                         placeholder="Message..." rows="1"
-                        class="w-full bg-transparent pt-3.5 text-[14.5px] text-1 outline-none resize-none font-sans"
-                        :class="(prefs && prefs.web_search_enabled) ? 'pb-11 pl-4 pr-4' : 'pb-3.5 pl-4 pr-12'"
-                        style="color: var(--text-primary);"></textarea>
-                    <div class="absolute bottom-2.5 left-4 right-4 flex items-center justify-between pointer-events-none">
-                        <div class="flex items-center gap-2 text-4">
+                        class="w-full bg-transparent px-4 py-3.5 text-[14.5px] text-1 outline-none resize-none font-sans"
+                        style="color: var(--text-primary); min-height: 48px;"></textarea>
+
+                    <!-- Action Bar (Bottom Row) -->
+                    <div class="px-3.5 pb-2.5 pt-1 flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5 text-4">
                             <!-- Search pill button -->
                             <template x-if="prefs && prefs.web_search_enabled">
                                 <button @click="useWebSearch = !useWebSearch" title="Search the web"
-                                    class="pointer-events-auto flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
+                                    class="flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
                                     :class="useWebSearch
                                         ? 'bg-accent-sub border-accent-c text-accent-c px-2.5 py-1'
                                         : 'border-transparent text-4 hover:text-3 hover:border-themed hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-1'">
@@ -848,8 +853,16 @@
                                         class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Search</span>
                                 </button>
                             </template>
+                            
+                            <!-- Voice to Text button -->
+                            <button @click="toggleVoiceInput()" title="Voice to text"
+                                class="flex items-center justify-center w-7 h-7 rounded-full transition-all duration-300"
+                                :class="isRecording ? 'bg-red-500/20 text-red-500 scale-110' : 'text-4 hover:text-3 hover:bg-black/5 dark:hover:bg-white/5'">
+                                <i class="fa-solid fa-microphone text-[11px]" :class="isRecording && 'animate-pulse'"></i>
+                            </button>
                         </div>
-                        <div class="flex items-center gap-2 pointer-events-auto">
+
+                        <div class="flex items-center gap-2">
                             <button x-show="loading" @click="stopGeneration()"
                                 class="w-[30px] h-[30px] rounded-[9px] bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center t-apple shadow-t"
                                 title="Stop generating">
@@ -857,7 +870,7 @@
                             </button>
                             <button @click="sendMessage()" :disabled="!input.trim() || loading"
                                 x-show="!loading"
-                                class="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center t-apple shrink-0 pointer-events-auto"
+                                class="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center t-apple shrink-0"
                                 :class="input.trim() && !loading ? 'bg-accent-c hover:bg-accent-h text-accent-t shadow-t' : 'bg-accent-sub text-4 cursor-not-allowed'">
                                 <i class="fa-solid fa-arrow-up text-[12px]"></i>
                             </button>

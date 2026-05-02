@@ -131,7 +131,7 @@ export function getChatActions() {
                                     content: '',
                                     thinking: '',
                                     displayContent: '',
-                                    model: this.prefs.model_name,
+                                    model: data.model || this.prefs.model_name,
                                     timestamp: new Date().toISOString(),
                                     streaming: true
                                 });
@@ -142,9 +142,11 @@ export function getChatActions() {
                             }
 
                             if (data.type === 'content' && data.delta && targetIdx !== undefined) {
+                                if (data.model) this.messages[targetIdx].model = data.model;
                                 this.messages[targetIdx].content += data.delta;
                                 this.parseStreamingThinking(this.messages[targetIdx]);
                             } else if (data.type === 'reasoning' && data.delta && targetIdx !== undefined) {
+                                if (data.model) this.messages[targetIdx].model = data.model;
                                 this.messages[targetIdx].thinking += data.delta;
                             } else if (data.type === 'tool_start') {
                                 if (data.name !== 'open_url' && data.name !== 'redirect_url') {

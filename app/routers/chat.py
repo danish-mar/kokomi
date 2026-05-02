@@ -423,16 +423,16 @@ async def chat_stream(req: ChatRequest):
                             collected_chunks.append(chunk)
 
                             if hasattr(chunk, "reasoning_content") and chunk.reasoning_content:
-                                await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.reasoning_content, 'character_id': pid})}\n\n")
+                                await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.reasoning_content, 'character_id': pid, 'model': p_active_model})}\n\n")
                             elif chunk.additional_kwargs and "reasoning_content" in chunk.additional_kwargs:
-                                await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.additional_kwargs['reasoning_content'], 'character_id': pid})}\n\n")
+                                await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.additional_kwargs['reasoning_content'], 'character_id': pid, 'model': p_active_model})}\n\n")
 
                             if chunk.content:
                                 if not f_content and "[SKIP]" in chunk.content.upper():
                                     skipped = True
                                     break
                                 f_content += chunk.content
-                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid})}\n\n")
+                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid, 'model': p_active_model})}\n\n")
 
                         if skipped:
                             continue
