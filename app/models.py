@@ -50,3 +50,5 @@ class PrefsUpdate(BaseModel):
     tavily_api_key: Optional[str] = ""
     web_search_enabled: bool = False
     browser_redirect_enabled: bool = True
+    user_name: Optional[str] = "User"
+    user_avatar: Optional[str] = None

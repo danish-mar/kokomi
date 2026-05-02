@@ -619,8 +619,15 @@
                                 <!-- Avatar -->
                                 <div class="shrink-0 pt-0.5">
                                     <template x-if="msg.role === 'user'">
-                                        <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center" style="background: var(--accent);">
-                                            <i class="fa-solid fa-user text-accent-t text-[11px]"></i>
+                                        <div class="flex items-center justify-center">
+                                            <template x-if="prefs.user_avatar">
+                                                <img :src="prefs.user_avatar" class="w-[28px] h-[28px] rounded-full object-cover" />
+                                            </template>
+                                            <template x-if="!prefs.user_avatar">
+                                                <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center" style="background: var(--accent);">
+                                                    <i class="fa-solid fa-user text-accent-t text-[11px]"></i>
+                                                </div>
+                                            </template>
                                         </div>
                                     </template>
                                     <template x-if="msg.role === 'assistant'">
@@ -646,7 +653,7 @@
                                 <div class="flex-grow min-w-0">
                                     <div class="flex items-center gap-2 mb-1.5">
                                         <p class="font-semibold text-[13px] text-1 tracking-[-0.01em]"
-                                            x-text="msg.role === 'user' ? 'You' : (msg.character_name || activeChar.name)"></p>
+                                            x-text="msg.role === 'user' ? (prefs.user_name || 'You') : (msg.character_name || activeChar.name)"></p>
                                         <template x-if="msg.role === 'assistant' && msg.model">
                                             <span class="text-[10px] text-4 font-medium px-1.5 py-0.25 rounded-[6px] bg-accent-sub border border-themed" x-text="msg.model"></span>
                                         </template>

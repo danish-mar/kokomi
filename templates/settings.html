@@ -410,7 +410,12 @@
         .tahoe-sidebar-section { margin-bottom: 0; }
         .tahoe-sidebar-label { display: none; }
     }
+    /* Cropper custom */
+    .cropper-view-box, .cropper-face { border-radius: 50%; }
+    .cropper-modal { background-color: rgba(0,0,0,0.5); }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 {% endblock %}
 
 {% block body %}
@@ -477,6 +482,33 @@
             <div x-show="tab === 'general'" x-transition class="tab-panel">
                 <h2 class="section-title">General</h2>
                 <p class="section-subtitle">Manage global AI behavior and model preferences.</p>
+
+                <!-- User Profile -->
+                <div class="glass-card">
+                    <div class="card-row" style="display:flex; align-items:center; gap:20px; padding:20px;">
+                        <div style="position:relative; cursor:pointer;" @click="$refs.userAvatarInput.click()">
+                            <template x-if="prefs.user_avatar">
+                                <div class="avatar-circle" style="width:72px; height:72px; border-radius:50%; border:2px solid var(--accent);">
+                                    <img :src="prefs.user_avatar" style="border-radius:50%;" />
+                                </div>
+                            </template>
+                            <template x-if="!prefs.user_avatar">
+                                <div class="avatar-circle" style="width:72px; height:72px; border-radius:50%; border:2px solid var(--accent); background:var(--accent-subtle);">
+                                    <span style="font-size:24px; color:var(--accent);" x-text="prefs.user_name.charAt(0).toUpperCase()"></span>
+                                </div>
+                            </template>
+                            <div style="position:absolute; bottom:0; right:0; width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; border:2px solid var(--bg-elevated);">
+                                <i class="fa-solid fa-camera" style="font-size:10px;"></i>
+                            </div>
+                            <input type="file" x-ref="userAvatarInput" class="hidden" accept="image/*" @change="initCrop($event)">
+                        </div>
+                        <div style="flex-grow:1;">
+                            <label class="apple-label" style="margin-bottom:6px;">Display Name</label>
+                            <input type="text" x-model="prefs.user_name" @blur="savePrefs()" placeholder="Enter your name" class="apple-field" style="max-width:300px;">
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">How Kokomi should address you.</p>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Provider -->
                 <div class="glass-card">
@@ -1098,6 +1130,26 @@
             </div>
         </div>
     </div>
+
+    <!-- ── Crop Modal ── -->
+    <div x-show="cropModal" class="modal-overlay" style="display:flex;">
+        <div class="modal-backdrop" @click="cancelCrop()"></div>
+        <div class="modal-sheet" style="max-width:400px; padding:20px;">
+            <div class="modal-handle"></div>
+            <h3 style="font-size:17px; font-weight:700; margin-bottom:16px; text-align:center;">Crop Avatar</h3>
+            
+            <div style="aspect-ratio:1; width:100%; overflow:hidden; border-radius:12px; background:#000;">
+                <img id="crop-image" x-ref="cropImg" style="max-width:100%;">
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button @click="cancelCrop()" class="btn-ghost" style="flex:1;">Cancel</button>
+                <button @click="finishCrop()" class="btn-accent" style="flex:1; justify-content:center;">
+                    <i class="fa-solid fa-check"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -1119,7 +1171,12 @@ function settingsApp() {
             whatsapp_api_url: 'http://localhost:3013',
             tavily_api_key: '',
             web_search_enabled: false,
+            user_name: 'User',
+            user_avatar: null,
         },
+
+        cropModal: false,
+        cropper: null,
 
         prefSaving: false,
         saving: false,
@@ -1182,6 +1239,60 @@ function settingsApp() {
 
         async fetchPrefs() {
             try { const r = await fetch('/api/prefs'); this.prefs = await r.json(); } catch(e) { console.error(e); }
+        },
+
+        initCrop(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.$refs.cropImg.src = ev.target.result;
+                this.cropModal = true;
+                this.$nextTick(() => {
+                    if (this.cropper) this.cropper.destroy();
+                    this.cropper = new Cropper(this.$refs.cropImg, {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        autoCropArea: 1,
+                        dragMode: 'move',
+                        background: false
+                    });
+                });
+            };
+            reader.readAsDataURL(file);
+        },
+
+        cancelCrop() {
+            this.cropModal = false;
+            if (this.cropper) this.cropper.destroy();
+            this.$refs.userAvatarInput.value = '';
+        },
+
+        async finishCrop() {
+            if (!this.cropper) return;
+            this.prefSaving = true;
+            const canvas = this.cropper.getCroppedCanvas({ width: 256, height: 256 });
+            canvas.toBlob(async (blob) => {
+                const fd = new FormData();
+                fd.append('avatar', blob, 'avatar.png');
+                try {
+                    const r = await fetch('/api/prefs/avatar', { method: 'POST', body: fd });
+                    const res = await r.json();
+                    if (res.avatar) {
+                        this.prefs.user_avatar = res.avatar;
+                        this.showToast('Profile updated!', 'success');
+                    }
+                } catch(e) { console.error(e); }
+                finally {
+                    this.prefSaving = false;
+                    this.cancelCrop();
+                }
+            }, 'image/png');
+        },
+
+        showToast(msg, type = 'success') {
+            // Settings doesn't have a toast container yet, but let's just use alert or console
+            console.log(msg);
         },
 
         async savePrefs() {

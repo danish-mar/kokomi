@@ -1,5 +1,5 @@
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
 
 from app.config import GROQ_API_KEY, GOOGLE_API_KEY
 from app.models import PrefsUpdate
@@ -70,3 +70,24 @@ async def list_available_models():
                 print(f"Error fetching Google models: {e}")
 
     return all_models
+
+
+@router.post("/prefs/avatar")
+async def upload_user_avatar(avatar: UploadFile = File(...)):
+    import os
+    import shutil
+    from app.config import AVATARS_DIR
+    
+    ext = os.path.splitext(avatar.filename)[1] or ".png"
+    fname = f"user_{avatar.filename}" # unique enough for single user
+    # or use a fixed name to overwrite
+    fname = f"user_profile{ext}"
+    
+    target_path = os.path.join(AVATARS_DIR, fname)
+    with open(target_path, "wb") as f:
+        shutil.copyfileobj(avatar.file, f)
+    
+    prefs = load_prefs()
+    prefs["user_avatar"] = f"/avatars/{fname}"
+    save_prefs(prefs)
+    return {"avatar": prefs["user_avatar"]}

@@ -41,6 +41,8 @@ DEFAULT_PREFS: dict = {
     "whatsapp_show_thinking": True,
     "tavily_api_key": "",
     "web_search_enabled": False,
-    "browser_redirect_enabled": True
+    "browser_redirect_enabled": True,
+    "user_name": "User",
+    "user_avatar": None
 }
 
