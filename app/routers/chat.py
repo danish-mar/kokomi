@@ -1,9 +1,12 @@
+import asyncio
 import datetime
 import json
 import uuid
 from contextlib import AsyncExitStack
 from functools import reduce
 from operator import add
+
+from app.mcp import MCP_TOOL_CALL_TIMEOUT
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -165,7 +168,10 @@ async def chat(req: ChatRequest):
                                 actual_args = dict(tool_args)
                                 actual_args.pop("ui_status_text", None)
                                 print(f"  [DEBUG] Calling MCP Tool: '{tool_name}' with args: {actual_args}")
-                                result = await session.call_tool(tool_name, arguments=actual_args)
+                                result = await asyncio.wait_for(
+                                    session.call_tool(tool_name, arguments=actual_args),
+                                    timeout=MCP_TOOL_CALL_TIMEOUT,
+                                )
                                 res_txt = "".join([getattr(b, "text", str(b)) for b in result.content])
                             elif bt:
                                 print(f"  [DEBUG] Calling built-in Tool: '{tool_name}' with args: {tool_args}")
@@ -433,11 +439,17 @@ async def chat_stream(req: ChatRequest):
                                     if sess:
                                         actual_args = dict(targs)
                                         actual_args.pop("ui_status_text", None)
-                                        tr = await sess.call_tool(tname, arguments=actual_args)
+                                        tr = await asyncio.wait_for(
+                                            sess.call_tool(tname, arguments=actual_args),
+                                            timeout=MCP_TOOL_CALL_TIMEOUT,
+                                        )
                                     elif bt:
                                         tr = await bt.ainvoke(targs)
                                     else:
                                         tr = "Error: Tool not found"
+                                except asyncio.TimeoutError:
+                                    print(f"  ⏱️ Tool '{tname}' timed out after {MCP_TOOL_CALL_TIMEOUT}s")
+                                    tr = f"Error: Tool '{tname}' timed out after {MCP_TOOL_CALL_TIMEOUT}s"
                                 except Exception as e:
                                     print(f"  [DEBUG] Tool '{tname}' execution failed: {e}")
                                     tr = f"Error: {e}"

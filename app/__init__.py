@@ -1,9 +1,17 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 app = FastAPI(title="Kokomi AI")
 templates = Jinja2Templates(directory="templates")
+
+
+@app.get("/health")
+async def health_check():
+    """Lightweight health probe for Docker/orchestrators."""
+    return JSONResponse({"status": "ok"}, status_code=200)
+
 
 app.mount("/static", StaticFiles(directory="public/static"), name="static")
 app.mount("/images", StaticFiles(directory="public/images"), name="images")

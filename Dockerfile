@@ -16,6 +16,9 @@ RUN uv sync --frozen --no-install-project --no-dev
 # Final stage
 FROM python:3.12-slim-bookworm
 
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 
@@ -35,6 +38,9 @@ RUN mkdir -p data && chmod 777 data
 # Expose the application port
 EXPOSE 8000
 
+# Health check: poll /health every 30s, fail after 10s, restart after 3 consecutive failures
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
 # Command to run the application
-# Note: we use uvicorn directly to ensure it picks up the environment correctly
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "120"]
