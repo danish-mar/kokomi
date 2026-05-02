@@ -778,7 +778,7 @@
                             <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"
                                 :style="srv.enabled ? 'background:var(--accent-subtle)' : 'background:var(--bg-input)'">
                                 <i style="font-size:14px;"
-                                    :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'"
+                                    :class="srv.icon ? `fa-solid ${srv.icon}` : (srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal')"
                                     :style="srv.transport === 'sse' ? 'color:#60A5FA' : 'color:var(--accent)'"></i>
                             </div>
                             <div style="flex-grow:1; min-width:0;">
@@ -1043,6 +1043,10 @@
                     <input x-model="mcpName" type="text" required placeholder="e.g. Filesystem, Web Search, GitHub..." class="apple-field" />
                 </div>
                 <div>
+                    <label class="apple-label">Icon Class (FontAwesome)</label>
+                    <input x-model="mcpIcon" type="text" placeholder="e.g. fa-film, fa-database, fa-plug" class="apple-field" />
+                </div>
+                <div>
                     <label style="display:block; font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:7px;">Transport</label>
                     <div style="display:flex; flex-wrap:wrap; gap:7px;">
                         <button type="button" @click="mcpTransport = 'stdio'" class="transport-btn" :class="mcpTransport === 'stdio' ? 'selected' : ''">
@@ -1159,7 +1163,7 @@ function settingsApp() {
             else this.charGroqModel = v;
         },
 
-        mcpModal: false, mcpEditId: null, mcpName: '', mcpTransport: 'stdio',
+        mcpModal: false, mcpEditId: null, mcpName: '', mcpIcon: '', mcpTransport: 'stdio',
         mcpCommand: '', mcpArgs: '', mcpEnv: '', mcpUrl: '', mcpEnabled: true,
         testingId: null, testResult: null,
 
@@ -1267,12 +1271,12 @@ function settingsApp() {
 
         openMCPModal(srv = null) {
             if (srv) {
-                this.mcpEditId = srv.id; this.mcpName = srv.name; this.mcpTransport = srv.transport || 'stdio';
+                this.mcpEditId = srv.id; this.mcpName = srv.name; this.mcpIcon = srv.icon || ''; this.mcpTransport = srv.transport || 'stdio';
                 this.mcpCommand = srv.command || ''; this.mcpArgs = (srv.args || []).join('\n');
                 this.mcpEnv = Object.entries(srv.env || {}).map(([k,v]) => `${k}=${v}`).join('\n');
                 this.mcpUrl = srv.url || ''; this.mcpEnabled = srv.enabled !== false;
             } else {
-                this.mcpEditId = null; this.mcpName = ''; this.mcpTransport = 'stdio';
+                this.mcpEditId = null; this.mcpName = ''; this.mcpIcon = ''; this.mcpTransport = 'stdio';
                 this.mcpCommand = ''; this.mcpArgs = ''; this.mcpEnv = ''; this.mcpUrl = ''; this.mcpEnabled = true;
             }
             this.mcpModal = true;
@@ -1284,7 +1288,7 @@ function settingsApp() {
             const args = this.mcpArgs.split('\n').map(s => s.trim()).filter(Boolean);
             const env = {};
             this.mcpEnv.split('\n').forEach(line => { const eq = line.indexOf('='); if (eq > 0) env[line.slice(0,eq).trim()] = line.slice(eq+1).trim(); });
-            const body = { name: this.mcpName.trim(), transport: this.mcpTransport, command: this.mcpCommand.trim() || null, args, env, url: this.mcpUrl.trim() || null, enabled: this.mcpEnabled };
+            const body = { name: this.mcpName.trim(), icon: this.mcpIcon.trim() || null, transport: this.mcpTransport, command: this.mcpCommand.trim() || null, args, env, url: this.mcpUrl.trim() || null, enabled: this.mcpEnabled };
             try {
                 const url = this.mcpEditId ? `/api/mcp-servers/${this.mcpEditId}` : '/api/mcp-servers';
                 const r = await fetch(url, { method: this.mcpEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

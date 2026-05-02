@@ -723,10 +723,10 @@
                                                                  }
                                                              }">
                                                             <div class="flex items-center gap-2 cursor-pointer" @click="expanded = !expanded">
-                                                                <i x-show="tc.name !== 'web_search'" class="fa-solid fa-wrench text-[10px] text-accent-c"></i>
+                                                                <i x-show="tc.name !== 'web_search'" class="fa-solid text-[10px] text-accent-c" :class="tc.icon || 'fa-wrench'"></i>
                                                                 <i x-show="tc.name === 'web_search'" class="fa-solid text-[10px] text-accent-c" :class="(tc.result === 'Executing...') ? 'fa-circle-notch fa-spin' : 'fa-globe'"></i>
 
-                                                                <span x-show="tc.name !== 'web_search'" class="text-[12px] font-semibold text-accent-c font-mono" x-text="tc.name"></span>
+                                                                <span x-show="tc.name !== 'web_search'" class="text-[12px] font-semibold text-accent-c" :class="!tc.description && 'font-mono'" x-text="tc.description || tc.name"></span>
                                                                 <span x-show="tc.name === 'web_search'" class="text-[12px] font-semibold text-accent-c" x-text="(tc.result === 'Executing...') ? 'Searching the web...' : 'Searched the web'"></span>
 
                                                                 <span class="text-[10px] text-4 ml-auto" x-text="expanded ? '▾' : '▸'"></span>

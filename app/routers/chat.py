@@ -19,7 +19,7 @@ from app.storage import load_prefs, load_chars, load_convos, save_convos
 
 @tool
 def redirect_url(url: str) -> str:
-    """Open a specified URL in a new browser tab for the user. Use ONLY when the user explicitly asks you to open a link, page, or website."""
+    """Open a specified URL in a new browser tab for the user. Use this immediately whenever the user asks to "play" a movie/song, "open" a website, or when providing a playable link that the user intends to consume. DO NOT just provide the text link; actually use this tool to open it!"""
     return f"Successfully opened {url} in a new browser tab."
 
 
@@ -107,7 +107,7 @@ async def chat(req: ChatRequest):
 
     try:
         async with AsyncExitStack() as stack:
-            tool_defs, tool_sessions, mcp_errors = await connect_mcp_servers(stack, mcp_server_ids)
+            tool_defs, tool_sessions, tool_icons, mcp_errors = await connect_mcp_servers(stack, mcp_server_ids)
 
             if mcp_errors:
                 persona += "\n\n⚠️ MCP Connection Warnings:\n" + "\n".join([f"- {e}" for e in mcp_errors])
@@ -137,7 +137,7 @@ async def chat(req: ChatRequest):
             if prefs.get("browser_redirect_enabled", True):
                 tool_defs.append(redirect_url)
                 builtin_tools[redirect_url.name] = redirect_url
-                persona += "\n\nYou have access to the 'redirect_url' tool. Use it to open websites for the user ONLY when requested."
+                persona += "\n\nYou have access to the 'redirect_url' tool. If the user asks to 'play' media or 'open' a site, you MUST use this tool to directly open the link for them. Do NOT just print the URL in your message."
 
             # Re-initialize SystemMessage with updated persona (including MCP/RAG context)
             lc_msgs[0] = SystemMessage(content=persona)
@@ -158,11 +158,14 @@ async def chat(req: ChatRequest):
                         tool_args = tc["args"]
                         tool_call_id = tc.get("id", str(uuid.uuid4())[:8])
                         try:
+                            ui_status_text = tool_args.get("ui_status_text") if isinstance(tool_args, dict) else None
                             session = tool_sessions.get(tool_name)
                             bt = builtin_tools.get(tool_name)
                             if session:
-                                print(f"  [DEBUG] Calling MCP Tool: '{tool_name}' with args: {tool_args}")
-                                result = await session.call_tool(tool_name, arguments=tool_args)
+                                actual_args = dict(tool_args)
+                                actual_args.pop("ui_status_text", None)
+                                print(f"  [DEBUG] Calling MCP Tool: '{tool_name}' with args: {actual_args}")
+                                result = await session.call_tool(tool_name, arguments=actual_args)
                                 res_txt = "".join([getattr(b, "text", str(b)) for b in result.content])
                             elif bt:
                                 print(f"  [DEBUG] Calling built-in Tool: '{tool_name}' with args: {tool_args}")
@@ -176,7 +179,13 @@ async def chat(req: ChatRequest):
                                 res_txt = f"Error: '{tool_name}' not found"
                         except Exception as e:
                             res_txt = f"Error: {e}"
-                        tool_calls_log.append({"name": tool_name, "args": tool_args, "result": res_txt})
+                        tool_calls_log.append({
+                            "name": tool_name, 
+                            "args": tool_args, 
+                            "result": res_txt, 
+                            "icon": tool_icons.get(tool_name, "fa-wrench"),
+                            "description": ui_status_text
+                        })
                         lc_msgs.append(ToolMessage(content=res_txt, tool_call_id=tool_call_id))
 
                     response = await llm_with_tools.ainvoke(lc_msgs)
@@ -281,7 +290,7 @@ async def chat_stream(req: ChatRequest):
             })
 
             async with AsyncExitStack() as stack:
-                tool_defs, tool_sessions, mcp_errors = await connect_mcp_servers(stack, all_mcp_ids)
+                tool_defs, tool_sessions, tool_icons, mcp_errors = await connect_mcp_servers(stack, all_mcp_ids)
                 builtin_tools = {}
                 
                 if req.space_id:
@@ -349,7 +358,7 @@ async def chat_stream(req: ChatRequest):
                         )
 
                     if prefs.get("browser_redirect_enabled", True) and "redirect_url" in builtin_tools:
-                        p_persona += "\n\nYou have access to the 'redirect_url' tool. Use it to open websites for the user ONLY when requested."
+                        p_persona += "\n\nYou have access to the 'redirect_url' tool. If the user asks to 'play' media or 'open' a site, you MUST use this tool to directly open the link for them. Do NOT just print the URL in your message."
 
                     p_persona += (
                         "\n\nIMPORTANT: Always wrap internal reasoning inside <think>...</think> tags before your response."
@@ -414,13 +423,17 @@ async def chat_stream(req: ChatRequest):
                                 tname = tc["name"]
                                 targs = tc["args"]
                                 tid = tc.get("id", str(uuid.uuid4())[:8])
-                                yield f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'character_id': pid})}\n\n"
+                                ticon = tool_icons.get(tname, "fa-wrench")
+                                ui_status = targs.get("ui_status_text") if isinstance(targs, dict) else None
+                                yield f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n"
                                 sess = tool_sessions.get(tname)
                                 bt = builtin_tools.get(tname)
                                 print(f"  [DEBUG] Calling Tool: '{tname}' with args: {targs}")
                                 try:
                                     if sess:
-                                        tr = await sess.call_tool(tname, arguments=targs)
+                                        actual_args = dict(targs)
+                                        actual_args.pop("ui_status_text", None)
+                                        tr = await sess.call_tool(tname, arguments=actual_args)
                                     elif bt:
                                         tr = await bt.ainvoke(targs)
                                     else:
@@ -438,9 +451,9 @@ async def chat_stream(req: ChatRequest):
                                         for b in (tr.content if hasattr(tr, "content") else [])
                                     ]) or str(tr)
 
-                                yield f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'args': targs, 'character_id': pid})}\n\n"
+                                yield f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'args': targs, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n"
                                 p_lc_msgs.append(ToolMessage(content=txt, name=tname, tool_call_id=tid))
-                                char_tool_calls_log.append({"name": tname, "args": targs, "result": txt})
+                                char_tool_calls_log.append({"name": tname, "args": targs, "result": txt, "icon": ticon, "description": ui_status})
 
                             fcl = ""
                             inner_chunks = []

@@ -20,6 +20,7 @@ class MCPServerCreate(BaseModel):
     args: Optional[List[str]] = []
     env: Optional[dict] = {}
     url: Optional[str] = None
+    icon: Optional[str] = "fa-plug"
     enabled: bool = True
 
 

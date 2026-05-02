@@ -560,10 +560,15 @@ function aiApp() {
                                     // Hidden from UI
                                 } else {
                                     const charName = this.getCharById(charId).name;
-                                    this.loadingStatus = `${charName}: Running ${data.name}...`;
+                                    this.loadingStatus = `${charName}: ${data.description || ('Running ' + data.name)}...`;
                                     if (targetIdx !== undefined) {
                                         if (!this.messages[targetIdx].tool_calls) this.messages[targetIdx].tool_calls = [];
-                                        this.messages[targetIdx].tool_calls.push({ name: data.name, result: "Executing..." });
+                                        this.messages[targetIdx].tool_calls.push({ 
+                                            name: data.name, 
+                                            icon: data.icon || 'fa-wrench', 
+                                            description: data.description,
+                                            result: "Executing..." 
+                                        });
                                     }
                                 }
                             } else if (data.type === 'tool_end') {
@@ -576,6 +581,9 @@ function aiApp() {
                                     const tcs = this.messages[targetIdx].tool_calls;
                                     if (tcs.length > 0) {
                                         tcs[tcs.length - 1].result = data.result;
+                                        if (data.description) {
+                                            tcs[tcs.length - 1].description = data.description;
+                                        }
                                     }
                                 }
                             } else if (data.type === 'warning') {

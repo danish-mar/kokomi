@@ -29,6 +29,17 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
     *   `thinking_show=false`: Disables thoughts for a more immersion-focused conversation.
 *   **Real-time Tool Feedback**: When an agent decides to use a tool or deploy a sub-agent, you get a "confirmation message" on WhatsApp immediately, so you aren't left waiting during long-running tasks.
 
+### 🛠️ Advanced Tool Orchestration
+*   **Invisible Browser Redirection**:
+    *   The AI can now trigger `redirect_url` to programmatically open links, movie players, or music streams in new browser tabs.
+    *   **Auto-Execution**: If you ask it to "play" something, it won't just give you a link; it will immediately open the tab for you.
+*   **Natural Language Tool Status**:
+    *   Say goodbye to cryptic function names like `search_and_play`. 
+    *   The AI now generates human-readable status messages (e.g., *"Searching and playing All of us are dead..."*) which appear in the UI during execution.
+*   **Custom MCP Server Icons**:
+    *   Configure unique FontAwesome icons for each of your tool servers in the Integrations settings.
+    *   The chat UI dynamically renders these icons in the tool pills, providing instant visual recognition.
+
 ### 📊 Workflow Canvas & Visualization
 *   **Live Mermaid.js Rendering**: Click on any workflow log in the WebUI to open a full-screen interactive graph.
 *   **Traceability**: Each node represents a distinct action (User Message → Trigger → Deployment → Tool Call → Final Response).

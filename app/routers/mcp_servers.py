@@ -73,7 +73,7 @@ async def test_mcp_server(sid: str):
         return {"ok": False, "error": "MCP SDK not installed"}
     try:
         async with AsyncExitStack() as stack:
-            tool_defs, _, errs = await connect_mcp_servers(stack, [sid])
+            tool_defs, _, _, errs = await connect_mcp_servers(stack, [sid])
             if errs:
                 return {"ok": False, "error": "\n".join(errs)}
             tools = [t["function"]["name"] for t in tool_defs]

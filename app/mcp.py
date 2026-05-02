@@ -21,6 +21,7 @@ async def connect_mcp_servers(stack: AsyncExitStack, server_ids: list):
     servers = load_mcp()
     tool_defs: list = []
     tool_sessions: dict = {}
+    tool_icons: dict = {}
     errors: list = []
 
     for sid in server_ids:
@@ -70,18 +71,29 @@ async def connect_mcp_servers(stack: AsyncExitStack, server_ids: list):
 
                 result = await session.list_tools()
                 for tool in result.tools:
+                    schema = tool.inputSchema if tool.inputSchema else {"type": "object", "properties": {}}
+                    if "properties" not in schema:
+                        schema["properties"] = {}
+                    
+                    schema["properties"]["ui_status_text"] = {
+                        "type": "string",
+                        "description": f"A short, present-tense, human-readable status message for the UI describing what you are doing (e.g. 'Searching and playing All of us are dead...'). MUST be provided whenever you call this tool."
+                    }
+                    if "required" not in schema:
+                        schema["required"] = []
+                    if "ui_status_text" not in schema["required"]:
+                        schema["required"].append("ui_status_text")
+
                     tool_defs.append({
                         "type": "function",
                         "function": {
                             "name": tool.name,
                             "description": tool.description or "",
-                            "parameters": tool.inputSchema if tool.inputSchema else {
-                                "type": "object",
-                                "properties": {},
-                            },
+                            "parameters": schema,
                         },
                     })
                     tool_sessions[tool.name] = session
+                    tool_icons[tool.name] = config.get("icon") or "fa-plug"
                 
                 # Transfer successfully opened resources to the main stack
                 await stack.enter_async_context(local_stack.pop_all())
@@ -92,4 +104,4 @@ async def connect_mcp_servers(stack: AsyncExitStack, server_ids: list):
                 errors.append(err_msg)
                 print(f"  ❌ {err_msg}")
 
-    return tool_defs, tool_sessions, errors
+    return tool_defs, tool_sessions, tool_icons, errors
