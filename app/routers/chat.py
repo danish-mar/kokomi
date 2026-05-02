@@ -22,8 +22,17 @@ from app.storage import load_prefs, load_chars, load_convos, save_convos
 
 @tool
 def open_url(url: str) -> str:
-    """Open a specified URL in a new browser tab for the user. Use this immediately whenever the user asks to "play" a movie/song, "open" a website, or when providing a playable link that the user intends to consume. DO NOT just provide the text link; actually use this tool to open it!"""
-    return f"Successfully opened {url} in a new browser tab."
+    """Open a specified URL or URI scheme in a new browser tab or trigger a native app action.
+    This supports standard web links (http/https) and native URI schemes:
+    - tel:+91XXXXXXXXXX (Phone dialer)
+    - mailto:you@gmail.com (Email client)
+    - sms:+91XXXXXXXXXX (SMS app)
+    - whatsapp://send?phone=91XXXXXXXXXX (WhatsApp)
+    - youtube://watch?v=ID (YouTube app)
+    - maps:?q=Location (Maps app)
+    Use this immediately when the user asks to "call", "mail", "sms", "play", or "open" something.
+    """
+    return f"Successfully triggered opening of {url}"
 
 
 def _get_tavily_tool(prefs: dict):
@@ -367,7 +376,18 @@ async def chat_stream(req: ChatRequest):
                             )
 
                         if prefs.get("browser_redirect_enabled", True) and "open_url" in builtin_tools:
-                            p_persona += "\n\nYou have access to the 'open_url' tool. If the user asks to 'play' media or 'open' a site, you MUST use this tool to directly open the link for them. Do NOT just print the URL in your message."
+                            p_persona += (
+                                "\n\nYou have access to the 'open_url' tool, which acts as a universal launcher. "
+                                "You MUST use it whenever the user asks for actions involving links or communication:"
+                                "\n- Call/Dial: Use 'tel:+91XXXXXXXXXX'"
+                                "\n- Email: Use 'mailto:email@address.com'"
+                                "\n- SMS: Use 'sms:+91XXXXXXXXXX'"
+                                "\n- WhatsApp: Use 'whatsapp://send?phone=XXXXXXXXXX'"
+                                "\n- Play/Watch: Use 'youtube://watch?v=ID' or 'https://youtube.com/...'"
+                                "\n- Navigation/Maps: Use 'maps:?q=LocationName'"
+                                "\n- Open Site: Use the standard https URL."
+                                "\nDo NOT just print the URL or number; use 'open_url' to trigger the action for the user."
+                            )
 
                         p_persona += (
                             "\n\nIMPORTANT: Always wrap internal reasoning inside <think>...</think> tags before your response."
