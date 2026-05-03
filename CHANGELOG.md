@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.7] - 2026-05-03
+
+### Fixed
+- **RAG Dumping**: Reduced RAG chunk sizes, added a score threshold, and updated the system prompt to force the AI to synthesize concise answers instead of dumping raw document text.
+- **Thinking Box Overflow**: Added `word-break: break-word` and `overflow-wrap: anywhere` to the thinking box CSS to prevent long unbroken strings from visually escaping the container.
+
+
 ## [v0.4.6] - 2026-05-03
 
 ### Fixed

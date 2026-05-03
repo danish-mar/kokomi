@@ -64,8 +64,8 @@ def process_file_to_rag(file_path: str, space_id: str, file_id: str):
     docs = loader.load()
     
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=2000,
-        chunk_overlap=400,
+        chunk_size=800,
+        chunk_overlap=150,
         add_start_index=True,
     )
     
@@ -104,7 +104,7 @@ def process_file_to_rag(file_path: str, space_id: str, file_id: str):
         points=points
     )
 
-def query_space(space_id: str, query: str, top_k: int = 8) -> list[str]:
+def query_space(space_id: str, query: str, top_k: int = 5) -> list[str]:
     try:
         # Use RETRIEVAL_QUERY task type for searching
         embeddings_model = get_embeddings(task_type="RETRIEVAL_QUERY")
@@ -113,11 +113,22 @@ def query_space(space_id: str, query: str, top_k: int = 8) -> list[str]:
         results = qdrant.query_points(
             collection_name=space_id,
             query=query_vector,
-            limit=top_k
+            limit=top_k,
+            score_threshold=0.4,
         )
         
-        # Return the retrieved text chunks
-        return [hit.payload.get("text", "") for hit in results.points if hit.payload]
+        # Return only relevant chunks, truncated to avoid dumping entire docs
+        chunks = []
+        for hit in results.points:
+            if not hit.payload:
+                continue
+            text = hit.payload.get("text", "").strip()
+            if text:
+                # Truncate very long chunks to keep context concise
+                if len(text) > 600:
+                    text = text[:600] + "…"
+                chunks.append(text)
+        return chunks
     except Exception as e:
         print(f"Error querying Qdrant: {e}")
         return []
@@ -144,10 +155,14 @@ def get_space_tool(space_id: str):
     
     @tool
     def search_knowledge_base(query: str) -> str:
-        """Search the active Knowledge Space for relevant information to answer the user's question using semantic search."""
+        """Search the active Knowledge Space for relevant information to answer the user's question using semantic search. Returns only the most relevant excerpts."""
         results = query_space(space_id, query)
         if not results:
             return "No relevant information found in the knowledge base."
-        return "\n\n---\n\n".join(results)
+        # Provide numbered excerpts for clarity
+        formatted = []
+        for i, r in enumerate(results, 1):
+            formatted.append(f"[Excerpt {i}]\n{r}")
+        return "\n\n".join(formatted)
         
     return search_knowledge_base

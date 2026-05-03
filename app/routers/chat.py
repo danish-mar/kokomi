@@ -139,7 +139,9 @@ async def chat(req: ChatRequest):
             persona += (
                 "\n\nYou have access to a Knowledge Space (RAG database). "
                 "When the user asks about topics that could be in their uploaded documents, "
-                "USE the search_knowledge_base tool FIRST to find relevant information before answering."
+                "USE the search_knowledge_base tool FIRST to find relevant information before answering. "
+                "IMPORTANT: Synthesize a concise, helpful answer from the retrieved excerpts. "
+                "Do NOT dump raw content or list every excerpt — summarize and directly answer the question."
             )
 
         if req.use_web_search:
@@ -373,7 +375,9 @@ async def chat_stream(req: ChatRequest):
                         p_persona += (
                             "\n\nYou have access to a Knowledge Space (RAG database). "
                             "When the user asks about topics that could be in their uploaded documents, "
-                            "USE the search_knowledge_base tool FIRST to find relevant information before answering."
+                            "USE the search_knowledge_base tool FIRST to find relevant information before answering. "
+                            "IMPORTANT: Synthesize a concise, helpful answer from the retrieved excerpts. "
+                            "Do NOT dump raw content or list every excerpt — summarize and directly answer the question."
                         )
 
                     if req.use_web_search and "web_search" in builtin_tools:
