@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.6] - 2026-05-03
+
+### Fixed
+- **Spaces Page Redirects**: Fixed trailing slash issues in `/api/spaces` that caused insecure `http` redirects and Mixed Content errors on production deployments.
+- **API Consistency**: Standardized API routes to handle both slashed and non-slashed requests without redirection loops.
+
+
 ## [v0.4.5] - 2026-05-03
 
 ### Fixed

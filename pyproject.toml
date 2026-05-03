@@ -1,6 +1,6 @@
 [project]
 name = "kokomi"
-version = "0.4.5"
+version = "0.4.6"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"

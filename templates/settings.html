@@ -791,9 +791,15 @@
                         <h2 class="section-title">MCP Servers</h2>
                         <p class="section-subtitle" style="margin-bottom:0;">Connect tools via the Model Context Protocol.</p>
                     </div>
-                    <button @click="openMCPModal()" class="btn-accent">
-                        <i class="fa-solid fa-plus" style="font-size:10px;"></i> Add Server
-                    </button>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button @click="refreshMCPPool()" class="btn-ghost" :disabled="refreshingPool" style="font-size:12px; padding:6px 12px; height:32px;">
+                            <i class="fa-solid fa-sync" :class="refreshingPool ? 'fa-spin' : ''" style="font-size:10px;"></i>
+                            <span x-text="refreshingPool ? 'Refreshing...' : 'Refresh Pool'"></span>
+                        </button>
+                        <button @click="openMCPModal()" class="btn-accent" style="height:32px; padding:6px 12px; font-size:12px;">
+                            <i class="fa-solid fa-plus" style="font-size:10px;"></i> Add Server
+                        </button>
+                    </div>
                 </div>
 
                 <div class="info-banner" style="margin-bottom:14px;">
@@ -1180,6 +1186,7 @@ function settingsApp() {
 
         prefSaving: false,
         saving: false,
+        refreshingPool: false,
 
         customAccent: localStorage.getItem('customAccent') || '',
         customWallpaper: localStorage.getItem('customWallpaper') || '',
@@ -1301,6 +1308,21 @@ function settingsApp() {
                 await fetch('/api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.prefs) });
                 setTimeout(() => (this.prefSaving = false), 800);
             } catch(e) { console.error(e); this.prefSaving = false; }
+        },
+        
+        async refreshMCPPool() {
+            this.refreshingPool = true;
+            try {
+                const r = await fetch('/api/mcp-servers/pool/init?force=true', { method: 'POST' });
+                const res = await r.json();
+                if (res.ok) {
+                    localStorage.removeItem('kokomi_pool_init_ts'); // Force splash to re-run on next main page load
+                    this.showToast('MCP Pool refreshed!', 'success');
+                } else {
+                    alert('Error: ' + res.error);
+                }
+            } catch(e) { console.error(e); alert('Failed to refresh pool'); }
+            finally { this.refreshingPool = false; }
         },
 
         async fetchModels() {
