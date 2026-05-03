@@ -7,6 +7,7 @@ load_dotenv()
 GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
 GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
 TAVILY_API_KEY: str | None = os.getenv("TAVILY_API_KEY")
+QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
 
 
 # ── Data paths ───────────────────────────────────────────────────────
@@ -37,9 +38,9 @@ DEFAULT_PREFS: dict = {
     "embedding_model": "models/gemini-embedding-2",
     "whatsapp_enabled": False,
     "whatsapp_character_id": "kokomi",
-    "whatsapp_api_url": "http://localhost:3013",
+    "whatsapp_api_url": os.getenv("WHATSAPP_API_URL", "http://localhost:3013"),
     "whatsapp_show_thinking": True,
-    "tavily_api_key": "",
+    "tavily_api_key": os.getenv("TAVILY_API_KEY", ""),
     "web_search_enabled": False,
     "browser_redirect_enabled": True,
     "user_name": "User",

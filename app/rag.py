@@ -6,9 +6,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from app.config import GOOGLE_API_KEY
 import uuid
+from app.config import QDRANT_URL
 
-# Initialize Qdrant Client (pointing to the local Docker container)
-qdrant = QdrantClient(url="http://localhost:6333")
+# Initialize Qdrant Client (pointing to the configured Qdrant instance)
+qdrant = QdrantClient(url=QDRANT_URL)
 
 def get_embeddings(task_type: str = "RETRIEVAL_DOCUMENT"):
     """Get embedding model configured for a specific task.

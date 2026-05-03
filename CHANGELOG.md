@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.5] - 2026-05-03
+
+### Fixed
+- **Call Page Initialization**: Added missing `x-init` to ensure contacts and recent logs are populated on load.
+- **Mixed Content Error**: Replaced `url_for` with relative paths for the favicon to prevent insecure `http` requests on `https` deployments.
+- **Qdrant Connection**: Corrected RAG initialization to respect `QDRANT_URL` from environment variables.
+
+### Changed
+- **Environment Stuffs**: Externalized `QDRANT_URL`, `WHATSAPP_API_URL`, and `TAVILY_API_KEY` to be loaded from `.env` via `config.py`.
+
+
 ## [v0.4.4] - 2026-05-03
 
 ### Added
