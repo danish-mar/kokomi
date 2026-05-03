@@ -1,9 +1,21 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
-app = FastAPI(title="Kokomi AI")
+
+@asynccontextmanager
+async def lifespan(app):
+    # Startup — pool will be lazily initialized on first request or splash
+    yield
+    # Shutdown — tear down MCP sessions
+    from app.mcp import teardown_pool
+    await teardown_pool()
+
+
+app = FastAPI(title="Kokomi AI", lifespan=lifespan)
 templates = Jinja2Templates(directory="templates")
 
 

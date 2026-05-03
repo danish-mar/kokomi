@@ -4,7 +4,13 @@ from contextlib import AsyncExitStack
 
 from fastapi import APIRouter, HTTPException
 
-from app.mcp import connect_mcp_servers, MCP_AVAILABLE
+from app.mcp import (
+    MCP_AVAILABLE,
+    init_pool,
+    get_pool_status,
+    pool_is_stale,
+    test_single_server,
+)
 from app.models import MCPServerCreate
 from app.storage import load_mcp, save_mcp, load_chars, save_chars
 
@@ -66,17 +72,34 @@ async def delete_mcp_server(sid: str):
 
 @router.post("/{sid}/test")
 async def test_mcp_server(sid: str):
+    """Test a single MCP server in an isolated context (not from pool)."""
     servers = load_mcp()
     if sid not in servers:
         raise HTTPException(404, "Not found")
     if not MCP_AVAILABLE:
         return {"ok": False, "error": "MCP SDK not installed"}
-    try:
-        async with AsyncExitStack() as stack:
-            tool_defs, _, _, errs = await connect_mcp_servers(stack, [sid])
-            if errs:
-                return {"ok": False, "error": "\n".join(errs)}
-            tools = [t["function"]["name"] for t in tool_defs]
-            return {"ok": True, "tools": tools, "count": len(tools)}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    return await test_single_server(sid)
+
+
+# ── Pool Management ─────────────────────────────────────────────────
+
+@router.get("/pool/status", name="mcp_pool_status")
+async def mcp_pool_status():
+    """Return current MCP pool health for the splash screen."""
+    return get_pool_status()
+
+
+@router.post("/pool/init", name="mcp_pool_init")
+async def mcp_pool_init(force: bool = False):
+    """Initialize or refresh the global MCP session pool.
+    Called by the frontend splash screen on first load.
+    """
+    if not MCP_AVAILABLE:
+        return {"ok": True, "message": "MCP not available, nothing to initialize"}
+
+    needs_refresh = pool_is_stale() or force
+    if not needs_refresh:
+        return {"ok": True, "message": "Pool is fresh", **get_pool_status()}
+
+    await init_pool(force=force)
+    return {"ok": True, **get_pool_status()}

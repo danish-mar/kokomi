@@ -1,8 +1,152 @@
 {% extends "base.html" %}
 {% block title %}New Conversation - KokomiAi{% endblock %}
 
+{% block head %}
+<style>
+    /* ── Splash Screen ─────────────────────────────── */
+    .splash-overlay {
+        position: fixed; inset: 0; z-index: 9999;
+        background: var(--bg-canvas);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .splash-overlay.splash-exit {
+        opacity: 0; transform: scale(1.02);
+        pointer-events: none;
+    }
+    .splash-logo {
+        width: 64px; height: 64px; border-radius: 18px;
+        background: var(--accent);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 8px 40px rgba(80, 80, 129, 0.35);
+        animation: splashPulse 2s ease-in-out infinite;
+    }
+    @keyframes splashPulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 8px 40px rgba(80, 80, 129, 0.35); }
+        50% { transform: scale(1.05); box-shadow: 0 12px 50px rgba(80, 80, 129, 0.5); }
+    }
+    .splash-server-list {
+        margin-top: 32px; width: 280px;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .splash-server-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px; border-radius: 12px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--separator);
+        animation: slideInUp 0.3s ease forwards;
+        opacity: 0;
+    }
+    .splash-server-row .status-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        transition: background 0.4s ease;
+    }
+    .status-dot.connecting { background: #facc15; animation: statusBlink 1s ease infinite; }
+    .status-dot.connected  { background: #22c55e; }
+    .status-dot.error      { background: #ef4444; }
+    .status-dot.timeout    { background: #f97316; }
+    .status-dot.disabled   { background: #6b7280; }
+    @keyframes statusBlink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+    .splash-status-text {
+        font-size: 10px; color: var(--text-quaternary); margin-top: 6px;
+        text-align: center; font-weight: 500; letter-spacing: 0.03em;
+    }
+</style>
+{% endblock %}
 
 {% block body %}
+
+<!-- ═══ Splash Screen ═══ -->
+<div id="splash" class="splash-overlay">
+    <div class="splash-logo">
+        <i class="fa-solid fa-fish-fins text-white text-[22px]"></i>
+    </div>
+    <p style="margin-top:18px; font-size:22px; font-weight:700; color:var(--text-primary); letter-spacing:-0.02em;">Kokomi</p>
+    <p style="margin-top:4px; font-size:12px; color:var(--text-tertiary); font-weight:500;">Initializing tool servers…</p>
+
+    <div id="splash-servers" class="splash-server-list"></div>
+    <p id="splash-status" class="splash-status-text">Checking pool status…</p>
+</div>
+
+<script>
+(function() {
+    const SPLASH_TTL = 5 * 60 * 60 * 1000; // 5 hours in ms
+    const lastInit = parseInt(localStorage.getItem('kokomi_pool_init_ts') || '0', 10);
+    const now = Date.now();
+
+    if (now - lastInit < SPLASH_TTL) {
+        // Pool was recently initialized — skip splash
+        document.getElementById('splash').style.display = 'none';
+        return;
+    }
+
+    const splashEl = document.getElementById('splash');
+    const serversEl = document.getElementById('splash-servers');
+    const statusEl = document.getElementById('splash-status');
+
+    async function runSplash() {
+        statusEl.textContent = 'Connecting to MCP servers…';
+
+        try {
+            const initRes = await fetch('/api/mcp-servers/pool/init', { method: 'POST' });
+            const data = await initRes.json();
+
+            if (!data.server_status || Object.keys(data.server_status).length === 0) {
+                statusEl.textContent = 'No MCP servers configured.';
+                setTimeout(dismissSplash, 800);
+                return;
+            }
+
+            // Render server rows with stagger
+            const entries = Object.entries(data.server_status);
+            serversEl.innerHTML = '';
+            entries.forEach(([sid, info], idx) => {
+                const row = document.createElement('div');
+                row.className = 'splash-server-row';
+                row.style.animationDelay = (idx * 0.08) + 's';
+                const statusClass = info.status || 'connecting';
+                row.innerHTML = `
+                    <div class="status-dot ${statusClass}"></div>
+                    <div style="flex-grow:1; min-width:0;">
+                        <p style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${info.name}</p>
+                        <p style="font-size:10px; color:var(--text-quaternary); margin-top:1px;">
+                            ${info.status === 'connected' ? info.tool_count + ' tools' : (info.error || info.status)}
+                        </p>
+                    </div>
+                    ${info.status === 'connected' ? '<i class="fa-solid fa-check-circle" style="color:#22c55e; font-size:12px;"></i>' :
+                      info.status === 'error' || info.status === 'timeout' ? '<i class="fa-solid fa-exclamation-circle" style="color:#ef4444; font-size:12px;"></i>' :
+                      '<i class="fa-solid fa-circle-notch fa-spin" style="color:var(--text-quaternary); font-size:12px;"></i>'}
+                `;
+                serversEl.appendChild(row);
+            });
+
+            const connected = entries.filter(([,i]) => i.status === 'connected').length;
+            const total = entries.length;
+            statusEl.textContent = `${connected}/${total} servers ready — ${data.tool_count} tools loaded`;
+
+            localStorage.setItem('kokomi_pool_init_ts', String(Date.now()));
+            setTimeout(dismissSplash, 1200);
+
+        } catch (err) {
+            statusEl.textContent = 'Failed to initialize pool. Continuing…';
+            console.error('Splash init error:', err);
+            setTimeout(dismissSplash, 1500);
+        }
+    }
+
+    function dismissSplash() {
+        splashEl.classList.add('splash-exit');
+        setTimeout(() => { splashEl.style.display = 'none'; }, 600);
+    }
+
+    runSplash();
+})();
+</script>
+
 <div id="app" x-data="aiApp()" x-cloak class="flex h-screen overflow-hidden">
 
     <!-- ═══════════════ SIDEBAR ═══════════════ -->

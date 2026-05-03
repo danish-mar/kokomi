@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.4] - 2026-05-03
+
+### Added
+- **MCP Session Pool**: Complete architectural rewrite — MCP server sessions are now persistent and globally cached. Sessions are initialized once and automatically refreshed every 5 hours, eliminating all per-request connection overhead.
+- **Splash Screen**: Beautiful macOS-style splash overlay with live server status indicators. Displays each MCP server's connection state (connecting → connected/error) with staggered animations. Automatically dismissed after initialization and uses a 5-hour localStorage TTL to skip on subsequent visits.
+- **Pool Management API**: New `/api/mcp-servers/pool/status` and `/api/mcp-servers/pool/init` endpoints for frontend pool control.
+- **App Lifespan Management**: Added proper FastAPI lifespan events for clean MCP session teardown on shutdown.
+
+### Fixed
+- **"Attempted to exit cancel scope in a different task"**: Completely resolved by replacing the per-request `AsyncExitStack` + `asyncio.gather` pattern with a single-task global pool. The test endpoint now uses an isolated `test_single_server()` function.
+- **Per-request MCP reconnection**: Chat handlers no longer open/close MCP connections on every message. Tools are retrieved instantly from the cached pool via `get_pool_tools()`.
+
+### Changed
+- Removed all `AsyncExitStack` usage from chat handlers — no more `ExceptionGroup` teardown crashes.
+- MCP test endpoint now runs in a fully isolated context, preventing cancel scope leaks.
+
+
 ## [v0.4.2] - 2026-05-02
 
 ### Added
