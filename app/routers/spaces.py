@@ -19,12 +19,12 @@ class SpaceUpdate(BaseModel):
     description: str | None = None
     icon: str | None = None
 
-@router.get("/")
+@router.get("")
 async def list_spaces():
     spaces = load_spaces()
     return list(spaces.values())
 
-@router.post("/")
+@router.post("")
 async def create_space(s: SpaceCreate):
     spaces = load_spaces()
     sid = f"space_{uuid.uuid4().hex[:8]}"
