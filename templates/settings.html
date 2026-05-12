@@ -556,13 +556,10 @@
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
                                 <div style="position:relative;">
                                     <select x-model="prefs.nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                        <option value="nvidia/llama-3.3-nemotron-super-49b-v1" style="background:var(--bg-canvas); color:var(--text-primary);">Nemotron Super 49B (Thinking)</option>
-                                        <option value="meta/llama-4-maverick-17b-128e-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Llama 4 Maverick 17B</option>
-                                        <option value="meta/llama-4-scout-17b-16e-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Llama 4 Scout 17B</option>
-                                        <option value="meta/llama-3.3-70b-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Llama 3.3 70B Instruct</option>
-                                        <option value="qwen/qwq-32b" style="background:var(--bg-canvas); color:var(--text-primary);">Qwen QwQ 32B (Thinking)</option>
-                                        <option value="mistralai/mistral-large-2-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Mistral Large 2</option>
-                                        <option value="deepseek-ai/deepseek-r1" style="background:var(--bg-canvas); color:var(--text-primary);">DeepSeek R1 (Thinking)</option>
+                                        <template x-for="m in models.filter(x => x.provider === 'nvidia')" :key="m.id">
+                                            <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.nvidia_model"
+                                                style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                        </template>
                                     </select>
                                     <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
                                         <i class="fa-solid fa-chevron-down"></i>
@@ -1034,7 +1031,7 @@
                 </div>
                 <!-- Per-Provider Model -->
                 <div>
-                    <label class="apple-label" x-text="'Preferred ' + (prefs.llm_provider === 'google' ? 'Gemini' : prefs.llm_provider === 'local' ? 'Local' : 'Groq') + ' Model'"></label>
+                    <label class="apple-label" x-text="'Preferred ' + (prefs.llm_provider === 'google' ? 'Gemini' : prefs.llm_provider === 'nvidia' ? 'NVIDIA' : prefs.llm_provider === 'local' ? 'Local' : 'Groq') + ' Model'"></label>
                     <div style="position:relative;">
                         <select x-model="currentCharModel" class="apple-field" style="padding-right:36px; cursor:pointer;">
                             <option value="default" style="background:var(--bg-canvas); color:var(--text-primary);">Default (Global Setting)</option>
