@@ -240,8 +240,6 @@ def get_llm(
             model=model,
             api_key=NVIDIA_API_KEY,
             temperature=0.6,
-            streaming=streaming,
-            # max_completion_tokens is often required by ChatNVIDIA
             max_completion_tokens=2048, 
         )
 
