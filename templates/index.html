@@ -846,14 +846,7 @@
                                     <template x-if="msg.role === 'assistant'">
                                         <div>
                                             <template x-if="msg.thinking && msg.thinking.trim()">
-                                                <div class="thinking-block" x-data="{ open: false }" :class="msg.streaming && !msg.displayContent ? 'thinking-streaming' : ''">
-                                                    <div class="thinking-header" :class="open && 'open'" @click="open = !open">
-                                                        <i class="fa-regular fa-lightbulb text-[11px]" style="color: var(--think-text)"></i>
-                                                        <span class="text-[11px] font-semibold tracking-[0.03em] uppercase" style="color: var(--think-text)">Thought Process</span>
-                                                        <i class="fa-solid fa-chevron-down text-[9px] text-4 ml-auto thinking-chevron" :class="open && 'rotated'"></i>
-                                                    </div>
-                                                    <div x-show="open" x-collapse class="thinking-content" x-text="msg.thinking"></div>
-                                                </div>
+                                                <div class="chat-prose mb-3 pl-3 border-l-2 border-accent text-3 italic" style="font-size:0.9em; white-space:pre-wrap; word-break:break-word;" x-text="msg.thinking"></div>
                                             </template>
                                             <!-- Tool Calls -->
                                             <template x-if="msg.tool_calls && msg.tool_calls.length">

@@ -349,6 +349,11 @@ async def chat_stream(req: ChatRequest):
                     mcp_warning_text = "\n\n⚠️ MCP Connection Warnings:\n" + "\n".join([f"- {e}" for e in mcp_errors])
                     mcp_warning_text += "\n(You can inform the user if they ask about tools that are currently unavailable.)"
 
+                is_debug = prefs.get("debug_mode")
+                if is_debug:
+                    print(f"\n[DEBUG] === STARTING STREAM CHAT ===")
+                    print(f"[DEBUG] Conversation: {conv_id}, Participants: {pids}")
+
                 for pid in pids:
                     p_char = all_chars.get(pid)
                     if not p_char:
@@ -435,6 +440,11 @@ async def chat_stream(req: ChatRequest):
                     skipped = False
                     char_tool_calls_log: list = []
 
+                    if is_debug:
+                        print(f"\n[DEBUG] 👉 Generating for: {char_name} (Model: {p_active_model})")
+                        print(f"[DEBUG] Prompt Length: {len(p_persona)} chars. Tools available: {len(tool_defs) if tool_defs else 0}")
+                        print(f"[DEBUG] Streaming chunks to frontend...")
+
                     async for chunk in target_llm.astream(p_lc_msgs):
                         collected_chunks.append(chunk)
 
@@ -448,7 +458,12 @@ async def chat_stream(req: ChatRequest):
                                 skipped = True
                                 break
                             f_content += chunk.content
+                            if is_debug:
+                                print(chunk.content, end="", flush=True)
                             await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid, 'model': p_active_model})}\n\n")
+
+                    if is_debug:
+                        print("\n[DEBUG] Stream generation finished.")
 
                     if skipped:
                         continue
@@ -499,6 +514,9 @@ async def chat_stream(req: ChatRequest):
                                         for b in (tr.content if hasattr(tr, "content") else [])
                                     ]) or str(tr)
 
+                                if is_debug:
+                                    print(f"  [DEBUG] Tool Result Preview: {txt[:150]}...")
+
                                 await queue.put(f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'args': targs, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n")
                                 p_lc_msgs.append(ToolMessage(content=txt, name=tname, tool_call_id=tid))
                                 char_tool_calls_log.append({"name": tname, "args": targs, "result": txt, "icon": ticon, "description": ui_status})
@@ -513,7 +531,12 @@ async def chat_stream(req: ChatRequest):
                                     await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': c.additional_kwargs['reasoning_content'], 'character_id': pid})}\n\n")
                                 if c.content:
                                     fcl += c.content
+                                    if is_debug:
+                                        print(c.content, end="", flush=True)
                                     await queue.put(f"data: {json.dumps({'type': 'content', 'delta': c.content, 'character_id': pid})}\n\n")
+                            
+                            if is_debug:
+                                print("\n[DEBUG] Inner chunk generation finished.")
                             f_content += fcl
 
                             new_resp = reduce(add, inner_chunks) if inner_chunks else None
