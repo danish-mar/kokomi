@@ -1,7 +1,7 @@
 import httpx
 from fastapi import APIRouter, UploadFile, File
 
-from app.config import GROQ_API_KEY, GOOGLE_API_KEY
+from app.config import GROQ_API_KEY, GOOGLE_API_KEY, NVIDIA_API_KEY
 from app.models import PrefsUpdate
 from app.storage import load_prefs, save_prefs
 
@@ -68,6 +68,19 @@ async def list_available_models():
                                 all_models.append({"id": clean_id, "name": display_name, "provider": "google"})
             except Exception as e:
                 print(f"Error fetching Google models: {e}")
+
+        if NVIDIA_API_KEY:
+            try:
+                resp = await client.get(
+                    "https://integrate.api.nvidia.com/v1/models",
+                    headers={"Authorization": f"Bearer {NVIDIA_API_KEY}", "Accept": "application/json"},
+                )
+                if resp.status_code == 200:
+                    for m in resp.json().get("data", []):
+                        if m["id"] not in curated_ids:
+                            all_models.append({"id": m["id"], "name": m["id"].split("/")[-1], "provider": "nvidia"})
+            except Exception as e:
+                print(f"Error fetching NVIDIA models: {e}")
 
     return all_models
 

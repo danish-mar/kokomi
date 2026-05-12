@@ -155,7 +155,7 @@ async def init_pool(force: bool = False):
 
         for (sid, cfg), result in zip(enabled.items(), results):
             name = cfg.get("name", sid)
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 _pool["server_status"][sid].update({
                     "status": "error",
                     "error": str(result)[:200],
