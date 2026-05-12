@@ -9,7 +9,9 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, Tool
 from google import genai
 from google.genai import types
 
-from app.config import GROQ_API_KEY, GOOGLE_API_KEY
+from app.config import GROQ_API_KEY, GOOGLE_API_KEY, NVIDIA_API_KEY
+
+NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
 # ── Title generation LLM (always Groq / lightweight) ─────────────────
@@ -176,18 +178,13 @@ def _normalize_model(name: str) -> str:
 def resolve_character_model(char: dict, provider: str) -> str:
     """Pick the model from a character's per-provider slots.
 
-    Characters now store ``groq_model``, ``google_model``, ``local_model``.
-    Legacy characters that still have a single ``model`` field fall back to
-    "default" so they use the global setting.
-
-    Returns "default" if the character doesn't override for this provider.
+    Characters store groq_model, google_model, local_model, nvidia_model.
+    Falls back to 'default' which means use the global setting.
     """
-    key = f"{provider}_model"              # e.g. "google_model"
+    key = f"{provider}_model"              # e.g. "nvidia_model"
     value = char.get(key, "default")
     if value and value != "default":
         return value
-    # Legacy fallback — old characters may still have a bare "model" field.
-    # We only honour it if the provider matches (best-effort).
     return "default"
 
 
@@ -224,6 +221,20 @@ def get_llm(
             api_key="sk-no-key-required",
             model_name=model,
             temperature=0.7,
+            streaming=streaming,
+        )
+
+    elif provider == "nvidia":
+        if not NVIDIA_API_KEY:
+            raise ValueError("NVIDIA_API_KEY not found in environment")
+        model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
+        if model_override and model_override != "default":
+            model = model_override
+        return ChatOpenAI(
+            base_url=NVIDIA_NIM_BASE_URL,
+            api_key=NVIDIA_API_KEY,
+            model_name=model,
+            temperature=0.6,
             streaming=streaming,
         )
 

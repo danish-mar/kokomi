@@ -63,9 +63,6 @@ async def _ensure_pool():
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(500, "GROQ_API_KEY not set")
-
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
 
@@ -73,7 +70,9 @@ async def chat(req: ChatRequest):
         active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
     elif provider == "local":
         active_model = _normalize_model(prefs.get("local_model", "local-model"))
-    else:
+    elif provider == "nvidia":
+        active_model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
+    else:  # groq
         active_model = _normalize_model(prefs.get("model_name", "llama-3.3-70b-versatile"))
 
     user_p = prefs.get("user_persona", "")
@@ -269,9 +268,6 @@ async def chat(req: ChatRequest):
 
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    if not GROQ_API_KEY:
-        raise HTTPException(500, "GROQ_API_KEY not set")
-
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
 
@@ -279,7 +275,9 @@ async def chat_stream(req: ChatRequest):
         active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
     elif provider == "local":
         active_model = _normalize_model(prefs.get("local_model", "local-model"))
-    else:
+    elif provider == "nvidia":
+        active_model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
+    else:  # groq
         active_model = _normalize_model(prefs.get("model_name", "qwen-2.5-32b"))
 
     user_p = prefs.get("user_persona", "")

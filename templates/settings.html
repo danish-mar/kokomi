@@ -514,7 +514,7 @@
                 <div class="glass-card">
                     <div class="card-row">
                         <label class="apple-label" style="margin-bottom:10px;">Intelligence Provider</label>
-                        <div class="seg-control" style="margin-bottom:16px; max-width:380px;">
+                        <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
                             <button @click="prefs.llm_provider = 'groq'; savePrefs()"
                                 :class="prefs.llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
                                 <i class="fa-solid fa-cloud" style="font-size:9px;"></i> Groq
@@ -523,13 +523,17 @@
                                 :class="prefs.llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
                                 <i class="fa-solid fa-wand-sparkles" style="font-size:9px;"></i> Gemini
                             </button>
+                            <button @click="prefs.llm_provider = 'nvidia'; savePrefs()"
+                                :class="prefs.llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-microchip" style="font-size:9px;"></i> NVIDIA NIM
+                            </button>
                             <button @click="prefs.llm_provider = 'local'; savePrefs()"
                                 :class="prefs.llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
                                 <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
                             </button>
                         </div>
 
-                        <!-- Cloud model -->
+                        <!-- Cloud model (Groq / Google) -->
                         <div x-show="prefs.llm_provider === 'groq' || prefs.llm_provider === 'google'" x-transition>
                             <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
                                 x-text="prefs.llm_provider === 'groq' ? 'Groq Model' : 'Gemini Model'"></label>
@@ -543,6 +547,29 @@
                                 <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
                                     <i class="fa-solid fa-chevron-down"></i>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- NVIDIA NIM -->
+                        <div x-show="prefs.llm_provider === 'nvidia'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
+                                <div style="position:relative;">
+                                    <select x-model="prefs.nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                        <option value="nvidia/llama-3.3-nemotron-super-49b-v1" style="background:var(--bg-canvas); color:var(--text-primary);">Nemotron Super 49B (Thinking)</option>
+                                        <option value="nvidia/llama-3.1-nemotron-ultra-253b-v1" style="background:var(--bg-canvas); color:var(--text-primary);">Nemotron Ultra 253B</option>
+                                        <option value="meta/llama-4-maverick-17b-128e-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Llama 4 Maverick 17B</option>
+                                        <option value="meta/llama-4-scout-17b-16e-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Llama 4 Scout 17B</option>
+                                        <option value="meta/llama-3.3-70b-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Llama 3.3 70B Instruct</option>
+                                        <option value="qwen/qwq-32b" style="background:var(--bg-canvas); color:var(--text-primary);">Qwen QwQ 32B (Thinking)</option>
+                                        <option value="mistralai/mistral-large-2-instruct" style="background:var(--bg-canvas); color:var(--text-primary);">Mistral Large 2</option>
+                                        <option value="deepseek-ai/deepseek-r1" style="background:var(--bg-canvas); color:var(--text-primary);">DeepSeek R1 (Thinking)</option>
+                                    </select>
+                                    <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>. Get a free key at <a href="https://build.nvidia.com" target="_blank" style="color:var(--accent);">build.nvidia.com</a></p>
                             </div>
                         </div>
 
@@ -1210,7 +1237,7 @@ function settingsApp() {
         },
 
         charModal: false, charEditId: null, charName: '', charPersona: '',
-        charGroqModel: 'default', charGoogleModel: 'default', charLocalModel: 'default',
+        charGroqModel: 'default', charGoogleModel: 'default', charLocalModel: 'default', charNvidiaModel: 'default',
         charVoice: 'aoede', charAvatarPreview: null, charAvatarFile: null, charMCPServers: [],
         mcpTools: {},
 
@@ -1218,12 +1245,14 @@ function settingsApp() {
             const p = this.prefs.llm_provider;
             if (p === 'google') return this.charGoogleModel;
             if (p === 'local') return this.charLocalModel;
+            if (p === 'nvidia') return this.charNvidiaModel;
             return this.charGroqModel;
         },
         set currentCharModel(v) {
             const p = this.prefs.llm_provider;
             if (p === 'google') this.charGoogleModel = v;
             else if (p === 'local') this.charLocalModel = v;
+            else if (p === 'nvidia') this.charNvidiaModel = v;
             else this.charGroqModel = v;
         },
 
@@ -1342,11 +1371,12 @@ function settingsApp() {
             if (char) {
                 this.charEditId = char.id; this.charName = char.name; this.charPersona = char.persona;
                 this.charGroqModel = char.groq_model || 'default'; this.charGoogleModel = char.google_model || 'default';
-                this.charLocalModel = char.local_model || 'default'; this.charVoice = char.voice || 'aoede';
+                this.charLocalModel = char.local_model || 'default'; this.charNvidiaModel = char.nvidia_model || 'default';
+                this.charVoice = char.voice || 'aoede';
                 this.charAvatarPreview = char.avatar; this.charMCPServers = [...(char.mcp_servers || [])];
             } else {
                 this.charEditId = null; this.charName = ''; this.charPersona = '';
-                this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default';
+                this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
                 this.charVoice = 'aoede'; this.charAvatarPreview = null; this.charMCPServers = [];
             }
             this.charAvatarFile = null; this.charModal = true;
@@ -1381,7 +1411,8 @@ function settingsApp() {
             const fd = new FormData();
             fd.append('name', this.charName.trim()); fd.append('persona', this.charPersona.trim());
             fd.append('groq_model', this.charGroqModel); fd.append('google_model', this.charGoogleModel);
-            fd.append('local_model', this.charLocalModel); fd.append('voice', this.charVoice);
+            fd.append('local_model', this.charLocalModel); fd.append('nvidia_model', this.charNvidiaModel);
+            fd.append('voice', this.charVoice);
             fd.append('mcp_servers', this.charMCPServers.join(','));
             if (this.charAvatarFile) fd.append('avatar', this.charAvatarFile);
             try {

@@ -7,6 +7,7 @@ load_dotenv()
 GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
 GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
 TAVILY_API_KEY: str | None = os.getenv("TAVILY_API_KEY")
+NVIDIA_API_KEY: str | None = os.getenv("NVIDIA_API_KEY")
 QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
 
 
@@ -34,6 +35,7 @@ DEFAULT_PREFS: dict = {
     "llm_provider": "groq",
     "local_url": "http://localhost:8080/v1",
     "local_model": "local-model",
+    "nvidia_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
     "inject_time": False,
     "embedding_model": "models/gemini-embedding-2",
     "whatsapp_enabled": False,

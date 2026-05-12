@@ -15,7 +15,7 @@ from app.storage import load_chars, save_chars, load_prefs
 router = APIRouter(prefix="/api/characters")
 
 # ── Supported provider model keys ────────────────────────────────────
-PROVIDER_MODEL_KEYS = ("groq_model", "google_model", "local_model")
+PROVIDER_MODEL_KEYS = ("groq_model", "google_model", "local_model", "nvidia_model")
 
 
 @router.get("")
@@ -39,6 +39,7 @@ async def create_character(
     groq_model: str = Form("default"),
     google_model: str = Form("default"),
     local_model: str = Form("default"),
+    nvidia_model: str = Form("default"),
     voice: str = Form("aoede"),
     avatar: Optional[UploadFile] = File(None),
 ):
@@ -63,6 +64,7 @@ async def create_character(
         "groq_model": groq_model.strip(),
         "google_model": google_model.strip(),
         "local_model": local_model.strip(),
+        "nvidia_model": nvidia_model.strip(),
         "voice": voice.strip(),
         "created_at": datetime.datetime.utcnow().isoformat(),
     }
@@ -79,6 +81,7 @@ async def update_character(
     groq_model: str = Form("default"),
     google_model: str = Form("default"),
     local_model: str = Form("default"),
+    nvidia_model: str = Form("default"),
     voice: str = Form("aoede"),
     avatar: Optional[UploadFile] = File(None),
 ):
@@ -102,6 +105,7 @@ async def update_character(
     chars[cid]["groq_model"] = groq_model.strip()
     chars[cid]["google_model"] = google_model.strip()
     chars[cid]["local_model"] = local_model.strip()
+    chars[cid]["nvidia_model"] = nvidia_model.strip()
     chars[cid]["voice"] = voice.strip()
     save_chars(chars)
     return chars[cid]

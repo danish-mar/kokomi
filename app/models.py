@@ -42,6 +42,7 @@ class PrefsUpdate(BaseModel):
     llm_provider: Optional[str] = "groq"
     local_url: Optional[str] = "http://localhost:8080/v1"
     local_model: Optional[str] = "local-model"
+    nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
     embedding_model: Optional[str] = "models/gemini-embedding-2"
     whatsapp_enabled: bool = False
     whatsapp_character_id: str = "kokomi"
