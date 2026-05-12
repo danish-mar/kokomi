@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.9] - 2026-05-13
+
+### Added
+- **Basic Authentication**: Implemented JWT-based authentication for the entire application.
+- **Premium Login UI**: Added a high-aesthetic, Apple-inspired login page with glassmorphism and smooth animations.
+- **Global Route Protection**: Introduced a central middleware to enforce authentication across all pages and API endpoints.
+- **Auth Management**: Added `/auth/login` and `/auth/logout` endpoints with secure cookie-based token storage.
+
 ## [v0.4.8] - 2026-05-12
 
 ### Added

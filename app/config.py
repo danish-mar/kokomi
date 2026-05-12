@@ -10,6 +10,13 @@ TAVILY_API_KEY: str | None = os.getenv("TAVILY_API_KEY")
 NVIDIA_API_KEY: str | None = os.getenv("NVIDIA_API_KEY")
 QDRANT_URL: str = os.getenv("QDRANT_URL", "http://localhost:6333")
 
+# ── Authentication ───────────────────────────────────────────────────
+AUTH_USERNAME: str = os.getenv("AUTH_USERNAME", "admin")
+AUTH_PASSWORD: str = os.getenv("AUTH_PASSWORD", "admin")  # Default password
+JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-me")
+JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # Default 24 hours
+
 
 # ── Data paths ───────────────────────────────────────────────────────
 DATA_DIR = "data"
