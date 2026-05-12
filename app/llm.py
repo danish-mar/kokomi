@@ -11,7 +11,10 @@ from google.genai import types
 
 from app.config import GROQ_API_KEY, GOOGLE_API_KEY, NVIDIA_API_KEY
 
-NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+try:
+    from langchain_nvidia_ai_endpoints import ChatNVIDIA
+except ImportError:
+    ChatNVIDIA = None
 
 
 # ── Title generation LLM (always Groq / lightweight) ─────────────────
@@ -227,15 +230,19 @@ def get_llm(
     elif provider == "nvidia":
         if not NVIDIA_API_KEY:
             raise ValueError("NVIDIA_API_KEY not found in environment")
+        if ChatNVIDIA is None:
+            raise ValueError("langchain-nvidia-ai-endpoints package is not installed.")
+        
         model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
         if model_override and model_override != "default":
             model = model_override
-        return ChatOpenAI(
-            base_url=NVIDIA_NIM_BASE_URL,
+        return ChatNVIDIA(
+            model=model,
             api_key=NVIDIA_API_KEY,
-            model_name=model,
             temperature=0.6,
             streaming=streaming,
+            # max_completion_tokens is often required by ChatNVIDIA
+            max_completion_tokens=2048, 
         )
 
     elif provider == "google":

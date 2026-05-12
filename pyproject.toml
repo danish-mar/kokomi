@@ -22,4 +22,5 @@ dependencies = [
     "qdrant-client>=1.13.2",
     "pypdf>=5.1.0",
     "docx2txt>=0.8",
+    "langchain-nvidia-ai-endpoints>=0.3.11",
 ]
