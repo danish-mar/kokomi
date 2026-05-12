@@ -846,7 +846,14 @@
                                     <template x-if="msg.role === 'assistant'">
                                         <div>
                                             <template x-if="msg.thinking && msg.thinking.trim()">
-                                                <div class="chat-prose mb-3 pl-3 border-l-2 border-accent text-3 italic" style="font-size:0.9em; white-space:pre-wrap; word-break:break-word;" x-text="msg.thinking"></div>
+                                                <div class="mb-3 pl-3 border-l-2 border-accent/30" x-data="{ open: false }">
+                                                    <div class="flex items-center gap-2 cursor-pointer select-none opacity-70 hover:opacity-100 transition-opacity" @click="open = !open">
+                                                        <i class="fa-solid fa-brain text-[11px] text-accent"></i>
+                                                        <span class="text-[11px] font-medium text-3 uppercase tracking-wider" x-text="open ? 'Thought Process' : 'Show Thought Process'"></span>
+                                                        <i class="fa-solid fa-chevron-down text-[9px] text-4 ml-1 transition-transform duration-200" :class="open && 'rotate-180'"></i>
+                                                    </div>
+                                                    <div x-show="open" x-collapse class="mt-2 text-3 italic chat-prose" style="font-size:0.9em; white-space:pre-wrap; word-break:break-word;" x-text="msg.thinking"></div>
+                                                </div>
                                             </template>
                                             <!-- Tool Calls -->
                                             <template x-if="msg.tool_calls && msg.tool_calls.length">
