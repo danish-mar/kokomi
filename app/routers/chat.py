@@ -351,8 +351,9 @@ async def chat_stream(req: ChatRequest):
 
                 is_debug = prefs.get("debug_mode")
                 if is_debug:
-                    print(f"\n[DEBUG] === STARTING STREAM CHAT ===")
-                    print(f"[DEBUG] Conversation: {conv_id}, Participants: {pids}")
+                    msg = f"=== STARTING STREAM CHAT ===\nConversation: {conv_id}, Participants: {pids}"
+                    print(f"\n[DEBUG] {msg}")
+                    await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
 
                 for pid in pids:
                     p_char = all_chars.get(pid)
@@ -441,9 +442,10 @@ async def chat_stream(req: ChatRequest):
                     char_tool_calls_log: list = []
 
                     if is_debug:
-                        print(f"\n[DEBUG] 👉 Generating for: {char_name} (Model: {p_active_model})")
-                        print(f"[DEBUG] Prompt Length: {len(p_persona)} chars. Tools available: {len(tool_defs) if tool_defs else 0}")
-                        print(f"[DEBUG] Streaming chunks to frontend...")
+                        msg = f"👉 Generating for: {char_name} (Model: {p_active_model})\nPrompt Length: {len(p_persona)} chars. Tools: {len(tool_defs) if tool_defs else 0}"
+                        print(f"\n[DEBUG] {msg}")
+                        await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
+                        print(f"[DEBUG] Streaming chunks...")
 
                     async for chunk in target_llm.astream(p_lc_msgs):
                         collected_chunks.append(chunk)
@@ -485,7 +487,10 @@ async def chat_stream(req: ChatRequest):
                                 await queue.put(f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n")
                                 sess = tool_sessions.get(tname)
                                 bt = builtin_tools.get(tname)
-                                print(f"  [DEBUG] Calling Tool: '{tname}' with args: {targs}")
+                                if is_debug:
+                                    msg = f"Calling Tool: '{tname}' with args: {targs}"
+                                    print(f"  [DEBUG] {msg}")
+                                    await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
                                 try:
                                     if sess:
                                         actual_args = dict(targs)
@@ -515,7 +520,9 @@ async def chat_stream(req: ChatRequest):
                                     ]) or str(tr)
 
                                 if is_debug:
-                                    print(f"  [DEBUG] Tool Result Preview: {txt[:150]}...")
+                                    msg = f"Tool Result Preview: {txt[:150]}..."
+                                    print(f"  [DEBUG] {msg}")
+                                    await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
 
                                 await queue.put(f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'args': targs, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n")
                                 p_lc_msgs.append(ToolMessage(content=txt, name=tname, tool_call_id=tid))

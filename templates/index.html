@@ -798,16 +798,21 @@
                                     <div class="flex items-center gap-2 mb-1.5">
                                         <p class="font-semibold text-[13px] text-1 tracking-[-0.01em]"
                                             x-text="msg.role === 'user' ? (prefs.user_name || 'You') : (msg.character_name || activeChar.name)"></p>
-                                        <template x-if="msg.role === 'assistant' && msg.model">
-                                            <span class="text-[10px] text-4 font-medium px-1.5 py-0.25 rounded-[6px] bg-accent-sub border border-themed" x-text="msg.model"></span>
-                                        </template>
-                                        <!-- Streaming indicator next to name -->
+                                        
+                                        <!-- Streaming/Thinking indicator -->
                                         <template x-if="msg.streaming">
-                                            <div class="flex gap-[2px] items-center">
-                                                <div class="w-[3px] h-[3px] rounded-full bg-accent-c typing-dot"></div>
-                                                <div class="w-[3px] h-[3px] rounded-full bg-accent-c typing-dot"></div>
-                                                <div class="w-[3px] h-[3px] rounded-full bg-accent-c typing-dot"></div>
+                                            <div class="flex items-center gap-1.5 ml-1">
+                                                <div class="flex gap-[2px] items-center">
+                                                    <div class="w-[3px] h-[3px] rounded-full bg-accent-c typing-dot"></div>
+                                                    <div class="w-[3px] h-[3px] rounded-full bg-accent-c typing-dot"></div>
+                                                    <div class="w-[3px] h-[3px] rounded-full bg-accent-c typing-dot"></div>
+                                                </div>
+                                                <span class="text-[10px] font-medium text-accent-c italic animate-pulse">Thinking...</span>
                                             </div>
+                                        </template>
+
+                                        <template x-if="msg.role === 'assistant' && msg.model">
+                                            <span class="text-[10px] text-4 font-medium px-1.5 py-0.25 rounded-[6px] bg-accent-sub border border-themed ml-auto" x-text="msg.model"></span>
                                         </template>
                                     </div>
                                     <template x-if="msg.role === 'user'">
@@ -905,7 +910,22 @@
                                                     </template>
                                                 </div>
                                             </template>
-                                            <div class="chat-prose text-2" x-html="renderMarkdown(msg.role === 'assistant' && msg.displayContent !== undefined ? msg.displayContent : msg.content, msg.streaming)"></div>
+                                            <!-- Debug Logs Section (If enabled) -->
+                                            <template x-if="prefs.debug_mode && msg.debug_logs && msg.debug_logs.length">
+                                                <div class="mb-3 rounded-[12px] border border-accent/20 bg-accent-sub/30 overflow-hidden">
+                                                    <div class="px-3 py-1.5 bg-accent/10 border-b border-accent/20 flex items-center gap-2">
+                                                        <i class="fa-solid fa-terminal text-[10px] text-accent"></i>
+                                                        <span class="text-[10px] font-bold text-accent uppercase tracking-wider">Server Debug Log</span>
+                                                    </div>
+                                                    <div class="p-3 space-y-1.5 font-mono text-[11px] leading-relaxed max-h-[300px] overflow-y-auto">
+                                                        <template x-for="(log, li) in msg.debug_logs" :key="li">
+                                                            <div class="text-accent/80 border-l border-accent/30 pl-2 py-0.5" x-text="log"></div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg.role === 'assistant' && msg.displayContent !== undefined ? msg.displayContent : msg.content, msg.streaming)"></div>
                                             <div class="flex items-center gap-1 mt-1 -ml-1 transition-opacity duration-200"
                                                  :class="menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
                                                  x-data="{ menuOpen: false }">

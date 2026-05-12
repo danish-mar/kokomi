@@ -151,12 +151,17 @@ export function getChatActions() {
                                     displayContent: '',
                                     model: data.model || this.prefs.model_name,
                                     timestamp: new Date().toISOString(),
-                                    streaming: true
+                                    streaming: true,
+                                    debug_logs: []
                                 });
                                 targetIdx = this.messages.length - 1;
                                 charMsgMap[charId] = targetIdx;
                                 this.currentStreamingCharId = charId;
                                 this.loadingStatus = `${char.name} is thinking...`;
+                            }
+
+                            if (data.type === 'debug' && targetIdx !== undefined) {
+                                this.messages[targetIdx].debug_logs.push(data.message);
                             }
 
                             if (data.type === 'content' && data.delta && targetIdx !== undefined) {
