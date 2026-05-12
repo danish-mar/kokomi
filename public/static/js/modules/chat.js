@@ -23,6 +23,11 @@ export function getChatActions() {
 
             const timer = setTimeout(() => { this.loadingStatus = 'Composing response...'; }, 3000);
 
+            if (this.prefs.debug_mode) {
+                console.log(`[DEBUG] Sending non-stream chat req. Conv: ${this.currentConvId}, Space: ${this.activeSpaceId}`);
+                console.time('ChatRequest_NonStream');
+            }
+
             try {
                 const r = await fetch('/api/chat', {
                     method: 'POST',
@@ -40,6 +45,8 @@ export function getChatActions() {
                 this.useWebSearch = false;
 
                 clearTimeout(timer);
+
+                if (this.prefs.debug_mode) console.timeEnd('ChatRequest_NonStream');
 
                 if (!r.ok) {
                     const e = await r.json().catch(() => ({}));
@@ -76,6 +83,11 @@ export function getChatActions() {
         },
 
         async sendMessageStream(msg) {
+            if (this.prefs.debug_mode) {
+                console.log(`[DEBUG] Sending stream chat req. Conv: ${this.currentConvId}, Space: ${this.activeSpaceId}`);
+                console.time('ChatRequest_Stream_TTFB');
+                console.time('ChatRequest_Stream_Total');
+            }
             try {
                 const response = await fetch('/api/chat/stream', {
                     method: 'POST',
@@ -100,8 +112,14 @@ export function getChatActions() {
                 let buffer = '';
                 let charMsgMap = {};
 
+                let firstChunkReceived = false;
+
                 while (true) {
                     const { done, value } = await reader.read();
+                    if (!firstChunkReceived && this.prefs.debug_mode) {
+                        console.timeEnd('ChatRequest_Stream_TTFB');
+                        firstChunkReceived = true;
+                    }
                     if (done) break;
 
                     const chunk = decoder.decode(value, { stream: true });
@@ -224,6 +242,7 @@ export function getChatActions() {
                 this.abortController = null;
                 this.fetchConversations();
                 this.$nextTick(() => this.scrollToBottom());
+                if (this.prefs.debug_mode) console.timeEnd('ChatRequest_Stream_Total');
             }
         },
 

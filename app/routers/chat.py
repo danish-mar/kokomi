@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import uuid
+import time
 from functools import reduce
 from operator import add
 
@@ -63,6 +64,7 @@ async def _ensure_pool():
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
+    t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
 
@@ -255,6 +257,10 @@ async def chat(req: ChatRequest):
 
     save_convos(convos)
 
+    if prefs.get("debug_mode"):
+        t1 = time.time()
+        print(f"[DEBUG] /chat non-stream completed in {t1-t0:.2f}s for model {active_model}")
+
     return {
         "conversation_id": conv_id,
         "response": content,
@@ -268,6 +274,7 @@ async def chat(req: ChatRequest):
 
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
+    t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
 
@@ -556,6 +563,10 @@ async def chat_stream(req: ChatRequest):
 
                 await queue.put(f"data: {json.dumps({'type': 'done', 'conversation_id': conv_id, 'title': title})}\n\n")
                 await queue.put("data: [DONE]\n\n")
+
+                if prefs.get("debug_mode"):
+                    t1 = time.time()
+                    print(f"[DEBUG] /chat/stream completed in {t1-t0:.2f}s for model {active_model}")
 
             except Exception as e:
                 import traceback

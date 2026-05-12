@@ -53,3 +53,4 @@ class PrefsUpdate(BaseModel):
     browser_redirect_enabled: bool = True
     user_name: Optional[str] = "User"
     user_avatar: Optional[str] = None
+    debug_mode: bool = False

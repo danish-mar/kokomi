@@ -46,6 +46,7 @@ DEFAULT_PREFS: dict = {
     "web_search_enabled": False,
     "browser_redirect_enabled": True,
     "user_name": "User",
-    "user_avatar": None
+    "user_avatar": None,
+    "debug_mode": False
 }
 

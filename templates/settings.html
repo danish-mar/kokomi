@@ -645,6 +645,18 @@
                             <div class="toggle-knob"></div>
                         </button>
                     </div>
+
+                    <!-- Debug Mode -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px;">Debug Mode</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Print timing and generation logs to console.</p>
+                        </div>
+                        <button @click="prefs.debug_mode = !prefs.debug_mode; savePrefs()"
+                            class="apple-toggle" :class="prefs.debug_mode ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
                 </div>
 
 
@@ -1203,9 +1215,10 @@ function settingsApp() {
             whatsapp_character_id: 'kokomi',
             whatsapp_api_url: 'http://localhost:3013',
             tavily_api_key: '',
-            web_search_enabled: false,
+            browser_redirect_enabled: true,
             user_name: 'User',
             user_avatar: null,
+            debug_mode: false
         },
 
         cropModal: false,
