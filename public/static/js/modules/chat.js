@@ -193,6 +193,37 @@ export function getChatActions() {
                                          });
                                     }
                                 }
+                            } else if (data.type === 'artifact_open') {
+                                if (targetIdx !== undefined) {
+                                    if (!this.messages[targetIdx].artifacts) this.messages[targetIdx].artifacts = [];
+                                    const meta = data.metadata || {};
+                                    this.messages[targetIdx].artifacts.push({
+                                        id: data.id,
+                                        title: meta.title || 'Untitled Artifact',
+                                        type: meta.type || 'file',
+                                        icon: meta.icon || 'fa-solid fa-file-code',
+                                        version: meta.version || '1',
+                                        content: '',
+                                        streaming: true
+                                    });
+                                }
+                            } else if (data.type === 'artifact_chunk') {
+                                if (targetIdx !== undefined && this.messages[targetIdx].artifacts) {
+                                    const arts = this.messages[targetIdx].artifacts;
+                                    const art = arts.find(a => a.id === data.id);
+                                    if (art) {
+                                        art.content += data.delta;
+                                    }
+                                }
+                            } else if (data.type === 'artifact_close') {
+                                if (targetIdx !== undefined && this.messages[targetIdx].artifacts) {
+                                    const arts = this.messages[targetIdx].artifacts;
+                                    const art = arts.find(a => a.id === data.id);
+                                    if (art) {
+                                        art.streaming = false;
+                                        if (data.content) art.content = data.content;
+                                    }
+                                }
                             } else if (data.type === 'tool_end') {
                                 if (data.name === 'open_url' || data.name === 'redirect_url') {
                                     if (data.args && data.args.url) {

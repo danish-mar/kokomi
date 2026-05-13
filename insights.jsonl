@@ -8,3 +8,5 @@
 {"timestamp": "2026-05-13T21:46:13.572385", "model": "qwen/qwen3-32b", "tps": 125.6018892091923, "ttft": 967.0710563659668, "context_used": 193, "prompt_tokens": 8, "completion_tokens": 185, "session_id": "e4d8d9db-afe"}
 {"timestamp": "2026-05-13T21:48:43.439329", "model": "qwen/qwen3-32b", "tps": 24.664458971993863, "ttft": 734.5643043518066, "context_used": 22, "prompt_tokens": 1, "completion_tokens": 21, "session_id": "edecf3b2-eb5"}
 {"timestamp": "2026-05-13T21:49:06.628204", "model": "qwen/qwen3-32b", "tps": 86.50318119849912, "ttft": 823.8630294799805, "context_used": 112, "prompt_tokens": 5, "completion_tokens": 107, "session_id": "edecf3b2-eb5"}
+{"timestamp": "2026-05-13T22:16:52.671866", "model": "qwen/qwen3-32b", "tps": 150.9565069136667, "ttft": 1775.707721710205, "context_used": 1155, "prompt_tokens": 10, "completion_tokens": 1145, "session_id": "06dadf0b-cec"}
+{"timestamp": "2026-05-13T22:17:56.058412", "model": "qwen/qwen3-32b", "tps": 96.14372528738244, "ttft": 1005.8119297027588, "context_used": 342, "prompt_tokens": 11, "completion_tokens": 331, "session_id": "2b705010-28b"}

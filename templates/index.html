@@ -110,6 +110,65 @@
         from { opacity: 0; transform: scale(0.95) translateY(10px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
     }
+    /* ── Artifacts UI ────────────────────────────── */
+    .artifact-box {
+        margin: 12px 0; border: 1px solid var(--border); border-radius: 18px;
+        background: var(--bg-elevated); overflow: hidden;
+        box-shadow: var(--shadow-md); transition: all 0.3s ease;
+        position: relative; cursor: pointer; border-left: 4px solid var(--accent);
+    }
+    .artifact-box:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--accent); }
+    .artifact-header {
+        padding: 12px 16px; background: rgba(0,0,0,0.02);
+        display: flex; align-items: center; justify-content: space-between;
+        border-bottom: 1px solid var(--border);
+    }
+    .artifact-info { display: flex; align-items: center; gap: 12px; }
+    .artifact-icon {
+        width: 34px; height: 34px; border-radius: 10px;
+        background: var(--accent); color: var(--accent-text);
+        display: flex; align-items: center; justify-content: center; font-size: 14px;
+        box-shadow: 0 4px 12px rgba(80, 80, 129, 0.2);
+    }
+    .artifact-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .artifact-meta { font-size: 10px; color: var(--text-quaternary); font-weight: 500; margin-top: 1px; }
+    
+    .artifact-body { padding: 12px 16px; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); max-height: 80px; overflow: hidden; position: relative; }
+    .artifact-body::after {
+        content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 30px;
+        background: linear-gradient(to top, var(--bg-elevated), transparent);
+    }
+    
+    .artifact-shimmer {
+        position: absolute; inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+        background-size: 200% 100%; animation: shimmer 2s infinite;
+    }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+    .meta-tooltip {
+        position: absolute;
+        bottom: calc(100% + 12px);
+        left: 0;
+        background: white; /* Solid white background */
+        border: 1px solid rgba(0,0,0,0.1);
+        padding: 14px 18px; 
+        border-radius: 18px; 
+        box-shadow: 0 15px 35px -5px rgba(0,0,0,0.25), 0 10px 15px -5px rgba(0,0,0,0.1);
+        z-index: 9999; 
+        min-width: 240px; 
+        pointer-events: none;
+        animation: tooltipPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .dark .meta-tooltip {
+        background: #1a1a1c; /* Deep solid dark background */
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    @keyframes tooltipPop {
+        from { opacity: 0; transform: scale(0.95) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
     .meta-tooltip-row { 
         display: flex; justify-content: space-between; align-items: center; 
         gap: 20px; margin-bottom: 8px; 
@@ -1008,6 +1067,37 @@
 
                                             <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg.role === 'assistant' && msg.displayContent !== undefined ? msg.displayContent : msg.content, msg.streaming)"></div>
                                             
+                                            <!-- Artifacts Rendering -->
+                                            <template x-if="msg.artifacts && msg.artifacts.length">
+                                                <div class="mt-4 space-y-3">
+                                                    <template x-for="art in msg.artifacts" :key="art.id">
+                                                        <div class="artifact-box" @click="openArtifactModal(art)">
+                                                            <div x-show="art.streaming" class="artifact-shimmer"></div>
+                                                            <div class="artifact-header">
+                                                                <div class="artifact-info">
+                                                                    <div class="artifact-icon">
+                                                                        <i :class="art.icon || 'fa-solid fa-file-code'"></i>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p class="artifact-title" x-text="art.title"></p>
+                                                                        <p class="artifact-meta">
+                                                                            <span x-text="art.type"></span>
+                                                                            <span class="mx-1">•</span>
+                                                                            <span x-show="art.streaming">Generating...</span>
+                                                                            <span x-show="!art.streaming" x-text="'v' + art.version"></span>
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="text-4">
+                                                                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                                                                </div>
+                                                            </div>
+                                                            <div class="artifact-body" x-text="art.content"></div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            
                                             <!-- Telemetry Footer -->
                                             <template x-if="prefs.debug_mode && msg.metrics">
                                                 <div class="message-meta-footer" x-data="{ showTooltip: false }">
@@ -1146,6 +1236,34 @@
                                         class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Search</span>
                                 </button>
                             </template>
+
+                            <!-- Artifacts toggle pill button -->
+                            <button @click="prefs.artifacts = !prefs.artifacts; updatePreferences()" title="Toggle Artifacts"
+                                class="flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
+                                :class="prefs.artifacts
+                                    ? 'bg-accent-sub border-accent-c text-accent-c px-2.5 py-1'
+                                    : 'border-transparent text-4 hover:text-3 hover:border-themed hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-1'">
+                                <i class="fa-solid fa-puzzle-piece text-[11px] shrink-0"></i>
+                                <span x-show="prefs.artifacts"
+                                    x-transition:enter="transition ease-out duration-200"
+                                    x-transition:enter-start="opacity-0 max-w-0"
+                                    x-transition:enter-end="opacity-100 max-w-[70px]"
+                                    class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Artifacts</span>
+                            </button>
+
+                            <!-- Debug toggle pill button -->
+                            <button @click="prefs.debug_mode = !prefs.debug_mode; updatePreferences()" title="Toggle Debug Mode"
+                                class="flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
+                                :class="prefs.debug_mode
+                                    ? 'bg-accent-sub border-accent-c text-accent-c px-2.5 py-1'
+                                    : 'border-transparent text-4 hover:text-3 hover:border-themed hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-1'">
+                                <i class="fa-solid fa-bug text-[11px] shrink-0"></i>
+                                <span x-show="prefs.debug_mode"
+                                    x-transition:enter="transition ease-out duration-200"
+                                    x-transition:enter-start="opacity-0 max-w-0"
+                                    x-transition:enter-end="opacity-100 max-w-[60px]"
+                                    class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Debug</span>
+                            </button>
                             
                             <!-- Voice to Text button -->
                             <button @click="toggleVoiceInput()" title="Voice to text"
@@ -1173,20 +1291,17 @@
                 <div class="text-center text-[10px] text-4 mt-1.5 font-medium">
                     <template x-if="loading && prefs.debug_mode && liveStats.tps !== null">
                         <div class="insights-status-bar">
-                            <div class="stat">
+                            <div class="stat" title="Tokens per second">
                                 <i class="fa-solid fa-bolt pulse"></i>
-                                <span class="value" x-text="liveStats.tps"></span>
-                                <span>tok/s</span>
+                                <span class="value" x-text="liveStats.tps"></span> <span class="opacity-50 uppercase text-[8px] tracking-tighter">TPS</span>
                             </div>
-                            <div class="stat" x-show="liveStats.ttft">
+                            <div class="stat" title="Time to first token" x-show="liveStats.ttft">
                                 <i class="fa-solid fa-clock"></i>
-                                <span class="value" x-text="liveStats.ttft"></span>
-                                <span>ms</span>
+                                <span class="value" x-text="liveStats.ttft"></span><span class="opacity-50 text-[8px]">ms</span>
                             </div>
-                            <div class="stat" x-show="liveStats.context">
+                            <div class="stat" title="Context used (tokens)" x-show="liveStats.context">
                                 <i class="fa-solid fa-layer-group"></i>
-                                <span class="value" x-text="liveStats.context"></span>
-                                <span>context</span>
+                                <span class="value" x-text="liveStats.context"></span> <span class="opacity-50 uppercase text-[8px] tracking-tighter">Tokens</span>
                             </div>
                         </div>
                     </template>
@@ -1225,6 +1340,52 @@
                 </button>
             </div>
         </template>
+    </div>
+
+    <!-- Artifacts Modal -->
+    <div x-show="artifactModal.show" class="fixed inset-0 z-[1000] overflow-hidden flex items-center justify-center p-4 sm:p-10" x-cloak>
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-[10px]" @click="artifactModal.show = false"></div>
+        <div class="relative w-full h-full max-w-5xl material-elevated border border-themed rounded-[24px] shadow-2xl flex flex-col overflow-hidden" 
+             x-show="artifactModal.show"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-8"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0">
+             
+            <!-- Header -->
+            <div class="shrink-0 px-6 py-4 flex items-center justify-between border-b border-themed bg-black/[0.02] dark:bg-white/[0.02]">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-lg">
+                        <i :class="artifactModal.icon || 'fa-solid fa-file-code'" class="text-accent-t text-lg"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-lg font-bold tracking-tight text-1 truncate" x-text="artifactModal.title"></h3>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[10px] uppercase font-bold tracking-widest text-accent-c bg-accent-sub px-1.5 py-0.5 rounded-md" x-text="'v' + artifactModal.version"></span>
+                            <span class="text-xs text-4" x-text="artifactModal.type"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="copyText(artifactModal.content)" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover-surface text-sm font-medium text-2 t-apple">
+                        <i class="fa-regular fa-copy text-xs"></i> <span class="hidden sm:inline">Copy</span>
+                    </button>
+                    <button @click="downloadArtifact()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover-surface text-sm font-medium text-2 t-apple">
+                        <i class="fa-solid fa-download text-xs"></i> <span class="hidden sm:inline">Download</span>
+                    </button>
+                    <div class="w-px h-6 bg-themed mx-1"></div>
+                    <button @click="artifactModal.show = false" class="w-9 h-9 rounded-full flex items-center justify-center hover-surface text-3 hover:text-1 transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Content -->
+            <div class="flex-grow overflow-hidden flex flex-col bg-canvas">
+                <div class="flex-grow overflow-auto p-0 font-mono text-[13px] leading-relaxed relative">
+                    <pre class="m-0 p-6 min-h-full"><code class="hljs" x-html="artifactModal.renderedContent"></code></pre>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>

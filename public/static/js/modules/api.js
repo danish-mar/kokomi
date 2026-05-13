@@ -98,6 +98,17 @@ export function getApiActions() {
             }
         },
 
+        async updatePreferences() {
+            try {
+                await fetch('/api/prefs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.prefs)
+                });
+            } catch (e) {
+                console.error('Failed to update preferences', e);
+            }
+        },
         get conversationsByFolder() {
             const grouped = { 'none': [] };
             this.folders.forEach(f => grouped[f.id] = []);

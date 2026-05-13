@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.0] - 2026-05-14
+
+### Added
+- **Artifacts System**: Introduced a robust XML-based artifact generation system for code, markdown, and config files.
+- **Interactive Artifact UI**: Added premium, inline artifact boxes with "generating" shimmer effects and a full-screen code viewer modal.
+- **Artifact Versioning**: Implemented automatic version tracking for artifacts across conversation sessions.
+- **UI Control Toggles**: Added dedicated "Artifacts" and "Debug" toggle pills in the chat input action bar for granular feature control.
+- **Performance Polishing**: Refined the real-time telemetry bar (TPS, TTFT, Context) to match the macOS Tahoe design aesthetic.
+
+### Fixed
+- **Streaming Stability**: Fixed internal buffer flushing in the chat stream to prevent data loss or truncated XML tags during response transitions.
+- **Preference Persistence**: Standardized preference synchronization between the frontend and backend.
+
 ## [v0.5.0] - 2026-05-14
 
 ### Added

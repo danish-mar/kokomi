@@ -55,6 +55,7 @@ DEFAULT_PREFS: dict = {
     "user_name": "User",
     "user_avatar": None,
     "debug_mode": False,
-    "insights": True
+    "insights": True,
+    "artifacts": True
 }
 

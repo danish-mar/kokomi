@@ -55,3 +55,4 @@ class PrefsUpdate(BaseModel):
     user_avatar: Optional[str] = None
     debug_mode: bool = False
     insights: bool = True
+    artifacts: bool = True

@@ -131,6 +131,41 @@ export function getUiActions() {
 
             this._recognition = recognition;
             recognition.start();
+        },
+
+        // -- Artifacts --
+        openArtifactModal(artifact) {
+            this.artifactModal.id = artifact.id || 'artifact';
+            this.artifactModal.title = artifact.title || 'Untitled Artifact';
+            this.artifactModal.type = artifact.type || 'file';
+            this.artifactModal.version = artifact.version || '1';
+            this.artifactModal.content = artifact.content || '';
+            this.artifactModal.icon = artifact.icon || 'fa-solid fa-file-code';
+            
+            // Syntax highlighting
+            if (window.hljs) {
+                try {
+                    const result = hljs.highlightAuto(this.artifactModal.content);
+                    this.artifactModal.renderedContent = result.value;
+                } catch (e) {
+                    this.artifactModal.renderedContent = this.artifactModal.content;
+                }
+            } else {
+                this.artifactModal.renderedContent = this.artifactModal.content;
+            }
+            
+            this.artifactModal.show = true;
+        },
+        downloadArtifact() {
+            const blob = new Blob([this.artifactModal.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = this.artifactModal.title || 'artifact.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
     };
 }

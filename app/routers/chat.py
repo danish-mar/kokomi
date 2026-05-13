@@ -3,6 +3,7 @@ import datetime
 import json
 import uuid
 import time
+import re
 from functools import reduce
 from operator import add
 
@@ -387,6 +388,8 @@ async def chat_stream(req: ChatRequest):
                     mcp_warning_text += "\n(You can inform the user if they ask about tools that are currently unavailable.)"
 
                 is_debug = prefs.get("debug_mode")
+                art_versions = {} # Track artifact versions across characters in this turn
+
                 if is_debug:
                     msg = f"=== STARTING STREAM CHAT ===\nConversation: {conv_id}, Participants: {pids}"
                     print(f"\n[DEBUG] {msg}")
@@ -454,6 +457,19 @@ async def chat_stream(req: ChatRequest):
                     if mcp_warning_text:
                         p_persona += mcp_warning_text
 
+                    # Artifacts Instruction (x4 Multiplier Rule)
+                    if prefs.get("artifacts", True):
+                        artifact_instr = (
+                            "[ARTIFACTS ENABLED]\n"
+                            "When generating standalone code files, configs, scripts, or long documents, "
+                            "you MUST wrap the output in <Artifact> XML tags with correct parameters "
+                            "BEFORE writing any content. Never use plain code blocks for standalone files. "
+                            "The opening <Artifact> tag must appear before the first line of content "
+                            "so the UI can render the artifact panel immediately during streaming.\n"
+                            "[/ARTIFACTS ENABLED]"
+                        )
+                        p_persona = (artifact_instr + "\n\n") * 4 + p_persona
+
                     p_lc_msgs = [SystemMessage(content=p_persona)]
                     for m in history[-12:]:
                         if m["role"] == "user":
@@ -481,12 +497,19 @@ async def chat_stream(req: ChatRequest):
                     collected_chunks = []
                     skipped = False
                     char_tool_calls_log: list = []
+                    char_artifacts_log: list = []
 
                     if is_debug:
                         msg = f"👉 Generating for: {char_name} (Model: {p_active_model})\nPrompt Length: {len(p_persona)} chars. Tools: {len(tool_defs) if tool_defs else 0}"
                         print(f"\n[DEBUG] {msg}")
                         await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
                         print(f"[DEBUG] Streaming chunks...")
+
+                    art_active = False
+                    art_id = None
+                    art_meta = {}
+                    art_content = ""
+                    pending_buffer = ""
 
                     async for chunk in target_llm.astream(p_lc_msgs):
                         collected_chunks.append(chunk)
@@ -520,7 +543,70 @@ async def chat_stream(req: ChatRequest):
                                     'context': (len(req.message) // 4) + t_comp
                                 })}\n\n")
 
-                            await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid, 'model': p_active_model})}\n\n")
+                            if not prefs.get("artifacts", True):
+                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid, 'model': p_active_model})}\n\n")
+                            else:
+                                pending_buffer += chunk.content
+                                while True:
+                                    if not art_active:
+                                        open_idx = pending_buffer.find("<Artifact")
+                                        if open_idx != -1:
+                                            pre_text = pending_buffer[:open_idx]
+                                            if pre_text:
+                                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                            tag_end_idx = pending_buffer.find(">", open_idx)
+                                            if tag_end_idx != -1:
+                                                tag_content = pending_buffer[open_idx:tag_end_idx+1]
+                                                attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
+                                                art_active = True
+                                                art_id = attrs.get("id", str(uuid.uuid4())[:8])
+                                                art_meta = attrs
+                                                art_content = ""
+                                                await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
+                                                pending_buffer = pending_buffer[tag_end_idx+1:]
+                                                continue
+                                            else:
+                                                break
+                                        else:
+                                            send_limit = max(0, len(pending_buffer) - 10)
+                                            to_send = pending_buffer[:send_limit]
+                                            if to_send:
+                                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': to_send, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                                pending_buffer = pending_buffer[send_limit:]
+                                            break
+                                    else:
+                                        close_idx = pending_buffer.find("</Artifact>")
+                                        if close_idx != -1:
+                                            inside_text = pending_buffer[:close_idx]
+                                            if inside_text:
+                                                art_content += inside_text
+                                                await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': inside_text})}\n\n")
+                                            current_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
+                                            char_artifacts_log.append(current_art)
+                                            await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                                            if prefs.get("insights", True):
+                                                await queue.put(f"data: {json.dumps({'type': 'debug', 'message': f'Artifact generated: {art_id} ({len(art_content) // 4} tokens)'})}\n\n")
+                                            art_active = False
+                                            pending_buffer = pending_buffer[close_idx + len("</Artifact>"):]
+                                            continue
+                                        else:
+                                            send_limit = max(0, len(pending_buffer) - 12)
+                                            to_send = pending_buffer[:send_limit]
+                                            if to_send:
+                                                art_content += to_send
+                                                await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': to_send})}\n\n")
+                                                pending_buffer = pending_buffer[send_limit:]
+                                            break
+
+                    # FINAL FLUSH
+                    if pending_buffer:
+                        if art_active:
+                             art_content += pending_buffer
+                             await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': pending_buffer})}\n\n")
+                             await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                        else:
+                             await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pending_buffer, 'character_id': pid, 'model': p_active_model})}\n\n")
+                        pending_buffer = ""
 
                     if is_debug:
                         print("\n[DEBUG] Stream generation finished.")
@@ -604,25 +690,101 @@ async def chat_stream(req: ChatRequest):
                                     if now - ts_last_stats > 0.4:
                                         ts_last_stats = now
                                         temp_comp = len(f_content + fcl) // 4
-                                        temp_tps = (temp_comp / (now - t0)) if (now - t0 > 0) else 0
+                                        temp_tps = (temp_comp / (now - ts_start)) if (now - ts_start > 0) else 0
                                         await queue.put(f"data: {json.dumps({
                                             'type': 'stats',
                                             'tps': round(temp_tps, 1),
-                                            'ttft': round((ts_first - t0)*1000) if ts_first else None,
+                                            'ttft': round((ts_first - ts_start)*1000) if ts_first else None,
                                             'context': (len(req.message) // 4) + temp_comp
                                         })}\n\n")
 
-                                    await queue.put(f"data: {json.dumps({'type': 'content', 'delta': c.content, 'character_id': pid})}\n\n")
-                            
+                                    # Artifact Parsing Logic (Inner Loop)
+                                    if not prefs.get("artifacts", True):
+                                        await queue.put(f"data: {json.dumps({'type': 'content', 'delta': c.content, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                    else:
+                                        pending_buffer += c.content
+                                        while True:
+                                            if not art_active:
+                                                open_idx = pending_buffer.find("<Artifact")
+                                                if open_idx != -1:
+                                                    pre_text = pending_buffer[:open_idx]
+                                                    if pre_text:
+                                                        await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                                    tag_end_idx = pending_buffer.find(">", open_idx)
+                                                    if tag_end_idx != -1:
+                                                        tag_content = pending_buffer[open_idx:tag_end_idx+1]
+                                                        attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
+                                                        art_active = True
+                                                        art_id = attrs.get("id", str(uuid.uuid4())[:8])
+                                                        art_meta = attrs
+                                                        art_content = ""
+                                                        # Versioning
+                                                        v = art_versions.get(art_id, 0) + 1
+                                                        art_versions[art_id] = v
+                                                        art_meta["version"] = str(v)
+                                                        
+                                                        await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
+                                                        pending_buffer = pending_buffer[tag_end_idx+1:]
+                                                        continue
+                                                    else:
+                                                        break
+                                                else:
+                                                    send_limit = max(0, len(pending_buffer) - 10)
+                                                    to_send = pending_buffer[:send_limit]
+                                                    if to_send:
+                                                        await queue.put(f"data: {json.dumps({'type': 'content', 'delta': to_send, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                                        pending_buffer = pending_buffer[send_limit:]
+                                                    break
+                                            else:
+                                                close_idx = pending_buffer.find("</Artifact>")
+                                                if close_idx != -1:
+                                                    inside_text = pending_buffer[:close_idx]
+                                                    if inside_text:
+                                                        art_content += inside_text
+                                                        await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': inside_text})}\n\n")
+                                                    current_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
+                                                    char_artifacts_log.append(current_art)
+                                                    await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                                                    if prefs.get("insights", True):
+                                                        v_str = art_meta.get("version", "1")
+                                                        msg_dbg = f"Artifact generated: {art_id} v{v_str} ({len(art_content) // 4} tokens)"
+                                                        await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg_dbg})}\n\n")
+                                                    art_active = False
+                                                    pending_buffer = pending_buffer[close_idx + len("</Artifact>"):]
+                                                    continue
+                                                else:
+                                                    send_limit = max(0, len(pending_buffer) - 12)
+                                                    to_send = pending_buffer[:send_limit]
+                                                    if to_send:
+                                                        art_content += to_send
+                                                        await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': to_send})}\n\n")
+                                                        pending_buffer = pending_buffer[send_limit:]
+                                                    break
+
                             if is_debug:
                                 print("\n[DEBUG] Inner chunk generation finished.")
-                            f_content += fcl
+                            
+                            # Final flush of pending_buffer for this tool response cycle
+                            if pending_buffer:
+                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pending_buffer, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                pending_buffer = ""
 
+                            f_content += fcl
                             new_resp = reduce(add, inner_chunks) if inner_chunks else None
                             if new_resp and getattr(new_resp, "tool_calls", None):
                                 curr_resp = new_resp
                             else:
                                 break
+                    
+                    # FINAL FINAL flush
+                    if pending_buffer:
+                        if art_active:
+                             art_content += pending_buffer
+                             await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': pending_buffer})}\n\n")
+                             await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                        else:
+                             await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pending_buffer, 'character_id': pid, 'model': p_active_model})}\n\n")
+                        pending_buffer = ""
 
                     frw, thk = parse_thinking(f_content)
                     cleaned = frw.strip()
@@ -637,6 +799,7 @@ async def chat_stream(req: ChatRequest):
                         "content": cleaned,
                         "thinking": thk,
                         "tool_calls": char_tool_calls_log if char_tool_calls_log else None,
+                        "artifacts": char_artifacts_log if char_artifacts_log else None,
                         "model": p_active_model,
                         "timestamp": datetime.datetime.utcnow().isoformat(),
                     })
