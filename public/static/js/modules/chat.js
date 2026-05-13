@@ -160,6 +160,14 @@ export function getChatActions() {
                                 this.loadingStatus = `${char.name} is thinking...`;
                             }
 
+                            if (data.type === 'stats') {
+                                this.liveStats = {
+                                    tps: data.tps,
+                                    ttft: data.ttft,
+                                    context: data.context
+                                };
+                            }
+
                             if (data.type === 'debug' && targetIdx !== undefined) {
                                 this.messages[targetIdx].debug_logs.push(data.message);
                             }
@@ -182,7 +190,7 @@ export function getChatActions() {
                                             icon: data.icon || 'fa-wrench', 
                                             description: data.description,
                                             result: "Executing..." 
-                                        });
+                                         });
                                     }
                                 }
                             } else if (data.type === 'tool_end') {
@@ -204,7 +212,12 @@ export function getChatActions() {
                                 this.showToast(data.message, 'warning');
                             } else if (data.type === 'done') {
                                 this.currentConvId = data.conversation_id;
-                            } else if (data.type === 'error') {
+                                if (data.metrics && targetIdx !== undefined) {
+                                    this.messages[targetIdx].metrics = data.metrics;
+                                }
+                                this.liveStats = { tps: null, ttft: null, context: null };
+                            }
+                            else if (data.type === 'error') {
                                 if (targetIdx !== undefined) {
                                     this.messages[targetIdx].content += `\n\n**Error:** ${data.message}`;
                                 } else {

@@ -2,13 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v0.4.9] - 2026-05-13
+## [v0.5.0] - 2026-05-14
 
 ### Added
-- **Basic Authentication**: Implemented JWT-based authentication for the entire application.
-- **Premium Login UI**: Added a high-aesthetic, Apple-inspired login page with glassmorphism and smooth animations.
-- **Global Route Protection**: Introduced a central middleware to enforce authentication across all pages and API endpoints.
-- **Auth Management**: Added `/auth/login` and `/auth/logout` endpoints with secure cookie-based token storage.
+- **Usage Insights Telemetry**: Implemented a comprehensive performance tracking system for LLM generations.
+- **Real-Time Status Bar**: Added a pulsing live stats bar in the Chat UI showing TPS (Tokens Per Second), TTFT (Time To First Token), and Context Usage during streaming.
+- **Message Metadata Footers**: Assistant messages now display generation benchmarks with interactive, high-contrast tooltips.
+- **Telemetry Dashboard**: Added a dedicated "Usage Insights" page with rolling performance charts and model-level aggregations.
+- **Insights Privacy Toggle**: Introduced a master `insights` toggle in settings to enable/disable telemetry collection and surfacing.
+
+### Fixed
+- **Conversation Sorting**: Resolved a `TypeError` in the conversation list caused by mixed string/float types in the `updated_at` field.
+- **Frontend Stability**: Fixed a critical JavaScript syntax error in the chat streaming loop that caused rendering failures.
+- **UI Visibility**: Redesigned tooltips with 100% opacity and high-contrast colors to ensure legibility across all themes and custom wallpapers.
+
+## [v0.4.9] - 2026-05-13
 
 ## [v0.4.8] - 2026-05-12
 

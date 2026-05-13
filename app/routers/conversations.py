@@ -20,7 +20,7 @@ async def list_conversations_api():
             "title": c.get("title", "Untitled"),
             "character_id": c.get("character_id", "kokomi"),
             "folder_id": c.get("folder_id", None),
-            "updated_at": c.get("updated_at", ""),
+            "updated_at": str(c.get("updated_at", "")),
         }
         for cid, c in convos.items()
         if not c.get("is_anonymous", False)

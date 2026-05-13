@@ -55,6 +55,78 @@
         font-size: 10px; color: var(--text-quaternary); margin-top: 6px;
         text-align: center; font-weight: 500; letter-spacing: 0.03em;
     }
+    /* ── Insights Status Bar ─────────────────────── */
+    .insights-status-bar {
+        display: flex; align-items: center; justify-content: center;
+        gap: 12px; margin-top: 6px; animation: fadeIn 0.3s ease;
+    }
+    .insights-status-bar .stat {
+        display: flex; align-items: center; gap: 5px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        padding: 2px 8px; border-radius: 20px;
+        font-size: 10px; font-weight: 600; color: var(--text-tertiary);
+        box-shadow: var(--shadow-sm);
+    }
+    .insights-status-bar .stat i { font-size: 9px; color: var(--accent); }
+    .insights-status-bar .stat .value { color: var(--text-primary); }
+    .insights-status-bar .stat .pulse { animation: statPulse 1.5s infinite; }
+    
+    @keyframes statPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(0.98); }
+    }
+
+    /* ── Message Meta Footer ─────────────────────── */
+    .message-meta-footer {
+        display: flex; align-items: center; gap: 10px;
+        margin-top: 6px; padding-top: 4px;
+        font-size: 10px; font-weight: 500; color: var(--text-quaternary);
+        opacity: 0.6; transition: opacity 0.2s ease;
+    }
+    .message-meta-footer:hover { opacity: 1; }
+    .message-meta-footer span { display: flex; align-items: center; gap: 4px; }
+    .message-meta-footer i { font-size: 9px; }
+
+    .meta-tooltip {
+        position: absolute;
+        bottom: calc(100% + 12px);
+        left: 0;
+        background: white; /* Solid white background */
+        border: 1px solid rgba(0,0,0,0.1);
+        padding: 14px 18px; 
+        border-radius: 18px; 
+        box-shadow: 0 15px 35px -5px rgba(0,0,0,0.25), 0 10px 15px -5px rgba(0,0,0,0.1);
+        z-index: 9999; 
+        min-width: 240px; 
+        pointer-events: none;
+        animation: tooltipPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .dark .meta-tooltip {
+        background: #1a1a1c; /* Deep solid dark background */
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    @keyframes tooltipPop {
+        from { opacity: 0; transform: scale(0.95) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .meta-tooltip-row { 
+        display: flex; justify-content: space-between; align-items: center; 
+        gap: 20px; margin-bottom: 8px; 
+    }
+    .meta-tooltip-row:last-child { margin-bottom: 0; }
+    .meta-tooltip-label { 
+        color: #8e8e93; /* iOS light gray */
+        font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.05em; 
+    }
+    .dark .meta-tooltip-label { color: #98989d; } /* iOS dark gray */
+    .meta-tooltip-value { 
+        color: #1c1c1e; font-weight: 600; font-size: 12px;
+        font-family: 'SF Mono', 'JetBrains Mono', monospace;
+        letter-spacing: -0.01em;
+    }
+    .dark .meta-tooltip-value { color: #ffffff; }
 </style>
 {% endblock %}
 
@@ -935,6 +1007,47 @@
                                             </template>
 
                                             <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg.role === 'assistant' && msg.displayContent !== undefined ? msg.displayContent : msg.content, msg.streaming)"></div>
+                                            
+                                            <!-- Telemetry Footer -->
+                                            <template x-if="prefs.debug_mode && msg.metrics">
+                                                <div class="message-meta-footer" x-data="{ showTooltip: false }">
+                                                    <span @mouseenter="showTooltip = true" @mouseleave="showTooltip = false" class="relative cursor-help hover:text-accent transition-colors">
+                                                        <i class="fa-solid fa-bolt"></i> 
+                                                        <span x-text="msg.metrics.tps"></span> tok/s
+                                                        
+                                                        <div x-show="showTooltip" class="meta-tooltip" x-cloak
+                                                            x-transition:enter="transition ease-out duration-200"
+                                                            x-transition:enter-start="opacity-0 translate-y-2"
+                                                            x-transition:enter-end="opacity-100 translate-y-0">
+                                                            <div class="meta-tooltip-row">
+                                                                <span class="meta-tooltip-label">Model</span>
+                                                                <span class="meta-tooltip-value" x-text="msg.metrics.model"></span>
+                                                            </div>
+                                                            <div class="meta-tooltip-row">
+                                                                <span class="meta-tooltip-label">Prompt</span>
+                                                                <span class="meta-tooltip-value" x-text="msg.metrics.prompt_tokens"></span>
+                                                            </div>
+                                                            <div class="meta-tooltip-row">
+                                                                <span class="meta-tooltip-label">Completion</span>
+                                                                <span class="meta-tooltip-value" x-text="msg.metrics.completion_tokens"></span>
+                                                            </div>
+                                                            <div class="meta-tooltip-row">
+                                                                <span class="meta-tooltip-label">Total</span>
+                                                                <span class="meta-tooltip-value font-bold" x-text="msg.metrics.total_tokens"></span>
+                                                            </div>
+                                                            <div class="border-t border-themed my-1.5 opacity-50"></div>
+                                                            <div class="meta-tooltip-row">
+                                                                <span class="meta-tooltip-label">Session ID</span>
+                                                                <span class="meta-tooltip-value font-mono text-[9px]" x-text="msg.metrics.session_id"></span>
+                                                            </div>
+                                                        </div>
+                                                    </span>
+                                                    <span x-show="msg.metrics.ttft">
+                                                        <i class="fa-solid fa-clock"></i> 
+                                                        <span x-text="msg.metrics.ttft"></span>ms
+                                                    </span>
+                                                </div>
+                                            </template>
                                             <div class="flex items-center gap-1 mt-1 -ml-1 transition-opacity duration-200"
                                                  :class="menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
                                                  x-data="{ menuOpen: false }">
@@ -1057,14 +1170,37 @@
                         </div>
                     </div>
                 </div>
-                <p class="text-center text-[10px] text-4 mt-1.5 font-medium">
-                    <template x-if="!isGroupChat">
-                        <span><span x-text="activeChar.name"></span> may produce inaccurate information.</span>
+                <div class="text-center text-[10px] text-4 mt-1.5 font-medium">
+                    <template x-if="loading && prefs.debug_mode && liveStats.tps !== null">
+                        <div class="insights-status-bar">
+                            <div class="stat">
+                                <i class="fa-solid fa-bolt pulse"></i>
+                                <span class="value" x-text="liveStats.tps"></span>
+                                <span>tok/s</span>
+                            </div>
+                            <div class="stat" x-show="liveStats.ttft">
+                                <i class="fa-solid fa-clock"></i>
+                                <span class="value" x-text="liveStats.ttft"></span>
+                                <span>ms</span>
+                            </div>
+                            <div class="stat" x-show="liveStats.context">
+                                <i class="fa-solid fa-layer-group"></i>
+                                <span class="value" x-text="liveStats.context"></span>
+                                <span>context</span>
+                            </div>
+                        </div>
                     </template>
-                    <template x-if="isGroupChat">
-                        <span>Room with <span x-text="groupParticipants.length"></span> characters · Responses may be inaccurate.</span>
+                    <template x-if="!loading || !prefs.debug_mode || liveStats.tps === null">
+                        <div>
+                            <template x-if="!isGroupChat">
+                                <span><span x-text="activeChar.name"></span> may produce inaccurate information.</span>
+                            </template>
+                            <template x-if="isGroupChat">
+                                <span>Room with <span x-text="groupParticipants.length"></span> characters · Responses may be inaccurate.</span>
+                            </template>
+                        </div>
                     </template>
-                </p>
+                </div>
             </div>
         </footer>
     </div>

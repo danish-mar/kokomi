@@ -26,3 +26,6 @@ async def spaces_page(request: Request):
 @router.get("/whatsapp")
 async def whatsapp_page(request: Request):
     return templates.TemplateResponse(request, "whatsapp.html", {"request": request})
+@router.get("/insights")
+async def insights_page(request: Request):
+    return templates.TemplateResponse(request, "insights.html", {"request": request})

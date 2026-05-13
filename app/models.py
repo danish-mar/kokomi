@@ -54,3 +54,4 @@ class PrefsUpdate(BaseModel):
     user_name: Optional[str] = "User"
     user_avatar: Optional[str] = None
     debug_mode: bool = False
+    insights: bool = True

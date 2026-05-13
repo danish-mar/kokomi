@@ -54,6 +54,7 @@ DEFAULT_PREFS: dict = {
     "browser_redirect_enabled": True,
     "user_name": "User",
     "user_avatar": None,
-    "debug_mode": False
+    "debug_mode": False,
+    "insights": True
 }
 

@@ -18,6 +18,7 @@ from app.llm import get_llm, generate_title, parse_thinking, _normalize_model, r
 from app.mcp import get_pool_tools, init_pool, pool_is_stale
 from app.models import ChatRequest
 from app.storage import load_prefs, load_chars, load_convos, save_convos
+from app.insights import log_generation
 
 
 @tool
@@ -261,6 +262,42 @@ async def chat(req: ChatRequest):
         t1 = time.time()
         print(f"[DEBUG] /chat non-stream completed in {t1-t0:.2f}s for model {active_model}")
 
+    # Telemetry
+    if prefs.get("insights", True):
+        # Try to extract token usage if available
+        usage = {}
+        if hasattr(response, "usage") and response.usage:
+            usage = response.usage
+        elif hasattr(response, "response_metadata"):
+            usage = response.response_metadata.get("token_usage", {})
+        
+        prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or usage.get("prompt_token_count")
+        completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens") or usage.get("candidates_token_count")
+        total_tokens = usage.get("total_tokens") or usage.get("total_token_count")
+        
+        # Fallback: estimate from character count
+        if not prompt_tokens and req.message:
+            prompt_tokens = len(req.message) // 4
+        if not completion_tokens and content:
+            completion_tokens = len(content) // 4
+        
+        if not total_tokens and prompt_tokens and completion_tokens:
+            total_tokens = prompt_tokens + completion_tokens
+        
+        gen_time = time.time() - t0
+        tps = (completion_tokens / gen_time) if (completion_tokens and gen_time > 0) else None
+        
+        asyncio.create_task(log_generation({
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "model": active_model,
+            "tps": tps,
+            "ttft": None, # Not accurate for non-streaming
+            "context_used": total_tokens,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "session_id": conv_id
+        }))
+
     return {
         "conversation_id": conv_id,
         "response": content,
@@ -432,6 +469,10 @@ async def chat_stream(req: ChatRequest):
                     char_llm = get_llm(prefs, streaming=True, model_override=char_model)
                     target_llm = char_llm.bind_tools(tool_defs) if tool_defs else char_llm
 
+                    ts_start = time.time()
+                    ts_first = None
+                    ts_last_stats = 0
+
                     p_active_model = active_model
                     if char_model and char_model != "default":
                         p_active_model = _normalize_model(char_model)
@@ -451,17 +492,34 @@ async def chat_stream(req: ChatRequest):
                         collected_chunks.append(chunk)
 
                         if hasattr(chunk, "reasoning_content") and chunk.reasoning_content:
+                            if ts_first is None: ts_first = time.time()
                             await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.reasoning_content, 'character_id': pid, 'model': p_active_model})}\n\n")
                         elif chunk.additional_kwargs and "reasoning_content" in chunk.additional_kwargs:
+                            if ts_first is None: ts_first = time.time()
                             await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.additional_kwargs['reasoning_content'], 'character_id': pid, 'model': p_active_model})}\n\n")
 
                         if chunk.content:
+                            if ts_first is None: ts_first = time.time()
                             if not f_content and "[SKIP]" in chunk.content.upper():
                                 skipped = True
                                 break
                             f_content += chunk.content
                             if is_debug:
                                 print(chunk.content, end="", flush=True)
+
+                            # Periodic stats update
+                            now = time.time()
+                            if prefs.get("insights", True) and now - ts_last_stats > 0.4:
+                                ts_last_stats = now
+                                t_comp = len(f_content) // 4
+                                t_tps = (t_comp / (now - ts_start)) if (now - ts_start > 0) else 0
+                                await queue.put(f"data: {json.dumps({
+                                    'type': 'stats',
+                                    'tps': round(t_tps, 1),
+                                    'ttft': round((ts_first - ts_start) * 1000) if ts_first else None,
+                                    'context': (len(req.message) // 4) + t_comp
+                                })}\n\n")
+
                             await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid, 'model': p_active_model})}\n\n")
 
                     if is_debug:
@@ -540,6 +598,20 @@ async def chat_stream(req: ChatRequest):
                                     fcl += c.content
                                     if is_debug:
                                         print(c.content, end="", flush=True)
+                                    
+                                    # Periodic stats update
+                                    now = time.time()
+                                    if now - ts_last_stats > 0.4:
+                                        ts_last_stats = now
+                                        temp_comp = len(f_content + fcl) // 4
+                                        temp_tps = (temp_comp / (now - t0)) if (now - t0 > 0) else 0
+                                        await queue.put(f"data: {json.dumps({
+                                            'type': 'stats',
+                                            'tps': round(temp_tps, 1),
+                                            'ttft': round((ts_first - t0)*1000) if ts_first else None,
+                                            'context': (len(req.message) // 4) + temp_comp
+                                        })}\n\n")
+
                                     await queue.put(f"data: {json.dumps({'type': 'content', 'delta': c.content, 'character_id': pid})}\n\n")
                             
                             if is_debug:
@@ -569,6 +641,43 @@ async def chat_stream(req: ChatRequest):
                         "timestamp": datetime.datetime.utcnow().isoformat(),
                     })
 
+                    # Telemetry for this generation
+                    if prefs.get("insights", True):
+                        usage = {}
+                        if full_response:
+                            if hasattr(full_response, "usage") and full_response.usage:
+                                usage = full_response.usage
+                            elif hasattr(full_response, "response_metadata"):
+                                usage = full_response.response_metadata.get("token_usage", {})
+                        
+                        p_prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or usage.get("prompt_token_count")
+                        p_completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens") or usage.get("candidates_token_count")
+                        p_total_tokens = usage.get("total_tokens") or usage.get("total_token_count")
+                        
+                        # Fallback: estimate from character count
+                        if not p_prompt_tokens and req.message:
+                            p_prompt_tokens = len(req.message) // 4
+                        if not p_completion_tokens and cleaned:
+                            p_completion_tokens = len(cleaned) // 4
+                        
+                        if not p_total_tokens and p_prompt_tokens and p_completion_tokens:
+                            p_total_tokens = p_prompt_tokens + p_completion_tokens
+                        
+                        p_gen_time = time.time() - ts_start
+                        p_tps = (p_completion_tokens / p_gen_time) if (p_completion_tokens and p_gen_time > 0) else None
+                        p_ttft = (ts_first - ts_start) * 1000 if (ts_first and ts_start) else None
+                        
+                        asyncio.create_task(log_generation({
+                            "timestamp": datetime.datetime.utcnow().isoformat(),
+                            "model": p_active_model,
+                            "tps": p_tps,
+                            "ttft": p_ttft,
+                            "context_used": p_total_tokens,
+                            "prompt_tokens": p_prompt_tokens,
+                            "completion_tokens": p_completion_tokens,
+                            "session_id": conv_id
+                        }))
+
                 title = None
                 if is_new:
                     title_content = history[-1]["content"] if len(history) > 1 else "New Chat"
@@ -591,7 +700,20 @@ async def chat_stream(req: ChatRequest):
 
                 save_convos(convos)
 
-                await queue.put(f"data: {json.dumps({'type': 'done', 'conversation_id': conv_id, 'title': title})}\n\n")
+                await queue.put(f"data: {json.dumps({
+                    'type': 'done', 
+                    'conversation_id': conv_id, 
+                    'title': title,
+                    'metrics': {
+                        'tps': round(p_tps, 1) if p_tps else None,
+                        'ttft': round(p_ttft) if p_ttft else None,
+                        'prompt_tokens': p_prompt_tokens,
+                        'completion_tokens': p_completion_tokens,
+                        'total_tokens': p_total_tokens,
+                        'model': p_active_model,
+                        'session_id': conv_id[:8]
+                    }
+                })}\n\n")
                 await queue.put("data: [DONE]\n\n")
 
                 if prefs.get("debug_mode"):

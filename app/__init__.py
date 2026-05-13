@@ -67,7 +67,7 @@ app.mount("/avatars", StaticFiles(directory="data/avatars"), name="avatars")
 
 
 # Register all routers
-from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, workflows  # noqa: E402
+from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, workflows, insights  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(pages.router)
@@ -80,3 +80,4 @@ app.include_router(voice.router)
 app.include_router(spaces.router)
 app.include_router(whatsapp.router)
 app.include_router(workflows.router)
+app.include_router(insights.router)

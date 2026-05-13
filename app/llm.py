@@ -105,14 +105,16 @@ class GeminiDirectLLM:
         config = self._make_config(system_instruction)
 
         class _Chunk:
-            def __init__(self, content, tool_calls=None):
+            def __init__(self, content, tool_calls=None, usage=None):
                 self.content = content
                 self.tool_calls = tool_calls or []
+                self.usage = usage
                 self.additional_kwargs = {}
             def __add__(self, other):
                 return _Chunk(
                     self.content + other.content,
-                    self.tool_calls + getattr(other, "tool_calls", [])
+                    self.tool_calls + getattr(other, "tool_calls", []),
+                    other.usage or self.usage
                 )
 
         async for chunk in await self.async_client.aio.models.generate_content_stream(
@@ -130,7 +132,16 @@ class GeminiDirectLLM:
                             "args": part.function_call.args,
                             "id": f"call_{uuid.uuid4().hex[:8]}"
                         })
-            yield _Chunk(chunk.text or "", tool_calls=t_calls)
+            
+            usage = None
+            if chunk.usage_metadata:
+                usage = {
+                    "prompt_tokens": chunk.usage_metadata.prompt_token_count,
+                    "completion_tokens": chunk.usage_metadata.candidates_token_count,
+                    "total_tokens": chunk.usage_metadata.total_token_count,
+                }
+                
+            yield _Chunk(chunk.text or "", tool_calls=t_calls, usage=usage)
 
     async def ainvoke(self, messages):
         contents, system_instruction = self._convert_messages(messages)
@@ -143,11 +154,12 @@ class GeminiDirectLLM:
         )
 
         class _Response:
-            def __init__(self, content, tool_calls=None):
+            def __init__(self, content, tool_calls=None, usage=None):
                 self.content = content
                 self.tool_calls = tool_calls or []
+                self.usage = usage
             def __add__(self, other):
-                return _Response(self.content + other.content, self.tool_calls + getattr(other, "tool_calls", []))
+                return _Response(self.content + other.content, self.tool_calls + getattr(other, "tool_calls", []), other.usage or self.usage)
 
         # Extract tool calls
         t_calls = []
@@ -160,7 +172,15 @@ class GeminiDirectLLM:
                         "id": f"call_{uuid.uuid4().hex[:8]}"
                     })
 
-        return _Response(response.text, tool_calls=t_calls)
+        usage = None
+        if response.usage_metadata:
+            usage = {
+                "prompt_tokens": response.usage_metadata.prompt_token_count,
+                "completion_tokens": response.usage_metadata.candidates_token_count,
+                "total_tokens": response.usage_metadata.total_token_count,
+            }
+
+        return _Response(response.text, tool_calls=t_calls, usage=usage)
 
     def bind_tools(self, tools):
         self.tools = tools

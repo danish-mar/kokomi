@@ -39,6 +39,7 @@ export function getInitialState() {
         exitTempModal: false,
         useWebSearch: false,
         isRecording: false,
+        liveStats: { tps: null, ttft: null, context: null },
 
         // Quick prompts 
         quickPrompts: [
