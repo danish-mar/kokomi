@@ -138,10 +138,16 @@ export function getUiActions() {
             this.artifactModal.id = artifact.id || 'artifact';
             this.artifactModal.title = artifact.title || 'Untitled Artifact';
             this.artifactModal.type = artifact.type || 'file';
-            this.artifactModal.version = artifact.version || '1';
             this.artifactModal.content = artifact.content || '';
             this.artifactModal.icon = artifact.icon || 'fa-solid fa-file-code';
-            
+            this.renderArtifactInModal();
+            this.artifactModal.show = true;
+        },
+        renderArtifactInModal() {
+            if (!this.artifactModal.content) {
+                this.artifactModal.renderedContent = '';
+                return;
+            }
             // Syntax highlighting
             if (window.hljs) {
                 try {
@@ -153,8 +159,6 @@ export function getUiActions() {
             } else {
                 this.artifactModal.renderedContent = this.artifactModal.content;
             }
-            
-            this.artifactModal.show = true;
         },
         downloadArtifact() {
             const blob = new Blob([this.artifactModal.content], { type: 'text/plain' });

@@ -3,6 +3,7 @@
 
 {% block head %}
 <style>
+    [x-cloak] { display: none !important; }
     /* ── Splash Screen ─────────────────────────────── */
     .splash-overlay {
         position: fixed; inset: 0; z-index: 9999;
@@ -571,6 +572,7 @@
                 </a>
             </div>
 
+
             <!-- Project Modal (teleported to body) -->
             <template x-teleport="body">
                 <div x-show="projectModal.show" x-cloak
@@ -838,8 +840,14 @@
             </template>
 
             <!-- Welcome Screen -->
-            <template x-if="messages.length === 0">
-                <div class="h-full flex flex-col items-center justify-center px-6 pb-12 fade-in">
+            <div x-show="messages.length === 0" x-cloak
+                 x-transition:enter="transition ease-out duration-500"
+                 x-transition:enter-start="opacity-0 translate-y-4"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-300"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95"
+                 class="h-full flex flex-col items-center justify-center px-6 pb-12">
                     <div class="relative">
                         <button @click="welcomePickerOpen = !welcomePickerOpen" 
                             class="flex flex-col items-center group t-apple px-6 py-2 rounded-squircle hover:bg-black/5 dark:hover:bg-white/5">
@@ -942,13 +950,15 @@
                         </template>
                     </div>
                 </div>
-            </template>
 
             <!-- ═══════════════ MESSAGE LIST ═══════════════ -->
-            <template x-if="messages.length > 0">
-                <div class="py-4">
+            <div x-show="messages.length > 0" x-cloak
+                 x-transition:enter="transition ease-out duration-500 delay-200"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 class="py-4">
                     <template x-for="(msg, index) in messages" :key="index">
-                        <div class="px-4 py-3 t-apple group" :style="msg.role === 'assistant' ? 'background: var(--msg-ai-bg)' : ''">
+                        <div class="px-4 py-3 t-apple group message-container" :style="msg.role === 'assistant' ? 'background: var(--msg-ai-bg)' : ''">
                             <div class="max-w-[680px] mx-auto flex gap-3.5">
                                 <!-- Avatar -->
                                 <div class="shrink-0 pt-0.5">
@@ -1115,12 +1125,11 @@
                                                 </div>
                                             </template>
 
-                                            <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg.role === 'assistant' && msg.displayContent !== undefined ? msg.displayContent : msg.content, msg.streaming)"></div>
+                                            <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg, msg.streaming)"></div>
                                             
-                                            <!-- Artifacts Rendering -->
                                             <template x-if="msg.artifacts && msg.artifacts.length">
                                                 <div class="mt-4 space-y-3">
-                                                    <template x-for="art in msg.artifacts" :key="art.id">
+                                                    <template x-for="art in msg.artifacts.filter(a => !msg.content || !msg.content.includes('[[ARTIFACT:' + a.id + ']]'))" :key="art.id">
                                                         <div class="artifact-box" @click="openArtifactModal(art)">
                                                             <div x-show="art.streaming" class="artifact-shimmer"></div>
                                                             <div class="artifact-header">
@@ -1131,18 +1140,18 @@
                                                                     <div>
                                                                         <p class="artifact-title" x-text="art.title"></p>
                                                                         <p class="artifact-meta">
-                                                                            <span x-text="art.type"></span>
-                                                                            <span class="mx-1">•</span>
-                                                                            <span x-show="art.streaming">Generating...</span>
-                                                                            <span x-show="!art.streaming" x-text="'v' + art.version"></span>
-                                                                        </p>
+                                                                             <span x-text="art.type"></span>
+                                                                             <span class="mx-1" x-show="art.streaming">•</span>
+                                                                             <span x-show="art.streaming" class="animate-pulse text-accent">Generating...</span>
+                                                                         </p>
                                                                     </div>
                                                                 </div>
                                                                 <div class="text-4">
                                                                     <i class="fa-solid fa-chevron-right text-[10px]"></i>
                                                                 </div>
                                                             </div>
-                                                            <div class="artifact-body" x-text="art.content"></div>
+                                                            <div class="artifact-body font-mono whitespace-pre overflow-x-auto text-[10px] bg-black/5 dark:bg-black/20 p-3 rounded-lg border border-themed mt-2" 
+                                                                 style="max-height: 120px;" x-text="art.content"></div>
                                                         </div>
                                                     </template>
                                                 </div>
@@ -1236,7 +1245,6 @@
 
                     <div id="bottom-anchor" class="h-1"></div>
                 </div>
-            </template>
         </main>
 
         <!-- ═══════════════ INPUT ═══════════════ -->
@@ -1393,7 +1401,7 @@
     </div>
 
     <!-- Artifacts Modal -->
-    <div x-show="artifactModal.show" class="fixed inset-0 z-[1000] overflow-hidden flex items-center justify-center p-4 sm:p-10" x-cloak>
+    <div x-show="artifactModal.show" x-cloak class="fixed inset-0 z-[1000] overflow-hidden flex items-center justify-center p-4 sm:p-10">
         <div class="absolute inset-0 bg-black/40 backdrop-blur-[10px]" @click="artifactModal.show = false"></div>
         <div class="relative w-full h-full max-w-5xl material-elevated border border-themed rounded-[24px] shadow-2xl flex flex-col overflow-hidden" 
              x-show="artifactModal.show"
@@ -1410,7 +1418,6 @@
                     <div class="min-w-0">
                         <h3 class="text-lg font-bold tracking-tight text-1 truncate" x-text="artifactModal.title"></h3>
                         <div class="flex items-center gap-2 mt-0.5">
-                            <span class="text-[10px] uppercase font-bold tracking-widest text-accent-c bg-accent-sub px-1.5 py-0.5 rounded-md" x-text="'v' + artifactModal.version"></span>
                             <span class="text-xs text-4" x-text="artifactModal.type"></span>
                         </div>
                     </div>
@@ -1431,8 +1438,10 @@
             
             <!-- Content -->
             <div class="flex-grow overflow-hidden flex flex-col bg-canvas">
-                <div class="flex-grow overflow-auto p-0 font-mono text-[13px] leading-relaxed relative">
-                    <pre class="m-0 p-6 min-h-full"><code class="hljs" x-html="artifactModal.renderedContent"></code></pre>
+                <div class="flex-grow overflow-auto p-0 font-mono text-[13px] leading-relaxed relative flex flex-col">
+                    <pre class="artifact-pre p-6 text-[13px] leading-relaxed t-apple overflow-auto flex-grow" 
+                         x-html="artifactModal.renderedContent"
+                         style="white-space: pre-wrap; font-family: var(--font-mono);"></pre>
                 </div>
             </div>
         </div>

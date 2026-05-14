@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.7.0] - 2026-05-15
+
+### Changed
+- **Artifact System Overhaul**: Transitioned to a robust `[[ARTIFACT:id]]` anchoring system for reliable inline rendering during both live streaming and historical reloads.
+- **Premium Inline Artifacts**: Inline artifact cards now feature the full premium design, including frosted-glass headers and automatic 120px code previews.
+- **Improved Interaction**: Refactored the artifact opening logic using Alpine.js state lookup, ensuring consistent behavior after page refreshes.
+
+### Added
+- **Cinematic State Transitions**: Implemented smooth Alpine.js cross-fade transitions between the Welcome Screen and the Message List, creating a fluid, high-end feel when loading chats.
+- **Artifact Preview Rendering**: Integrated an `escapeHtml` utility in `chat.js` to safely render code previews within inline artifact cards.
+
+### Fixed
+- **Message Alignment**: Restored the centered Apple aesthetic for user and assistant messages that was briefly broken by container refactoring.
+- **Artifact Modal Spacing**: Fixed a persistent bottom-margin/gap issue in the artifact modal by allowing the code preview to fill the viewport naturally.
+- **Sidebar Chronology**: Standardized the conversation sorting to ensure the newest chats always appear at the top.
+- **Persistence**: Resolved the "Transport request timed out" error by ensuring URL hash persistence (`#chat=id`) correctly restores the active session.
+
 ## [v0.6.1] - 2026-05-15
 
 ### Added

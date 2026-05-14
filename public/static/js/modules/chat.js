@@ -3,7 +3,7 @@
  */
 
 export function getChatActions() {
-    return {
+    const actions = {
         async sendMessage() {
             const text = this.input.trim();
             if (!text || this.loading) return;
@@ -202,7 +202,6 @@ export function getChatActions() {
                                         title: meta.title || 'Untitled Artifact',
                                         type: meta.type || 'file',
                                         icon: meta.icon || 'fa-solid fa-file-code',
-                                        version: meta.version || '1',
                                         content: '',
                                         streaming: true
                                     });
@@ -213,6 +212,11 @@ export function getChatActions() {
                                     const art = arts.find(a => a.id === data.id);
                                     if (art) {
                                         art.content += data.delta;
+                                        // Update modal in real-time if open
+                                        if (this.artifactModal.show && this.artifactModal.id === data.id) {
+                                            this.artifactModal.content = art.content;
+                                            this.renderArtifactInModal();
+                                        }
                                     }
                                 }
                             } else if (data.type === 'artifact_close') {
@@ -222,6 +226,11 @@ export function getChatActions() {
                                     if (art) {
                                         art.streaming = false;
                                         if (data.content) art.content = data.content;
+                                        // Final update for modal
+                                        if (this.artifactModal.show && this.artifactModal.id === data.id) {
+                                            this.artifactModal.content = art.content;
+                                            this.renderArtifactInModal();
+                                        }
                                     }
                                 }
                             } else if (data.type === 'tool_end') {
@@ -243,6 +252,7 @@ export function getChatActions() {
                                 this.showToast(data.message, 'warning');
                             } else if (data.type === 'done') {
                                 this.currentConvId = data.conversation_id;
+                                window.location.hash = `chat=${data.conversation_id}`;
                                 if (data.metrics && targetIdx !== undefined) {
                                     this.messages[targetIdx].metrics = data.metrics;
                                 }
@@ -364,6 +374,7 @@ export function getChatActions() {
             this.input = '';
             this.currentStreamingCharId = null;
             this.isAnonymous = false;
+            window.location.hash = '';
             if (this.groupParticipants.length === 0) {
                 this.groupParticipants = [this.activeCharId];
             }
@@ -377,6 +388,7 @@ export function getChatActions() {
                 if (!r.ok) throw new Error(r.status);
                 const doc = await r.json();
                 this.currentConvId = id;
+                window.location.hash = `chat=${id}`;
                 this.messages = doc.messages || [];
                 this.isAnonymous = false;
                 this.groupParticipants = doc.participants || [doc.character_id || 'kokomi'];
@@ -386,10 +398,25 @@ export function getChatActions() {
             } catch (e) { console.error('Load failed:', e); }
         },
 
-        renderMarkdown(c, isStreaming = false) {
-            if (!c) return '';
+        renderMarkdown(msg, isStreaming = false) {
+            if (!msg) return '';
+            const rawContent = (msg.role === 'assistant' && msg.displayContent !== undefined) ? msg.displayContent : msg.content;
+            if (!rawContent) return '';
+
             try {
-                let html = marked.parse(c);
+                let html = marked.parse(rawContent);
+                
+                // Replace Artifact Placeholders with Cards
+                if (msg.artifacts && msg.artifacts.length > 0) {
+                    msg.artifacts.forEach(art => {
+                        const placeholder = `[[ARTIFACT:${art.id}]]`;
+                        if (html.includes(placeholder)) {
+                            const cardHtml = this.renderArtifactCard(art);
+                            html = html.replace(placeholder, cardHtml);
+                        }
+                    });
+                }
+
                 if (isStreaming) {
                     const fish = '<span class="fish-typing"><i class="fa-solid fa-fish-fins"></i></span>';
                     if (html.includes('</p>')) {
@@ -401,7 +428,70 @@ export function getChatActions() {
                     }
                 }
                 return html;
-            } catch { return c; }
+            } catch { return rawContent; }
+        },
+
+        renderArtifactCard(art) {
+            const icon = art.icon || 'fa-solid fa-file-code';
+            const title = art.title || 'Untitled Artifact';
+            const type = art.type || 'file';
+            const content = art.content || '';
+            
+            return `
+                <div class="artifact-box mt-4 mb-2" onclick="window.openArtifactFromCard('${art.id}', this)">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon">
+                                <i class="${icon}"></i>
+                            </div>
+                            <div>
+                                <p class="artifact-title">${title}</p>
+                                <p class="artifact-meta uppercase tracking-wider">${type}</p>
+                            </div>
+                        </div>
+                        <div class="text-4">
+                            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                        </div>
+                    </div>
+                    ${content ? `
+                    <div class="artifact-body font-mono whitespace-pre overflow-x-auto text-[10px] bg-black/5 dark:bg-black/20 p-3 rounded-lg border border-themed mt-2" 
+                         style="max-height: 120px; pointer-events: none;">${this.escapeHtml(content.substring(0, 500))}${content.length > 500 ? '...' : ''}</div>
+                    ` : ''}
+                </div>
+            `;
+        },
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     };
+    return actions;
 }
+
+// Global helper for inline artifact cards
+window.openArtifactFromCard = (id, el) => {
+    try {
+        // Find the message data from the bubble element
+        const container = el.closest('.message-container');
+        if (!container) return;
+        
+        // Use Alpine's own utility to find the data
+        const bubbleData = Alpine.$data(container);
+        if (bubbleData && bubbleData.msg) {
+            const art = bubbleData.msg.artifacts.find(a => a.id === id);
+            if (art) {
+                const rootEl = document.getElementById('app');
+                if (rootEl) {
+                    const app = Alpine.$data(rootEl);
+                    if (app && app.openArtifactModal) {
+                        app.openArtifactModal(art);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to open artifact from card:', e);
+    }
+};

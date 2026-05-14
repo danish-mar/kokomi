@@ -338,8 +338,9 @@ async def chat_stream(req: ChatRequest):
         conv_id = str(uuid.uuid4())[:12]
 
     history = [] if (not conv_id or conv_id not in convos) else convos[conv_id].get("messages", [])
-    now = datetime.datetime.utcnow().isoformat()
-    history.append({"role": "user", "content": req.message, "timestamp": now})
+    now_iso = datetime.datetime.utcnow().isoformat()
+    now = time.time()
+    history.append({"role": "user", "content": req.message, "timestamp": now_iso})
 
     async def event_generator():
         nonlocal history
@@ -388,7 +389,7 @@ async def chat_stream(req: ChatRequest):
                     mcp_warning_text += "\n(You can inform the user if they ask about tools that are currently unavailable.)"
 
                 is_debug = prefs.get("debug_mode")
-                art_versions = {} # Track artifact versions across characters in this turn
+                is_debug = prefs.get("debug_mode")
 
                 if is_debug:
                     msg = f"=== STARTING STREAM CHAT ===\nConversation: {conv_id}, Participants: {pids}"
@@ -458,17 +459,18 @@ async def chat_stream(req: ChatRequest):
                         p_persona += mcp_warning_text
 
                     # Artifacts Instruction (x4 Multiplier Rule)
+                    # Artifacts Instruction (x10 Multiplier Rule)
                     if prefs.get("artifacts", True):
                         artifact_instr = (
                             "[ARTIFACTS ENABLED]\n"
-                            "When generating standalone code files, configs, scripts, or long documents, "
-                            "you MUST wrap the output in <Artifact> XML tags with correct parameters "
-                            "BEFORE writing any content. Never use plain code blocks for standalone files. "
-                            "The opening <Artifact> tag must appear before the first line of content "
-                            "so the UI can render the artifact panel immediately during streaming.\n"
+                            "CRITICAL: You are in ARTIFACT MODE. For any standalone content (code, configs, scripts, long docs), "
+                            "you MUST use <Artifact id=\"unique_id\" title=\"Title\" type=\"language\">...</Artifact> tags.\n"
+                            "NEVER use markdown code blocks (```) for these files. "
+                            "NEVER include the same content in the main response body and an artifact—only use the artifact.\n"
+                            "The opening <Artifact> tag MUST be the very first thing you write for that file.\n"
                             "[/ARTIFACTS ENABLED]"
                         )
-                        p_persona = (artifact_instr + "\n\n") * 4 + p_persona
+                        p_persona = (artifact_instr + "\n\n") * 15 + p_persona
 
                     p_lc_msgs = [SystemMessage(content=p_persona)]
                     for m in history[-12:]:
@@ -531,6 +533,7 @@ async def chat_stream(req: ChatRequest):
                                 print(chunk.content, end="", flush=True)
 
                             # Periodic stats update
+                            now_iso = datetime.datetime.utcnow().isoformat()
                             now = time.time()
                             if prefs.get("insights", True) and now - ts_last_stats > 0.4:
                                 ts_last_stats = now
@@ -554,14 +557,18 @@ async def chat_stream(req: ChatRequest):
                                             pre_text = pending_buffer[:open_idx]
                                             if pre_text:
                                                 await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
-                                            tag_end_idx = pending_buffer.find(">", open_idx)
+                                            # Slice buffer here to avoid re-sending pre_text
+                                            pending_buffer = pending_buffer[open_idx:]
+                                            tag_end_idx = pending_buffer.find(">")
                                             if tag_end_idx != -1:
-                                                tag_content = pending_buffer[open_idx:tag_end_idx+1]
+                                                tag_content = pending_buffer[:tag_end_idx+1]
                                                 attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
                                                 art_active = True
                                                 art_id = attrs.get("id", str(uuid.uuid4())[:8])
                                                 art_meta = attrs
                                                 art_content = ""
+                                                # Send the anchor placeholder to the frontend content so it renders inline during streaming
+                                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': f'\n\n[[ARTIFACT:{art_id}]]\n\n', 'character_id': pid, 'model': p_active_model})}\n\n")
                                                 await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
                                                 pending_buffer = pending_buffer[tag_end_idx+1:]
                                                 continue
@@ -603,7 +610,11 @@ async def chat_stream(req: ChatRequest):
                         if art_active:
                              art_content += pending_buffer
                              await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': pending_buffer})}\n\n")
+                             # Save to log even on flush
+                             final_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
+                             char_artifacts_log.append(final_art)
                              await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                             art_active = False
                         else:
                              await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pending_buffer, 'character_id': pid, 'model': p_active_model})}\n\n")
                         pending_buffer = ""
@@ -686,6 +697,7 @@ async def chat_stream(req: ChatRequest):
                                         print(c.content, end="", flush=True)
                                     
                                     # Periodic stats update
+                                    now_iso = datetime.datetime.utcnow().isoformat()
                                     now = time.time()
                                     if now - ts_last_stats > 0.4:
                                         ts_last_stats = now
@@ -718,10 +730,6 @@ async def chat_stream(req: ChatRequest):
                                                         art_id = attrs.get("id", str(uuid.uuid4())[:8])
                                                         art_meta = attrs
                                                         art_content = ""
-                                                        # Versioning
-                                                        v = art_versions.get(art_id, 0) + 1
-                                                        art_versions[art_id] = v
-                                                        art_meta["version"] = str(v)
                                                         
                                                         await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
                                                         pending_buffer = pending_buffer[tag_end_idx+1:]
@@ -788,6 +796,14 @@ async def chat_stream(req: ChatRequest):
 
                     frw, thk = parse_thinking(f_content)
                     cleaned = frw.strip()
+                    # Strip Artifact blocks but leave a small anchor placeholder
+                    def art_repl(m):
+                        aid = re.search(r'id="([^"]*)"', m.group(0))
+                        aid_str = aid.group(1) if aid else str(uuid.uuid4())[:8]
+                        return f"\n\n[[ARTIFACT:{aid_str}]]\n\n"
+                    
+                    cleaned = re.sub(r'<Artifact.*?>.*?(</Artifact>|$)', art_repl, cleaned, flags=re.DOTALL).strip()
+                    
                     for prefix_pattern in [f"[{char_name}]:", f"{char_name}:", f"[{char_name}] "]:
                         while cleaned.startswith(prefix_pattern):
                             cleaned = cleaned[len(prefix_pattern):].strip()
@@ -849,14 +865,14 @@ async def chat_stream(req: ChatRequest):
                         "title": title,
                         "character_id": char_id,
                         "messages": history,
-                        "updated_at": now,
+                        "updated_at": now_iso,
                         "participants": pids,
                         "is_anonymous": req.is_anonymous
                     }
                 else:
                     convos[conv_id].update({
                         "messages": history, 
-                        "updated_at": now, 
+                        "updated_at": now_iso, 
                         "participants": pids,
                         "is_anonymous": req.is_anonymous
                     })

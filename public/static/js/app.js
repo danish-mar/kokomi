@@ -38,6 +38,14 @@ function aiApp() {
         if (this.groupParticipants.length === 0) {
             this.groupParticipants = [this.activeCharId];
         }
+
+        // Restore chat from URL hash
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#chat=')) {
+            const id = hash.split('=')[1];
+            if (id) await this.loadConversation(id);
+        }
+
         this.updateSuggestions();
 
         // Dynamic Tab Title

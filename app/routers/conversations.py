@@ -26,7 +26,17 @@ async def list_conversations_api():
         if not c.get("is_anonymous", False)
     ]
 
-    result.sort(key=lambda x: x["updated_at"], reverse=True)
+    def sort_key(c):
+        val = c.get("updated_at")
+        if not val: return 0.0
+        if isinstance(val, (int, float)): return float(val)
+        try:
+            import datetime
+            return datetime.datetime.fromisoformat(str(val)).timestamp()
+        except:
+            return 0.0
+
+    result.sort(key=sort_key, reverse=True)
     return result[:50]
 
 

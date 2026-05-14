@@ -22,7 +22,7 @@ export function getInitialState() {
             'fa-solid fa-music', 'fa-solid fa-palette', 'fa-solid fa-microchip'
         ],
         prefs: { dynamic_suggestions: true, artifacts: true, debug_mode: false },
-        artifactModal: { show: false, id: null, title: '', type: '', icon: '', content: '', renderedContent: '', version: '1' },
+        artifactModal: { show: false, id: null, title: '', type: '', icon: '', content: '', renderedContent: '' },
         abortController: null,
         spaces: [],
         activeSpaceId: null,

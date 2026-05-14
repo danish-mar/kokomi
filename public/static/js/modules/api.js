@@ -3,6 +3,13 @@
  */
 
 export function getApiActions() {
+    const parseDate = (v) => {
+        if (!v) return 0;
+        if (typeof v === 'number') return v;
+        if (typeof v === 'string' && !isNaN(v)) return parseFloat(v);
+        return new Date(v).getTime() / 1000 || 0;
+    };
+
     return {
         async fetchSpaces() {
             try {
@@ -19,7 +26,17 @@ export function getApiActions() {
         async fetchConversations() {
             try {
                 const r = await fetch('/api/conversations');
-                if (r.ok) this.conversations = await r.json();
+                if (r.ok) {
+                    const data = await r.json();
+                    const parseDate = (v) => {
+                        if (!v) return 0;
+                        if (typeof v === 'number') return v;
+                        if (typeof v === 'string' && !isNaN(v)) return parseFloat(v);
+                        return new Date(v).getTime() / 1000 || 0;
+                    };
+                    data.sort((a, b) => parseDate(b.updated_at) - parseDate(a.updated_at));
+                    this.conversations = data;
+                }
             } catch (e) { console.warn('Could not load conversations', e); }
         },
         async fetchPrefs() {
@@ -73,6 +90,7 @@ export function getApiActions() {
                 if (this.currentConvId === id) {
                     this.messages = [];
                     this.currentConvId = null;
+                    window.location.hash = '';
                 }
                 this.conversations = this.conversations.filter(c => c._id !== id);
             } catch (e) { console.error('Delete failed:', e); }
@@ -112,7 +130,19 @@ export function getApiActions() {
         get conversationsByFolder() {
             const grouped = { 'none': [] };
             this.folders.forEach(f => grouped[f.id] = []);
-            this.conversations.forEach(c => {
+            
+            // Ensure global list is sorted newest first
+            const parseDate = (v) => {
+                if (!v) return 0;
+                if (typeof v === 'number') return v;
+                if (typeof v === 'string' && !isNaN(v)) return parseFloat(v);
+                return new Date(v).getTime() / 1000 || 0;
+            };
+            const sorted = [...this.conversations].sort((a, b) => 
+                parseDate(b.updated_at) - parseDate(a.updated_at)
+            );
+
+            sorted.forEach(c => {
                 const fid = c.folder_id || 'none';
                 if (!grouped[fid]) grouped[fid] = [];
                 grouped[fid].push(c);

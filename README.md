@@ -45,6 +45,11 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
 *   **Traceability**: Each node represents a distinct action (User Message → Trigger → Deployment → Tool Call → Final Response).
 *   **PNG Export**: High-resolution export of your AI's decision trees for auditing or archiving.
 
+### 📦 Premium Artifacts & Transitions
+*   **Inline Code Anchoring**: Artifacts are now dynamically injected into the conversation stream using a robust placeholder system, maintaining their exact context.
+*   **Real-time Previews**: Artifact cards feature automatic syntax-highlighted previews and state-aware "generating" indicators.
+*   **Cinematic UI DNA**: Seamless cross-fade transitions between the Welcome Screen and active chats, powered by Alpine.js for a fluid OS-like experience.
+
 ### 📚 RAG & Knowledge Spaces
 *   **Vector Orchestration**: Documents are automatically chunked and vectorized using `gemini-embedding-2` and stored in **Qdrant**.
 *   **Smart Retrieval**: Characters proactively query their assigned "Spaces" using semantic search to provide grounded, fact-based answers.
