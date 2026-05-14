@@ -8,7 +8,11 @@ export function getChatActions() {
             const text = this.input.trim();
             if (!text || this.loading) return;
 
-            this.messages.push({ role: 'user', content: text });
+            this.messages.push({ 
+                id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                role: 'user', 
+                content: text 
+            });
             this.input = '';
             this.loading = true;
             this.loadingStatus = 'Thinking...';
@@ -56,6 +60,7 @@ export function getChatActions() {
                 const data = await r.json();
 
                 this.messages.push({
+                    id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                     role: 'assistant',
                     content: data.response,
                     thinking: data.thinking || null,
@@ -143,6 +148,7 @@ export function getChatActions() {
                             if (targetIdx === undefined && (data.type === 'content' || data.type === 'reasoning')) {
                                 const char = this.characters.find(c => c.id === charId) || { name: charId, id: charId };
                                 this.messages.push({
+                                    id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                                     role: 'assistant',
                                     character_id: charId,
                                     character_name: char.name,
@@ -216,6 +222,10 @@ export function getChatActions() {
                                         if (this.artifactModal.show && this.artifactModal.id === data.id) {
                                             this.artifactModal.content = art.content;
                                             this.renderArtifactInModal();
+                                            // Trigger live preview update if on preview tab
+                                            if (this.artifactModal.tab === 'preview') {
+                                                this.updateLivePreview(art.content);
+                                            }
                                         }
                                     }
                                 }
@@ -389,7 +399,10 @@ export function getChatActions() {
                 const doc = await r.json();
                 this.currentConvId = id;
                 window.location.hash = `chat=${id}`;
-                this.messages = doc.messages || [];
+                this.messages = (doc.messages || []).map(m => ({
+                    ...m,
+                    id: m.id || ('msg-' + Math.random().toString(36).substr(2, 9))
+                }));
                 this.isAnonymous = false;
                 this.groupParticipants = doc.participants || [doc.character_id || 'kokomi'];
                 if (doc.character_id) this.activeCharId = doc.character_id;
@@ -411,7 +424,8 @@ export function getChatActions() {
                     msg.artifacts.forEach(art => {
                         const placeholder = `[[ARTIFACT:${art.id}]]`;
                         if (html.includes(placeholder)) {
-                            const cardHtml = this.renderArtifactCard(art);
+                            // Inject msg id into card for reliable click handling
+                            const cardHtml = this.renderArtifactCard(art).replace('class="artifact-box', `data-msg-id="${msg.id}" class="artifact-box`);
                             html = html.replace(placeholder, cardHtml);
                         }
                     });
@@ -438,7 +452,7 @@ export function getChatActions() {
             const content = art.content || '';
             
             return `
-                <div class="artifact-box mt-4 mb-2" onclick="window.openArtifactFromCard('${art.id}', this)">
+                <div class="artifact-box mt-4 mb-2" data-art-id="${art.id}">
                     <div class="artifact-header">
                         <div class="artifact-info">
                             <div class="artifact-icon">

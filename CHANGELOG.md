@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.8.0] - 2026-05-15
+
+### Added
+- **Interactive Python Sandbox**: Integrated Pyodide (WebAssembly) to enable safe, browser-side execution of Python artifacts.
+- **Data Science Toolkit**: Added automatic package loading for `matplotlib`, `numpy`, and `pandas`, allowing for rich data visualization.
+- **Live Rendering Engine**: Implemented real-time, token-by-token rendering for HTML and SVG artifacts using a debounced blob-based preview system.
+- **IDE-Style Workspace**: Introduced a premium tabbed interface in the artifact modal with "Code," "Console," and "Preview" views.
+- **Matplotlib Visualization**: Custom monkeypatching for `plt.show()` to intercept figures and render them as high-resolution images in the terminal.
+
+### Fixed
+- **Interaction Stability**: Implemented a global capture-phase event listener and unique message IDs to ensure artifact cards are 100% responsive even during high-speed streaming.
+- **Modal Ghosting**: Resolved an issue where closing and opening different artifacts would briefly show previous content by implementing a hard-reset state protocol.
+- **Refined Navigation**: Standardized the default artifact view to the "Code" tab based on user developer workflow preferences.
+- **Streaming Sync**: Ensured the "Preview" tab updates live even if the modal is opened mid-stream during generation.
+
 ## [v0.7.0] - 2026-05-15
 
 ### Changed

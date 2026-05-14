@@ -957,8 +957,9 @@
                  x-transition:enter-start="opacity-0"
                  x-transition:enter-end="opacity-100"
                  class="py-4">
-                    <template x-for="(msg, index) in messages" :key="index">
-                        <div class="px-4 py-3 t-apple group message-container" :style="msg.role === 'assistant' ? 'background: var(--msg-ai-bg)' : ''">
+                    <template x-for="(msg, index) in messages" :key="msg.id || index">
+                        <div class="px-4 py-3 t-apple group message-container" 
+                             :style="msg.role === 'assistant' ? 'background: var(--msg-ai-bg)' : ''">
                             <div class="max-w-[680px] mx-auto flex gap-3.5">
                                 <!-- Avatar -->
                                 <div class="shrink-0 pt-0.5">
@@ -1423,6 +1424,15 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <template x-if="artifactModal.type === 'python'">
+                        <button @click="runPythonArtifact()" 
+                                :disabled="artifactModal.executing"
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-sm font-medium text-green-500 t-apple transition-all"
+                                :class="artifactModal.executing && 'opacity-50 cursor-not-allowed'">
+                            <i class="fa-solid" :class="artifactModal.executing ? 'fa-circle-notch fa-spin' : 'fa-play'"></i>
+                            <span class="hidden sm:inline" x-text="artifactModal.executing ? 'Running...' : 'Run'"></span>
+                        </button>
+                    </template>
                     <button @click="copyText(artifactModal.content)" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover-surface text-sm font-medium text-2 t-apple">
                         <i class="fa-regular fa-copy text-xs"></i> <span class="hidden sm:inline">Copy</span>
                     </button>
@@ -1430,18 +1440,71 @@
                         <i class="fa-solid fa-download text-xs"></i> <span class="hidden sm:inline">Download</span>
                     </button>
                     <div class="w-px h-6 bg-themed mx-1"></div>
-                    <button @click="artifactModal.show = false" class="w-9 h-9 rounded-full flex items-center justify-center hover-surface text-3 hover:text-1 transition-colors">
+                    <button @click="closeArtifactModal()" class="w-9 h-9 rounded-full flex items-center justify-center hover-surface text-3 hover:text-1 transition-colors">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
             
-            <!-- Content -->
-            <div class="flex-grow overflow-hidden flex flex-col bg-canvas">
-                <div class="flex-grow overflow-auto p-0 font-mono text-[13px] leading-relaxed relative flex flex-col">
+            <!-- Content Area -->
+            <div class="flex-grow overflow-hidden flex flex-col bg-canvas relative">
+                <!-- Tabs -->
+                <div x-show="artifactModal.type === 'python' || artifactModal.type === 'html' || artifactModal.type === 'svg' || artifactModal.output" 
+                     class="flex items-center px-4 pt-3 pb-0 gap-1 border-b border-themed bg-black/[0.01]">
+                    <button x-show="artifactModal.type === 'html' || artifactModal.type === 'svg'"
+                            @click="artifactModal.tab = 'preview'" 
+                            class="px-4 py-2 text-[12px] font-bold rounded-t-[10px] transition-all border-b-2 flex items-center"
+                            :class="artifactModal.tab === 'preview' ? 'bg-canvas border-accent-c text-accent-c' : 'border-transparent text-4 hover:text-2 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <i class="fa-solid fa-eye text-[10px] mr-2 opacity-70"></i>Preview
+                    </button>
+                    <button @click="artifactModal.tab = 'code'" 
+                            class="px-4 py-2 text-[12px] font-bold rounded-t-[10px] transition-all border-b-2"
+                            :class="artifactModal.tab === 'code' ? 'bg-canvas border-accent-c text-accent-c' : 'border-transparent text-4 hover:text-2 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <i class="fa-solid fa-code text-[10px] mr-2 opacity-70"></i>Code
+                    </button>
+                    <button x-show="artifactModal.type === 'python' || artifactModal.output"
+                            @click="artifactModal.tab = 'console'" 
+                            class="px-4 py-2 text-[12px] font-bold rounded-t-[10px] transition-all border-b-2 flex items-center"
+                            :class="artifactModal.tab === 'console' ? 'bg-canvas border-accent-c text-accent-c' : 'border-transparent text-4 hover:text-2 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <i class="fa-solid fa-terminal text-[10px] mr-2 opacity-70"></i>Console
+                        <template x-if="artifactModal.executing">
+                            <i class="fa-solid fa-circle-notch fa-spin text-[10px] ml-2 text-accent-c"></i>
+                        </template>
+                    </button>
+                </div>
+
+                <!-- Preview Tab -->
+                <div x-show="artifactModal.tab === 'preview'" x-cloak class="flex-grow overflow-hidden bg-white">
+                    <iframe x-ref="previewIframe" 
+                            sandbox="allow-scripts" 
+                            class="w-full h-full border-none"></iframe>
+                </div>
+
+                <!-- Code Tab -->
+                <div x-show="artifactModal.tab === 'code'" x-cloak class="flex-grow overflow-auto p-0 font-mono text-[13px] leading-relaxed relative flex flex-col">
                     <pre class="artifact-pre p-6 text-[13px] leading-relaxed t-apple overflow-auto flex-grow" 
                          x-html="artifactModal.renderedContent"
                          style="white-space: pre-wrap; font-family: var(--font-mono);"></pre>
+                </div>
+
+                <!-- Console Tab -->
+                <div x-show="artifactModal.tab === 'console'" x-cloak class="flex-grow overflow-hidden flex flex-col bg-black/95">
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5">
+                        <span class="text-[10px] uppercase tracking-widest font-bold text-white/60">Terminal Output</span>
+                        <div class="flex items-center gap-3">
+                            <button @click="artifactModal.output = ''" class="text-[11px] text-white/50 hover:text-white/90 t-apple">Clear</button>
+                            <button @click="artifactModal.tab = 'code'" class="text-[11px] text-white/50 hover:text-white/90 t-apple">Back to Code</button>
+                        </div>
+                    </div>
+                    <div class="flex-grow overflow-auto p-6 font-mono text-[13px] text-white/90">
+                        <div class="whitespace-pre-wrap break-all text-output" x-html="artifactModal.output"></div>
+                        <template x-if="!artifactModal.output && !artifactModal.executing">
+                            <div class="flex flex-col items-center justify-center h-full opacity-20 py-12">
+                                <i class="fa-solid fa-terminal text-4xl mb-4"></i>
+                                <p class="text-sm italic">Run the script to see output here...</p>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>

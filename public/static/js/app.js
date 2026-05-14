@@ -47,12 +47,27 @@ function aiApp() {
         }
 
         this.updateSuggestions();
+        this.initGlobalListeners();
 
         // Dynamic Tab Title
         this.$watch('currentTitle', (val) => {
             document.title = `${val} - KokomiAi`;
         });
         document.title = `${this.currentTitle} - KokomiAi`;
+
+        // Live Artifact Preview Watcher
+        this.$watch('artifactModal.content', (val) => {
+            if (this.artifactModal.tab === 'preview' && (this.artifactModal.type === 'html' || this.artifactModal.type === 'svg')) {
+                this.updateLivePreview(val);
+            }
+        });
+        
+        // Initial tab for visual artifacts
+        this.$watch('artifactModal.show', (val) => {
+            if (val && (this.artifactModal.type === 'html' || this.artifactModal.type === 'svg')) {
+                this.$nextTick(() => this.updateLivePreview(this.artifactModal.content));
+            }
+        });
     };
 
     app.setInput = function(t) {

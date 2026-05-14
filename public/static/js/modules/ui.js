@@ -135,13 +135,58 @@ export function getUiActions() {
 
         // -- Artifacts --
         openArtifactModal(artifact) {
-            this.artifactModal.id = artifact.id || 'artifact';
+            // Reset state completely to prevent pollution from previous artifact
+            this.artifactModal.id = artifact.id || 'artifact-' + Date.now();
             this.artifactModal.title = artifact.title || 'Untitled Artifact';
             this.artifactModal.type = artifact.type || 'file';
             this.artifactModal.content = artifact.content || '';
+            this.artifactModal.renderedContent = '';
             this.artifactModal.icon = artifact.icon || 'fa-solid fa-file-code';
+            this.artifactModal.output = '';
+            this.artifactModal.executing = false;
+            this.artifactModal.tab = 'code'; 
+            
             this.renderArtifactInModal();
             this.artifactModal.show = true;
+        },
+
+        closeArtifactModal() {
+            this.artifactModal.show = false;
+            // Clear content after a short delay (for transition) to prevent ghosting
+            setTimeout(() => {
+                if (!this.artifactModal.show) {
+                    this.artifactModal.id = null;
+                    this.artifactModal.title = '';
+                    this.artifactModal.content = '';
+                    this.artifactModal.renderedContent = '';
+                    this.artifactModal.output = '';
+                }
+            }, 300);
+        },
+
+        openArtifact(msg, id) {
+            if (!msg || !msg.artifacts) return;
+            const art = msg.artifacts.find(a => a.id === id);
+            if (art) {
+                this.openArtifactModal(art);
+            }
+        },
+
+        initGlobalListeners() {
+            // High-priority capture-phase listener to catch clicks before re-renders detach elements
+            window.addEventListener('mousedown', (e) => {
+                const artBox = e.target.closest('.artifact-box');
+                if (artBox && artBox.dataset.artId && artBox.dataset.msgId) {
+                    const artId = artBox.dataset.artId;
+                    const msgId = artBox.dataset.msgId;
+                    
+                    // Find message in app state
+                    const msg = this.messages.find(m => m.id === msgId);
+                    if (msg) {
+                        this.openArtifact(msg, artId);
+                    }
+                }
+            }, true); // Use capture phase
         },
         renderArtifactInModal() {
             if (!this.artifactModal.content) {
@@ -170,6 +215,109 @@ export function getUiActions() {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        },
+        async runPythonArtifact() {
+            if (this.artifactModal.executing) return;
+            this.artifactModal.executing = true;
+            this.artifactModal.tab = 'console';
+            this.artifactModal.output = 'Loading Python engine...\n';
+            
+            try {
+                // Initialize Pyodide if not already done
+                if (!window._pyodide) {
+                    window._pyodide = await loadPyodide();
+                }
+                
+                // Clear output for fresh run
+                this.artifactModal.output = '';
+                
+                // Detect needed packages
+                const code = this.artifactModal.content;
+                const packages = [];
+                if (code.includes('import matplotlib') || code.includes('from matplotlib')) packages.push('matplotlib');
+                if (code.includes('import numpy') || code.includes('from numpy')) packages.push('numpy');
+                if (code.includes('import pandas') || code.includes('from pandas')) packages.push('pandas');
+                
+                if (packages.length > 0) {
+                    this.artifactModal.output += `<span class="text-accent opacity-70">Installing ${packages.join(', ')}...</span>\n`;
+                    await window._pyodide.loadPackage(packages);
+                }
+
+                // Inject Plot Helper
+                await window._pyodide.runPythonAsync(`
+import sys
+import io
+import base64
+
+def kokomi_show_plot():
+    import matplotlib.pyplot as plt
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+    buf.seek(0)
+    img_str = base64.b64encode(buf.read()).decode('utf-8')
+    print(f'@@@IMG:data:image/png;base64,{img_str}@@@')
+    plt.close()
+
+# Monkeypatch plt.show if matplotlib is loaded
+try:
+    import matplotlib.pyplot as plt
+    plt.show = kokomi_show_plot
+except:
+    pass
+`);
+                
+                // Set up stdout/stderr capturing
+                window._pyodide.setStdout({
+                    batched: (msg) => {
+                        if (msg.startsWith('@@@IMG:') && msg.endsWith('@@@')) {
+                            const src = msg.replace('@@@IMG:', '').replace('@@@', '');
+                            this.artifactModal.output += `<div class="my-3"><img src="${src}" class="max-w-full rounded-lg border border-white/10 shadow-lg" /></div>`;
+                        } else {
+                            // Escape HTML to prevent XSS from script output
+                            const div = document.createElement('div');
+                            div.textContent = msg;
+                            this.artifactModal.output += `<span>${div.innerHTML}</span>\n`;
+                        }
+                    }
+                });
+                
+                window._pyodide.setStderr({
+                    batched: (msg) => {
+                        const div = document.createElement('div');
+                        div.textContent = msg;
+                        this.artifactModal.output += `<span class="text-red-400">Error: ${div.innerHTML}</span>\n`;
+                    }
+                });
+                
+                // Execute code
+                await window._pyodide.runPythonAsync(code);
+                
+            } catch (err) {
+                this.artifactModal.output += '\nRuntime Error:\n' + err.message;
+            } finally {
+                this.artifactModal.executing = false;
+            }
+        },
+
+        _previewTimer: null,
+        updateLivePreview(content) {
+            if (this._previewTimer) clearTimeout(this._previewTimer);
+            this._previewTimer = setTimeout(() => {
+                const iframe = this.$refs.previewIframe;
+                if (!iframe) return;
+                
+                // Use blob for a smoother update if possible, or just srcdoc
+                const blob = new Blob([content], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                
+                const oldUrl = iframe.src;
+                iframe.src = url;
+                
+                // Cleanup old blob URL after a short delay
+                if (oldUrl.startsWith('blob:')) {
+                    setTimeout(() => URL.revokeObjectURL(oldUrl), 1000);
+                }
+            }, 100); // 100ms debounce for smoothness
         }
     };
 }
