@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [v0.9.1] - 2026-05-15
+
+### Fixed
+- **Startup Crash**: Implemented automatic directory initialization for `data/uploads` and `data/avatars` to prevent `RuntimeError` during application boot.
+
 ## [v0.9.0] - 2026-05-15
 
 ### Added

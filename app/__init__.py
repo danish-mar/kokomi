@@ -61,6 +61,10 @@ async def health_check():
     return JSONResponse({"status": "ok"}, status_code=200)
 
 
+import os
+os.makedirs("data/uploads", exist_ok=True)
+os.makedirs("data/avatars", exist_ok=True)
+
 app.mount("/static", StaticFiles(directory="public/static"), name="static")
 app.mount("/images", StaticFiles(directory="public/images"), name="images")
 app.mount("/avatars", StaticFiles(directory="data/avatars"), name="avatars")
