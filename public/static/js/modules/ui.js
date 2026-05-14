@@ -216,6 +216,68 @@ export function getUiActions() {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         },
+
+        // -- Attachments --
+        triggerFileUpload() {
+            this.$refs.fileInput.click();
+        },
+        async handleFileUpload(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const r = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (r.ok) {
+                        const data = await r.json();
+                        this.attachments.push(data);
+                    } else {
+                        console.error('Upload failed');
+                    }
+                } catch (err) {
+                    console.error('Upload error:', err);
+                }
+            }
+            // Clear input for next selection
+            e.target.value = '';
+        },
+        removeAttachment(index) {
+            this.attachments.splice(index, 1);
+        },
+        async handlePaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file') {
+                    const blob = item.getAsFile();
+                    const formData = new FormData();
+                    // Give it a generic name if it's a pasted blob
+                    const filename = `pasted_file_${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+                    formData.append('file', blob, filename);
+                    
+                    try {
+                        const r = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (r.ok) {
+                            const data = await r.json();
+                            this.attachments.push(data);
+                        }
+                    } catch (err) {
+                        console.error('Paste upload error:', err);
+                    }
+                }
+            }
+        },
+
         async runPythonArtifact() {
             if (this.artifactModal.executing) return;
             this.artifactModal.executing = true;

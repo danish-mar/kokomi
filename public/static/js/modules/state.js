@@ -6,6 +6,7 @@ export function getInitialState() {
     return {
         sidebarOpen: window.innerWidth > 768,
         input: '',
+        attachments: [],
         loading: false,
         loadingStatus: 'Thinking...',
         messages: [],

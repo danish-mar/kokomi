@@ -10,6 +10,7 @@ class ChatRequest(BaseModel):
     space_id: Optional[str] = None
     is_anonymous: bool = False
     use_web_search: bool = False
+    attachments: Optional[List[dict]] = None
 
 
 

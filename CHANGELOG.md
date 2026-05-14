@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [v0.9.0] - 2026-05-15
+
+### Added
+- **Multimodal Attachment Engine**: Support for uploading and managing multiple file attachments in the chat interface.
+- **Vision Integration**: Native base64 image encoding for vision-capable models (Gemini, Llama 3.2), enabling AI analysis of JPG, PNG, and WEBP files.
+- **PDF Extraction**: Integrated `pypdf` for automated text extraction from PDF documents, allowing the AI to reason about document contents.
+- **Rich Media Previews**: Implemented visual image thumbnails in both the attachment preview bar and chat bubbles.
+- **Clipboard Support**: Added `Ctrl+V` (paste) functionality for instantly attaching screenshots and files.
+- **UI Refinement**: Relocated the attachment action button to the primary input bar with a premium, state-aware design.
+
+### Fixed
+- **Backend Routing**: Resolved a duplicate router definition in `chat.py` and consolidated all API endpoints under a single `/api` prefix.
 
 ## [v0.8.0] - 2026-05-15
 

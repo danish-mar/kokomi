@@ -4,12 +4,40 @@ import json
 import uuid
 import time
 import re
+import base64
 from functools import reduce
 from operator import add
 
 from app.mcp import MCP_TOOL_CALL_TIMEOUT
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, File, UploadFile
+import shutil
+import os
+
+router = APIRouter(prefix="/api")
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload a file to the data/uploads directory."""
+    try:
+        file_id = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join("data/uploads", file_id)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        return {
+            "id": file_id,
+            "filename": file.filename,
+            "size": os.path.getsize(file_path),
+            "content_type": file.content_type,
+            "url": f"/uploads/{file_id}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+from pypdf import PdfReader
+
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
@@ -51,10 +79,6 @@ def _get_tavily_tool(prefs: dict):
         return TavilySearchResults(max_results=5, name="web_search")
     except ImportError:
         return None
-
-
-router = APIRouter(prefix="/api")
-
 
 async def _ensure_pool():
     """Lazily initialize the MCP pool if it's stale or not ready."""
@@ -472,6 +496,47 @@ async def chat_stream(req: ChatRequest):
                         )
                         p_persona = (artifact_instr + "\n\n") * 15 + p_persona
 
+                    # Process attachments for the prompt (Vision + Text)
+                    text_parts = [req.message]
+                    image_blocks = []
+                    
+                    if req.attachments:
+                        for att in req.attachments:
+                            filename = att.get("filename")
+                            file_id = att.get("id")
+                            file_path = os.path.join("data/uploads", file_id)
+                            ext = filename.lower().split('.')[-1]
+                            
+                            try:
+                                if os.path.exists(file_path):
+                                    if ext in ["jpg", "jpeg", "png", "webp"]:
+                                        # Vision Support: Base64 encode images
+                                        with open(file_path, "rb") as img_f:
+                                            b64_data = base64.b64encode(img_f.read()).decode("utf-8")
+                                            mime = att.get("content_type", f"image/{ext}")
+                                            image_blocks.append({
+                                                "type": "image_url",
+                                                "image_url": {"url": f"data:{mime};base64,{b64_data}"}
+                                            })
+                                    elif ext == "pdf":
+                                        # Extract text from PDF
+                                        reader = PdfReader(file_path)
+                                        pdf_text = f"\n\n[Attached PDF: {filename}]\n"
+                                        for page in reader.pages:
+                                            pdf_text += page.extract_text() + "\n"
+                                        text_parts.append(pdf_text[:15000])
+                                    else:
+                                        # Standard Text File
+                                        with open(file_path, "r", errors="ignore") as f:
+                                            content = f.read(10000)
+                                            text_parts.append(f"\n\n[Attached File: {filename}]\n{content}")
+                            except Exception as e:
+                                text_parts.append(f"\n\n[Error reading {filename}: {e}]")
+                    
+                    # Construct Multimodal Human Message
+                    human_content = [{"type": "text", "text": "\n".join(text_parts)}]
+                    human_content.extend(image_blocks)
+
                     p_lc_msgs = [SystemMessage(content=p_persona)]
                     for m in history[-12:]:
                         if m["role"] == "user":
@@ -482,6 +547,10 @@ async def chat_stream(req: ChatRequest):
                                 p_lc_msgs.append(AIMessage(content=m["content"]))
                             else:
                                 p_lc_msgs.append(HumanMessage(content=f"({sender} said): {m['content']}"))
+                    
+                    # Add current multimodal message
+                    p_lc_msgs.append(HumanMessage(content=human_content))
+
 
                     char_model = resolve_character_model(p_char, provider)
                     char_llm = get_llm(prefs, streaming=True, model_override=char_model)

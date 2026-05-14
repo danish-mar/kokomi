@@ -8,12 +8,15 @@ export function getChatActions() {
             const text = this.input.trim();
             if (!text || this.loading) return;
 
+            const currentAttachments = [...this.attachments];
             this.messages.push({ 
                 id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                 role: 'user', 
-                content: text 
+                content: text,
+                attachments: currentAttachments
             });
             this.input = '';
+            this.attachments = [];
             this.loading = true;
             this.loadingStatus = 'Thinking...';
             this.abortController = new AbortController();
@@ -21,7 +24,7 @@ export function getChatActions() {
             this.$nextTick(() => this.scrollToBottom());
 
             if (this.prefs.streaming_mode) {
-                await this.sendMessageStream(text);
+                await this.sendMessageStream(text, currentAttachments);
                 return;
             }
 
@@ -42,7 +45,8 @@ export function getChatActions() {
                         character_id: this.activeCharId,
                         space_id: this.activeSpaceId,
                         is_anonymous: this.isAnonymous,
-                        use_web_search: this.useWebSearch
+                        use_web_search: this.useWebSearch,
+                        attachments: currentAttachments
                     }),
                     signal: this.abortController.signal,
                 });
@@ -87,7 +91,7 @@ export function getChatActions() {
             }
         },
 
-        async sendMessageStream(msg) {
+        async sendMessageStream(msg, attachments = []) {
             if (this.prefs.debug_mode) {
                 console.log(`[DEBUG] Sending stream chat req. Conv: ${this.currentConvId}, Space: ${this.activeSpaceId}`);
                 console.time('ChatRequest_Stream_TTFB');
@@ -104,7 +108,8 @@ export function getChatActions() {
                         participants: this.groupParticipants,
                         space_id: this.activeSpaceId,
                         is_anonymous: this.isAnonymous,
-                        use_web_search: this.useWebSearch
+                        use_web_search: this.useWebSearch,
+                        attachments: attachments
                     }),
                     signal: this.abortController.signal
                 });

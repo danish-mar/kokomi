@@ -64,6 +64,7 @@ async def health_check():
 app.mount("/static", StaticFiles(directory="public/static"), name="static")
 app.mount("/images", StaticFiles(directory="public/images"), name="images")
 app.mount("/avatars", StaticFiles(directory="data/avatars"), name="avatars")
+app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 # Register all routers

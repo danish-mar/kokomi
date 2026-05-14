@@ -1019,6 +1019,26 @@
                                     <template x-if="msg.role === 'user'">
                                         <div>
                                             <p class="text-2 leading-relaxed whitespace-pre-wrap text-[14.5px]" x-text="msg.content"></p>
+                                            
+                                            <!-- User Attachments -->
+                                            <template x-if="msg.attachments && msg.attachments.length > 0">
+                                                <div class="flex flex-wrap gap-2 mt-3 mb-2">
+                                                    <template x-for="att in msg.attachments">
+                                                        <div class="flex flex-col gap-1">
+                                                            <template x-if="att.content_type && att.content_type.startsWith('image/')">
+                                                                <a :href="att.url" target="_blank" class="block w-[180px] aspect-video rounded-lg overflow-hidden border border-themed hover:opacity-90 transition-opacity">
+                                                                    <img :src="att.url" class="w-full h-full object-cover" />
+                                                                </a>
+                                                            </template>
+                                                            <div x-show="!(att.content_type && att.content_type.startsWith('image/'))" 
+                                                                class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-themed border border-themed text-[11px] text-2">
+                                                                <i class="fa-solid fa-file text-[11px] text-accent-c"></i>
+                                                                <span x-text="att.filename"></span>
+                                                            </div>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </template>
                                             <div class="flex items-center gap-1 mt-1 -ml-1 transition-opacity duration-200"
                                                  :class="menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
                                                  x-data="{ menuOpen: false }">
@@ -1265,11 +1285,32 @@
                             </template>
                         </select>
                     </div>
+                    
+                    <!-- Attachment Preview Bar -->
+                    <template x-if="attachments.length > 0">
+                        <div class="px-4 py-2 border-b border-themed bg-black/[0.01] dark:bg-white/[0.01] flex flex-wrap gap-2 overflow-x-auto max-h-32 hide-scrollbar">
+                            <template x-for="(file, idx) in attachments" :key="idx">
+                                <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-themed border border-themed text-[11px] text-2 group animate-in fade-in zoom-in duration-200">
+                                    <template x-if="file.content_type && file.content_type.startsWith('image/')">
+                                        <img :src="file.url" class="w-4 h-4 rounded-sm object-cover" />
+                                    </template>
+                                    <template x-if="!(file.content_type && file.content_type.startsWith('image/'))">
+                                        <i class="fa-solid fa-file text-[10px] text-accent-c"></i>
+                                    </template>
+                                    <span class="max-w-[120px] truncate" x-text="file.filename"></span>
+                                    <button @click="removeAttachment(idx)" class="text-4 hover:text-red-500 transition-colors">
+                                        <i class="fa-solid fa-circle-xmark"></i>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
 
                     <!-- Textarea -->
                     <textarea id="user-input" x-model="input" x-ref="textarea"
                         @keydown.enter="if(!$event.shiftKey) { $event.preventDefault(); sendMessage(); }"
                         @input="autoResize()"
+                        @paste="handlePaste($event)"
                         placeholder="Message..." rows="1"
                         class="w-full bg-transparent px-4 py-3.5 text-[14.5px] text-1 outline-none resize-none font-sans"
                         style="color: var(--text-primary); min-height: 48px;"></textarea>
@@ -1324,6 +1365,10 @@
                                     class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Debug</span>
                             </button>
                             
+                            <input type="file" x-ref="fileInput" class="hidden" multiple @change="handleFileUpload($event)">
+
+                            <!-- Voice to Text button -->
+
                             <!-- Voice to Text button -->
                             <button @click="toggleVoiceInput()" title="Voice to text"
                                 class="flex items-center justify-center w-7 h-7 rounded-full transition-all duration-300"
@@ -1333,6 +1378,13 @@
                         </div>
 
                         <div class="flex items-center gap-2">
+                            <!-- Attachment button -->
+                            <button @click="triggerFileUpload()" title="Attach file"
+                                class="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center t-apple hover-surface transition-all duration-300"
+                                :class="attachments.length > 0 ? 'text-accent-c bg-accent-sub' : 'text-4 hover:text-2 bg-black/5 dark:bg-white/5'">
+                                <i class="fa-solid fa-plus text-[11px]"></i>
+                            </button>
+
                             <button x-show="loading" @click="stopGeneration()"
                                 class="w-[30px] h-[30px] rounded-[9px] bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center t-apple shadow-t"
                                 title="Stop generating">

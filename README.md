@@ -45,9 +45,14 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
 *   **Traceability**: Each node represents a distinct action (User Message → Trigger → Deployment → Tool Call → Final Response).
 *   **PNG Export**: High-resolution export of your AI's decision trees for auditing or archiving.
 
-### 📦 Premium Artifacts & Transitions
+### 📦 Premium Artifacts & Multimodal Attachments
 *   **Inline Code Anchoring**: Artifacts are now dynamically injected into the conversation stream using a robust placeholder system, maintaining their exact context.
 *   **Real-time Previews**: Artifact cards feature automatic syntax-highlighted previews and state-aware "generating" indicators.
+*   **Multimodal File Engine (New)**: 
+    *   **Vision Support**: Native integration for image attachments (`.jpg`, `.png`, `.webp`). Encodes images into Base64 for vision-capable models like Gemini to analyze.
+    *   **PDF Extraction**: Automated text extraction from all pages of uploaded PDFs using `pypdf`, enabling deep document reasoning.
+    *   **Smart Previews**: Visual thumbnails for images and clean metadata chips for text/code files.
+    *   **Paste-to-Attach**: Support for `Ctrl+V` pasting of screenshots and files directly into the chat bar.
 *   **Cinematic UI DNA**: Seamless cross-fade transitions between the Welcome Screen and active chats, powered by Alpine.js for a fluid OS-like experience.
 
 ### 📚 RAG & Knowledge Spaces
