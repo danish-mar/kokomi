@@ -6,54 +6,93 @@
     /* ── Splash Screen ─────────────────────────────── */
     .splash-overlay {
         position: fixed; inset: 0; z-index: 9999;
-        background: var(--bg-canvas);
+        background: #0F0E47; /* Obsidian Blue */
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
-        transition: opacity 0.6s ease, transform 0.6s ease;
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
     }
     .splash-overlay.splash-exit {
-        opacity: 0; transform: scale(1.02);
+        opacity: 0; transform: scale(1.1);
         pointer-events: none;
     }
+
+    /* ── Cinematic Wall ── */
+    .splash-wall {
+        position: absolute;
+        inset: -20%;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 20px;
+        transform: perspective(1500px) rotateX(15deg) rotateY(-10deg) translateZ(-50px);
+        opacity: 0.15;
+        pointer-events: none;
+        animation: wallDrift 120s linear infinite;
+    }
+    @keyframes wallDrift {
+        0% { transform: perspective(1500px) rotateX(15deg) rotateY(-10deg) translateZ(-50px) translateY(0); }
+        100% { transform: perspective(1500px) rotateX(15deg) rotateY(-10deg) translateZ(-50px) translateY(-1000px); }
+    }
+
+    .mcp-poster {
+        aspect-ratio: 3/4;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 15px;
+        backdrop-filter: blur(4px);
+    }
+    .mcp-poster i { font-size: 32px; color: #8686AC; margin-bottom: 12px; }
+    .mcp-poster span { font-size: 10px; font-weight: 800; color: #8686AC; text-align: center; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* ── Center Content ── */
+    .splash-content {
+        position: relative;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
     .splash-logo {
-        width: 64px; height: 64px; border-radius: 18px;
-        background: var(--accent);
+        width: 100px; height: 100px; border-radius: 32px;
+        background: linear-gradient(135deg, #272757, #505081);
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 8px 40px rgba(80, 80, 129, 0.35);
-        animation: splashPulse 2s ease-in-out infinite;
+        box-shadow: 0 0 40px rgba(80, 80, 129, 0.5), 0 0 80px rgba(80, 80, 129, 0.3);
+        border: 2px solid rgba(134, 134, 172, 0.3);
+        animation: splashPulse 3s ease-in-out infinite;
+        position: relative;
     }
+    .splash-logo::after {
+        content: ""; position: absolute; inset: -4px;
+        border-radius: 36px;
+        background: linear-gradient(135deg, #8686AC, transparent);
+        opacity: 0.5; filter: blur(8px);
+    }
+
     @keyframes splashPulse {
-        0%, 100% { transform: scale(1); box-shadow: 0 8px 40px rgba(80, 80, 129, 0.35); }
-        50% { transform: scale(1.05); box-shadow: 0 12px 50px rgba(80, 80, 129, 0.5); }
+        0%, 100% { transform: scale(1); box-shadow: 0 0 40px rgba(80, 80, 129, 0.5); }
+        50% { transform: scale(1.05); box-shadow: 0 0 60px rgba(80, 80, 129, 0.8), 0 0 100px rgba(134, 134, 172, 0.4); }
     }
-    .splash-server-list {
-        margin-top: 32px; width: 280px;
-        display: flex; flex-direction: column; gap: 8px;
-    }
-    .splash-server-row {
-        display: flex; align-items: center; gap: 10px;
-        padding: 10px 14px; border-radius: 12px;
-        background: var(--bg-elevated);
-        border: 1px solid var(--separator);
-        animation: slideInUp 0.3s ease forwards;
-        opacity: 0;
-    }
-    .splash-server-row .status-dot {
-        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-        transition: background 0.4s ease;
-    }
-    .status-dot.connecting { background: #facc15; animation: statusBlink 1s ease infinite; }
-    .status-dot.connected  { background: #22c55e; }
-    .status-dot.error      { background: #ef4444; }
-    .status-dot.timeout    { background: #f97316; }
-    .status-dot.disabled   { background: #6b7280; }
-    @keyframes statusBlink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.3; }
+
+    .splash-status-container {
+        margin-top: 30px;
+        background: rgba(15, 14, 71, 0.8);
+        backdrop-filter: blur(12px);
+        padding: 12px 24px;
+        border-radius: 100px;
+        border: 1px solid rgba(134, 134, 172, 0.2);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     .splash-status-text {
-        font-size: 10px; color: var(--text-quaternary); margin-top: 6px;
-        text-align: center; font-weight: 500; letter-spacing: 0.03em;
+        font-size: 13px; color: #8686AC; font-weight: 600; letter-spacing: 0.05em;
+        text-transform: uppercase; margin: 0;
     }
     /* ── Insights Status Bar ─────────────────────── */
     .insights-status-bar {
@@ -191,16 +230,25 @@
 
 {% block body %}
 
-<!-- ═══ Splash Screen ═══ -->
+<!-- ═══ Cinematic Splash Screen ═══ -->
 <div id="splash" class="splash-overlay">
-    <div class="splash-logo">
-        <i class="fa-solid fa-fish-fins text-white text-[22px]"></i>
-    </div>
-    <p style="margin-top:18px; font-size:22px; font-weight:700; color:var(--text-primary); letter-spacing:-0.02em;">Kokomi</p>
-    <p style="margin-top:4px; font-size:12px; color:var(--text-tertiary); font-weight:500;">Initializing tool servers…</p>
+    <!-- Cinematic Background Wall -->
+    <div id="splash-wall" class="splash-wall"></div>
 
-    <div id="splash-servers" class="splash-server-list"></div>
-    <p id="splash-status" class="splash-status-text">Checking pool status…</p>
+    <!-- Center Content -->
+    <div class="splash-content">
+        <div class="splash-logo">
+            <i class="fa-solid fa-fish-fins text-white text-[32px] relative z-10"></i>
+        </div>
+        
+        <h1 style="margin-top:24px; font-size:42px; font-weight:900; color:#ffffff; letter-spacing:-0.04em; text-shadow: 0 10px 20px rgba(0,0,0,0.5);">
+            KOKOMI<span style="color:#8686AC; opacity:0.6;">AI</span>
+        </h1>
+        
+        <div class="splash-status-container">
+            <p id="splash-status" class="splash-status-text">INITIALIZING QUANTUM POOL…</p>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -216,56 +264,58 @@
     }
 
     const splashEl = document.getElementById('splash');
-    const serversEl = document.getElementById('splash-servers');
+    const wallEl = document.getElementById('splash-wall');
     const statusEl = document.getElementById('splash-status');
 
     async function runSplash() {
-        statusEl.textContent = 'Connecting to MCP servers…';
+        statusEl.textContent = 'CONNECTING MCP SERVERS…';
 
         try {
             const initRes = await fetch('/api/mcp-servers/pool/init', { method: 'POST' });
             const data = await initRes.json();
 
+            // Populate Background Wall
+            const entries = Object.entries(data.server_status || {});
+            
+            // If few servers, repeat them to fill the wall
+            const wallItems = [...entries];
+            while (wallItems.length < 40 && entries.length > 0) {
+                wallItems.push(...entries);
+            }
+
+            wallEl.innerHTML = '';
+            wallItems.forEach(([sid, info], idx) => {
+                const poster = document.createElement('div');
+                poster.className = 'mcp-poster';
+                
+                // Random icon based on name hash if possible, or generic
+                const icons = ['fa-microchip', 'fa-network-wired', 'fa-database', 'fa-code', 'fa-bolt', 'fa-cube', 'fa-gears'];
+                const icon = icons[Math.abs(info.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % icons.length];
+                
+                poster.innerHTML = `
+                    <i class="fa-solid ${icon}"></i>
+                    <span>${info.name}</span>
+                `;
+                wallEl.appendChild(poster);
+            });
+
             if (!data.server_status || Object.keys(data.server_status).length === 0) {
-                statusEl.textContent = 'No MCP servers configured.';
-                setTimeout(dismissSplash, 800);
+                statusEl.textContent = 'NO SERVERS CONFIGURED';
+                setTimeout(dismissSplash, 1500);
                 return;
             }
 
-            // Render server rows with stagger
-            const entries = Object.entries(data.server_status);
-            serversEl.innerHTML = '';
-            entries.forEach(([sid, info], idx) => {
-                const row = document.createElement('div');
-                row.className = 'splash-server-row';
-                row.style.animationDelay = (idx * 0.08) + 's';
-                const statusClass = info.status || 'connecting';
-                row.innerHTML = `
-                    <div class="status-dot ${statusClass}"></div>
-                    <div style="flex-grow:1; min-width:0;">
-                        <p style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${info.name}</p>
-                        <p style="font-size:10px; color:var(--text-quaternary); margin-top:1px;">
-                            ${info.status === 'connected' ? info.tool_count + ' tools' : (info.error || info.status)}
-                        </p>
-                    </div>
-                    ${info.status === 'connected' ? '<i class="fa-solid fa-check-circle" style="color:#22c55e; font-size:12px;"></i>' :
-                      info.status === 'error' || info.status === 'timeout' ? '<i class="fa-solid fa-exclamation-circle" style="color:#ef4444; font-size:12px;"></i>' :
-                      '<i class="fa-solid fa-circle-notch fa-spin" style="color:var(--text-quaternary); font-size:12px;"></i>'}
-                `;
-                serversEl.appendChild(row);
-            });
-
             const connected = entries.filter(([,i]) => i.status === 'connected').length;
             const total = entries.length;
-            statusEl.textContent = `${connected}/${total} servers ready — ${data.tool_count} tools loaded`;
+            statusEl.textContent = `${connected}/${total} SERVERS READY — ${data.tool_count} TOOLS LOADED`;
 
             localStorage.setItem('kokomi_pool_init_ts', String(Date.now()));
-            setTimeout(dismissSplash, 1200);
+            setTimeout(dismissSplash, 2000);
 
         } catch (err) {
-            statusEl.textContent = 'Failed to initialize pool. Continuing…';
+            statusEl.textContent = 'SYSTEM INITIALIZATION FAILED';
             console.error('Splash init error:', err);
-            setTimeout(dismissSplash, 1500);
+            setTimeout(dismissSplash, 2500);
         }
     }
 
