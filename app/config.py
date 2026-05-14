@@ -28,9 +28,11 @@ FOLDERS_FILE = os.path.join(DATA_DIR, "folders.json")
 SPACES_FILE = os.path.join(DATA_DIR, "spaces.json")
 AVATARS_DIR = os.path.join(DATA_DIR, "avatars")
 SPACES_DIR = os.path.join(DATA_DIR, "spaces")
+INSIGHTS_FILE = os.path.join(DATA_DIR, "insights.jsonl")
 
 os.makedirs(AVATARS_DIR, exist_ok=True)
 os.makedirs(SPACES_DIR, exist_ok=True)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # ── Default preferences ──────────────────────────────────────────────
 DEFAULT_PREFS: dict = {

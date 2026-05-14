@@ -4,8 +4,8 @@ import datetime
 import asyncio
 from typing import List, Dict, Optional, Any
 from collections import defaultdict
+from app.config import INSIGHTS_FILE
 
-INSIGHTS_FILE = "insights.jsonl"
 
 def log_generation_sync(metadata: Dict[str, Any]):
     """Synchronously append a generation record to the insights log."""
