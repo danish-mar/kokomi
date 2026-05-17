@@ -57,3 +57,4 @@ class PrefsUpdate(BaseModel):
     debug_mode: bool = False
     insights: bool = True
     artifacts: bool = True
+    memory_enabled: bool = True

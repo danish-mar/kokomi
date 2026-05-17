@@ -48,6 +48,8 @@ from app.mcp import get_pool_tools, init_pool, pool_is_stale
 from app.models import ChatRequest
 from app.storage import load_prefs, load_chars, load_convos, save_convos
 from app.insights import log_generation
+from app.memory import save_memory, search_memories, summarize_conversation
+from app.tools.memory_tool import get_memory_tool
 
 
 @tool
@@ -420,6 +422,43 @@ async def chat_stream(req: ChatRequest):
                     print(f"\n[DEBUG] {msg}")
                     await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
 
+                # --- Pre-retrieve Long Term Memory in Parallel ---
+                memory_contexts = {}
+                mem_tasks = []
+                active_mem_pids = []
+
+                if prefs.get("memory_enabled", True):
+                    for pid in pids:
+                        p_char = all_chars.get(pid)
+                        if p_char and p_char.get("memory_enabled", True):
+                            active_mem_pids.append(pid)
+                            # Define an internal async wrapper to search and send signals
+                            async def retrieve_mem(char_id):
+                                try:
+                                    # Signal start
+                                    await queue.put(f"data: {json.dumps({'type': 'tool_start', 'character_id': char_id, 'name': 'memory_search', 'icon': 'fa-brain', 'description': 'Searching memory...'})}\n\n")
+                                    
+                                    # Perform the actual search (blocking call run in thread pool if needed, but search_memories is usually fast enough)
+                                    # For now, we'll keep it simple as search_memories is I/O bound
+                                    mems = search_memories(char_id, req.message)
+                                    
+                                    # Signal end
+                                    res_text = f"Found {len(mems)} relevant past interactions" if mems else "No relevant memories found"
+                                    await queue.put(f"data: {json.dumps({'type': 'tool_end', 'character_id': char_id, 'name': 'memory_search', 'result': res_text})}\n\n")
+                                    
+                                    return char_id, mems
+                                except Exception as e:
+                                    print(f"Parallel memory retrieval failed for {char_id}: {e}")
+                                    return char_id, []
+
+                            mem_tasks.append(retrieve_mem(pid))
+
+                if mem_tasks:
+                    results = await asyncio.gather(*mem_tasks)
+                    for pid_res, mems in results:
+                        if mems:
+                            memory_contexts[pid_res] = "\n\n[Long-term Memory Context]:\n" + "\n".join([f"- {m}" for m in mems])
+
                 for pid in pids:
                     p_char = all_chars.get(pid)
                     if not p_char:
@@ -427,6 +466,11 @@ async def chat_stream(req: ChatRequest):
 
                     char_name = p_char.get("name", pid)
                     p_persona = p_char.get("persona", "")
+                    
+                    # Add pre-retrieved memory context
+                    if pid in memory_contexts:
+                        p_persona += memory_contexts[pid]
+
                     if user_p:
                         p_persona += f"\n\nUser Profile:\n{user_p}"
 
@@ -554,7 +598,13 @@ async def chat_stream(req: ChatRequest):
 
                     char_model = resolve_character_model(p_char, provider)
                     char_llm = get_llm(prefs, streaming=True, model_override=char_model)
-                    target_llm = char_llm.bind_tools(tool_defs) if tool_defs else char_llm
+                    
+                    # Bind tools including memory tool if enabled
+                    char_tool_defs = tool_defs.copy()
+                    if p_char.get("memory_enabled", True) and prefs.get("memory_enabled", True):
+                        char_tool_defs.append(get_memory_tool(pid))
+                        
+                    target_llm = char_llm.bind_tools(char_tool_defs) if char_tool_defs else char_llm
 
                     ts_start = time.time()
                     ts_first = None
@@ -925,6 +975,16 @@ async def chat_stream(req: ChatRequest):
                             "completion_tokens": p_completion_tokens,
                             "session_id": conv_id
                         }))
+
+                        # --- Long Term Memory Summarization (Background) ---
+                        if p_char.get("memory_enabled", True) and prefs.get("memory_enabled", True):
+                            async def background_memory_task(msgs, char_id, p_copy):
+                                facts = await summarize_conversation(msgs, p_copy)
+                                for f in facts:
+                                    save_memory(char_id, f)
+                            
+                            # Summarize the last few turns to extract new facts
+                            asyncio.create_task(background_memory_task(history[-4:], pid, prefs))
 
                 title = None
                 if is_new:

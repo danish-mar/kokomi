@@ -553,6 +553,15 @@
                     </button>
                 </div>
 
+                <!-- Memory Explorer Pinned -->
+                <a href="/memories"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] text-2 hover:text-1 t-apple">
+                    <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
+                        <i class="fa-solid fa-brain text-[11px] text-accent-c"></i>
+                    </div>
+                    <span class="text-[13px] font-semibold">Memory Explorer</span>
+                </a>
+
                 <!-- Settings Pinned -->
                 <a href="/settings"
                     class="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] text-2 hover:text-1 t-apple">
@@ -1099,11 +1108,23 @@
                                                                  }
                                                              }">
                                                             <div class="flex items-center gap-2 cursor-pointer" @click="expanded = !expanded">
-                                                                <i x-show="tc.name !== 'web_search'" class="fa-solid text-[10px] text-accent-c" :class="tc.icon || 'fa-wrench'"></i>
                                                                 <i x-show="tc.name === 'web_search'" class="fa-solid text-[10px] text-accent-c" :class="(tc.result === 'Executing...') ? 'fa-circle-notch fa-spin' : 'fa-globe'"></i>
+                                                                <i x-show="tc.name === 'memory_search'" class="fa-solid fa-brain text-[10px] text-accent-c" :class="(tc.result === 'Executing...') ? 'animate-pulse' : ''"></i>
+                                                                <i x-show="tc.name !== 'web_search' && tc.name !== 'memory_search'" class="fa-solid text-[10px] text-accent-c" :class="tc.icon || 'fa-wrench'"></i>
 
-                                                                <span x-show="tc.name !== 'web_search'" class="text-[12px] font-semibold text-accent-c" :class="!tc.description && 'font-mono'" x-text="tc.description || tc.name"></span>
                                                                 <span x-show="tc.name === 'web_search'" class="text-[12px] font-semibold text-accent-c" x-text="(tc.result === 'Executing...') ? 'Searching the web...' : 'Searched the web'"></span>
+                                                                <span x-show="tc.name === 'memory_search'" class="text-[12px] font-semibold text-accent-c flex items-center">
+                                                                     <span x-text="(tc.result === 'Executing...') ? 'Accessing long-term memory' : 'Accessed memory'"></span>
+                                                                     <template x-if="tc.result === 'Executing...'">
+                                                                         <span class="inline-flex ml-1.5 gap-0.5 items-center">
+                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c/40 animate-[pulse_0.8s_infinite_0ms]"></span>
+                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c/60 animate-[pulse_0.8s_infinite_150ms]"></span>
+                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c/80 animate-[pulse_0.8s_infinite_300ms]"></span>
+                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c animate-[pulse_0.8s_infinite_450ms]"></span>
+                                                                         </span>
+                                                                     </template>
+                                                                 </span>
+                                                                <span x-show="tc.name !== 'web_search' && tc.name !== 'memory_search'" class="text-[12px] font-semibold text-accent-c" :class="!tc.description && 'font-mono'" x-text="tc.description || tc.name"></span>
 
                                                                 <span class="text-[10px] text-4 ml-auto" x-text="expanded ? '▾' : '▸'"></span>
                                                             </div>

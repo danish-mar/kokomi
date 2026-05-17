@@ -58,6 +58,7 @@ DEFAULT_PREFS: dict = {
     "user_avatar": None,
     "debug_mode": False,
     "insights": True,
-    "artifacts": True
+    "artifacts": True,
+    "memory_enabled": True
 }
 

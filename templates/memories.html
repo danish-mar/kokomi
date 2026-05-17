@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+
+{% block title %}Neural Memory Explorer — Kokomi AI{% endblock %}
+
+{% block head %}
+<style>
+    /* Styling according to RULE[colo-theme.md] */
+    :root {
+        --deep-midnight: #272757;
+        --dusty-lavender: #8686AC;
+        --muted-indigo: #505081;
+        --obsidian-blue: #0F0E47;
+    }
+
+    body {
+        background: var(--obsidian-blue) !important;
+        color: #FFFFFF !important;
+    }
+
+    .memory-page {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+    }
+
+    /* Frosted Top Bar */
+    .memory-topbar {
+        height: 54px;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        background: rgba(39, 39, 87, 0.45);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-bottom: 1px solid rgba(134, 134, 172, 0.15);
+        z-index: 100;
+        flex-shrink: 0;
+    }
+
+    .memory-topbar h1 {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-left: 12px;
+    }
+
+    .tahoe-layout {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* macOS Tahoe Sidebar */
+    .tahoe-sidebar {
+        width: 240px;
+        background: rgba(15, 14, 71, 0.5);
+        backdrop-filter: blur(30px);
+        -webkit-backdrop-filter: blur(30px);
+        border-right: 1px solid rgba(134, 134, 172, 0.12);
+        padding: 20px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        flex-shrink: 0;
+        overflow-y: auto;
+    }
+
+    .tahoe-sidebar-section {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .tahoe-sidebar-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--dusty-lavender);
+        letter-spacing: 0.05em;
+        padding-left: 12px;
+        margin-bottom: 6px;
+    }
+
+    .tahoe-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        background: transparent;
+        color: #FFFFFF;
+        font-size: 13px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+        border-radius: 10px;
+        transition: background 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.1s;
+    }
+
+    .tahoe-nav-item:hover {
+        background: rgba(134, 134, 172, 0.12);
+    }
+
+    .tahoe-nav-item.active {
+        background: var(--muted-indigo);
+        font-weight: 600;
+    }
+
+    .nav-icon {
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        background: rgba(134, 134, 172, 0.15);
+    }
+
+    .tahoe-nav-item.active .nav-icon {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Main Content Pane */
+    .memory-content {
+        flex: 1;
+        background: var(--obsidian-blue);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 24px;
+    }
+
+    /* Continuous Curves (Squircle) Glass Cards */
+    .glass-card {
+        background: rgba(39, 39, 87, 0.4);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(134, 134, 172, 0.12);
+        border-radius: 16px;
+        transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), box-shadow 0.25s;
+    }
+
+    .glass-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        border-color: rgba(134, 134, 172, 0.25);
+    }
+
+    .apple-field {
+        background: rgba(39, 39, 87, 0.3) !important;
+        border: 1px solid rgba(134, 134, 172, 0.18) !important;
+        border-radius: 12px;
+        color: #FFFFFF !important;
+        padding: 10px 14px;
+        width: 100%;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .apple-field:focus {
+        border-color: var(--dusty-lavender) !important;
+        box-shadow: 0 0 0 3px rgba(134, 134, 172, 0.15) !important;
+        outline: none;
+    }
+
+    .apple-btn {
+        background: var(--muted-indigo);
+        color: #FFFFFF;
+        font-weight: 600;
+        font-size: 13px;
+        padding: 8px 16px;
+        border-radius: 12px;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: background 0.2s, transform 0.1s;
+    }
+
+    .apple-btn:hover {
+        background: #606095;
+    }
+
+    .apple-btn:active {
+        transform: scale(0.97);
+    }
+
+    .icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: none;
+        background: rgba(134, 134, 172, 0.15);
+        color: #FFFFFF;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .icon-btn:hover {
+        background: rgba(134, 134, 172, 0.25);
+    }
+
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 14, 71, 0.6);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    .modal-backdrop {
+        position: absolute;
+        inset: 0;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="memory-page" x-data="memoryExplorerApp()" x-init="init()" x-cloak>
+    
+    <!-- Top Bar -->
+    <header class="memory-topbar">
+        <a href="/" class="icon-btn" title="Back to Chat">
+            <i class="fa-solid fa-arrow-left" style="font-size:12px;"></i>
+        </a>
+        <h1>Neural Memory Explorer</h1>
+        <div style="flex-grow:1;"></div>
+        
+        <div style="display:flex; align-items:center; gap:8px;">
+            <button @click="openAddModal()" class="apple-btn" style="padding: 6px 12px; font-size:12px;">
+                <i class="fa-solid fa-plus"></i> Manual Atom
+            </button>
+            <button @click="clearAllMemories()" class="apple-btn" style="background:#f87171; padding: 6px 12px; font-size:12px;" :disabled="!activeChar || memories.length === 0">
+                <i class="fa-solid fa-trash-can"></i> Clear All
+            </button>
+        </div>
+    </header>
+
+    <div class="tahoe-layout">
+        
+        <!-- macOS Tahoe-style Left Sidebar -->
+        <aside class="tahoe-sidebar">
+            <div class="tahoe-sidebar-section">
+                <p class="tahoe-sidebar-label">Select Persona</p>
+                <template x-for="char in characters" :key="char.id">
+                    <button @click="selectChar(char)" class="tahoe-nav-item" :class="activeChar && activeChar.id === char.id ? 'active' : ''">
+                        <template x-if="char.avatar">
+                            <img :src="char.avatar" style="width:20px; height:20px; border-radius:6px; object-fit:cover;" />
+                        </template>
+                        <template x-if="!char.avatar">
+                            <div class="nav-icon" style="font-size: 10px; font-weight: 700;" x-text="char.name.charAt(0)"></div>
+                        </template>
+                        <span x-text="char.name"></span>
+                    </button>
+                </template>
+            </div>
+            
+            <div style="flex-grow:1;"></div>
+            
+            <div class="tahoe-sidebar-section" style="padding: 0 4px;">
+                <div class="glass-card" style="padding:16px; background:rgba(39, 39, 87, 0.25);">
+                    <p style="font-size:11px; color:var(--dusty-lavender); font-weight:600; text-transform:uppercase; margin-bottom:4px;">Stats</p>
+                    <p style="font-size:24px; font-weight:700; color:#FFFFFF;" x-text="memories.length"></p>
+                    <p style="font-size:10px; color:var(--dusty-lavender);">Persistent Facts loaded</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Pane -->
+        <main class="memory-content">
+            
+            <!-- Search & Info Bar -->
+            <div style="display:flex; gap:12px; align-items:center; margin-bottom:20px; flex-shrink:0;">
+                <div style="position:relative; flex:1;">
+                    <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:12px; font-size:13px; color:var(--dusty-lavender);"></i>
+                    <input type="text" x-model="searchQuery" placeholder="Search persistent memory atoms..." class="apple-field" style="padding-left:36px;" />
+                </div>
+            </div>
+
+            <!-- Memories Listing Grid -->
+            <div style="flex:1; overflow-y:auto; padding-right:4px;" class="hide-scrollbar">
+                
+                <!-- Loading State -->
+                <template x-if="loading">
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 20px; gap:16px;">
+                        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:32px; color:var(--dusty-lavender);"></i>
+                        <p style="font-size:13px; color:var(--dusty-lavender);">Scanning Irminsul database...</p>
+                    </div>
+                </template>
+
+                <!-- Empty State -->
+                <template x-if="!loading && filteredMemories.length === 0">
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:100px 20px; text-align:center;">
+                        <div style="width:64px; height:64px; border-radius:50%; background:rgba(134, 134, 172, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:16px; color:var(--dusty-lavender);">
+                            <i class="fa-solid fa-brain" style="font-size:28px;"></i>
+                        </div>
+                        <h4 style="font-size:16px; font-weight:600; color:#FFFFFF; margin-bottom:6px;">No memory atoms found</h4>
+                        <p style="font-size:12px; color:var(--dusty-lavender); max-width:320px;">
+                            <span x-text="searchQuery ? 'Try refining your search query.' : 'Chat with ' + (activeChar ? activeChar.name : 'this character') + ' or add a manual atom to create memories.'"></span>
+                        </p>
+                    </div>
+                </template>
+
+                <!-- Cards Grid -->
+                <template x-if="!loading && filteredMemories.length > 0">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px; padding: 4px 2px;">
+                        <template x-for="mem in filteredMemories" :key="mem.id">
+                            <div class="glass-card" style="padding:16px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; min-height:120px;">
+                                <div style="display:flex; flex-direction:column; gap:8px; flex:1;">
+                                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                                        <p style="font-size:13.5px; color:#FFFFFF; font-weight:500; line-height:1.6; word-break:break-word;" x-text="mem.text"></p>
+                                        <button @click="deleteMemory(mem.id)" class="icon-btn" style="background:rgba(248,113,113,0.15); color:#f87171; width:26px; height:26px; border-radius:6px; flex-shrink:0;">
+                                            <i class="fa-solid fa-trash-can" style="font-size:10px;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid rgba(134, 134, 172, 0.1); padding-top:10px;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <i class="fa-solid fa-clock" style="font-size:10px; color:var(--dusty-lavender);"></i>
+                                        <span style="font-size:10px; color:var(--dusty-lavender);" x-text="formatDate(mem.timestamp)"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ── Add Memory Modal ── -->
+    <div x-show="addModal" class="modal-overlay" x-cloak>
+        <div class="modal-backdrop" @click="addModal = false"></div>
+        <div class="glass-card" style="width:100%; max-width:440px; padding:24px; position:relative; z-index:10; background:var(--deep-midnight);">
+            <h3 style="font-size:17px; font-weight:700; margin-bottom:8px;">Add Manual Memory Atom</h3>
+            <p style="font-size:11px; color:var(--dusty-lavender); margin-bottom:16px;">Directly feed a specific fact into this character's persistent vector context.</p>
+            
+            <div style="margin-bottom:20px;">
+                <label class="apple-label">Memory Description</label>
+                <textarea x-model="newMemoryText" placeholder="e.g. User prefers short concise bullet points, works as a senior software developer, hates raw onions..." class="apple-field" style="min-height:100px; resize:none;"></textarea>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button @click="addModal = false" class="apple-btn" style="flex:1; background:transparent; border:1px solid rgba(134,134,172,0.3); justify-content:center;">Cancel</button>
+                <button @click="saveManualMemory()" class="apple-btn" style="flex:1; justify-content:center;" :disabled="!newMemoryText.trim()">
+                    <i class="fa-solid fa-check"></i> Save Atom
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function memoryExplorerApp() {
+        return {
+            characters: [],
+            activeChar: null,
+            memories: [],
+            loading: false,
+            searchQuery: '',
+            
+            // Add Modal
+            addModal: false,
+            newMemoryText: '',
+
+            async init() {
+                // Parse character ID from URL if present
+                const urlParams = new URLSearchParams(window.location.search);
+                const charIdParam = urlParams.get('character');
+
+                await this.fetchCharacters();
+                
+                if (charIdParam) {
+                    const matched = this.characters.find(c => c.id === charIdParam);
+                    if (matched) {
+                        this.selectChar(matched);
+                        return;
+                    }
+                }
+                
+                if (this.characters.length > 0) {
+                    this.selectChar(this.characters[0]);
+                }
+            },
+
+            async fetchCharacters() {
+                try {
+                    const r = await fetch('/api/characters');
+                    if (r.ok) {
+                        this.characters = await r.json();
+                    }
+                } catch(e) {
+                    console.error("Failed to fetch characters:", e);
+                }
+            },
+
+            async selectChar(char) {
+                this.activeChar = char;
+                await this.fetchMemories();
+            },
+
+            async fetchMemories() {
+                if (!this.activeChar) return;
+                this.loading = true;
+                try {
+                    const r = await fetch(`/api/characters/${this.activeChar.id}/memories`);
+                    if (r.ok) {
+                        this.memories = await r.json();
+                    }
+                } catch(e) {
+                    console.error("Failed to fetch memories:", e);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            get filteredMemories() {
+                if (!this.searchQuery.trim()) return this.memories;
+                const query = this.searchQuery.toLowerCase();
+                return this.memories.filter(m => m.text.toLowerCase().includes(query));
+            },
+
+            async deleteMemory(memId) {
+                if (!confirm("Are you sure you want to forget this memory atom?")) return;
+                try {
+                    const r = await fetch(`/api/characters/${this.activeChar.id}/memories/${memId}`, {
+                        method: 'DELETE'
+                    });
+                    if (r.ok) {
+                        this.memories = this.memories.filter(m => m.id !== memId);
+                    }
+                } catch(e) {
+                    console.error("Failed to delete memory:", e);
+                }
+            },
+
+            async clearAllMemories() {
+                if (!confirm(`Are you sure you want to completely erase ALL memory atoms for ${this.activeChar.name}? This action is irreversible.`)) return;
+                try {
+                    const r = await fetch(`/api/characters/${this.activeChar.id}/memories`, {
+                        method: 'DELETE'
+                    });
+                    if (r.ok) {
+                        this.memories = [];
+                    }
+                } catch(e) {
+                    console.error("Failed to clear memories:", e);
+                }
+            },
+
+            openAddModal() {
+                this.newMemoryText = '';
+                this.addModal = true;
+            },
+
+            async saveManualMemory() {
+                if (!this.newMemoryText.trim() || !this.activeChar) return;
+                try {
+                    const r = await fetch(`/api/characters/${this.activeChar.id}/memories`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ text: this.newMemoryText.trim() })
+                    });
+                    if (r.ok) {
+                        this.addModal = false;
+                        await this.fetchMemories();
+                    }
+                } catch(e) {
+                    console.error("Failed to save memory:", e);
+                }
+            },
+
+            formatDate(timestamp) {
+                if (!timestamp) return 'Unknown Date';
+                const date = new Date(timestamp * 1000);
+                return date.toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        };
+    }
+</script>
+{% endblock %}

@@ -1,14 +1,33 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [v1.0.1] - 2026-05-17
+
+### Added
+
+- **Neural Memory Explorer Dashboard**: A dedicated, full-screen page (`/memories`) featuring macOS-style sidebar layout and continuous curves squircle glass cards.
+- **Real-Time Memory Search & Filtering**: Fast text filter input to query key vector facts instantly.
+- **Manual Memory Atom Insertion**: Deep-midnight modal allowing users to feed custom context points directly into Qdrant collections.
+- **Granular Incognito & Erase Controls**: Multi-functional admin actions supporting selective purging of single vector cards, complete collection wipes, and toggle memory switches.
+- **Vector Latency Optimizations**: Integrated singleton caching for Google Generative AI embeddings and concurrent database queries with `asyncio.gather`, cutting cold-start memory search times from 21 seconds down to sub-second speeds.
+- **Sidebar Navigation Pins**: Persistent "Memory Explorer" and "Settings" links anchored to the sidebar's bottom section for instant navigation across all pages.
+- **Message-Based Memory Recall**: Agents can now proactively search and inject relevant memories into conversations without explicit user prompts.
+
+### Changed
+
+- **Alpine.js Grid Separation**: Separated Alpine `x-collapse` attributes from layout wrappers inside character preference menus, restoring responsive grid systems.
+
 ## [v0.9.1] - 2026-05-15
 
 ### Fixed
+
 - **Startup Crash**: Implemented automatic directory initialization for `data/uploads` and `data/avatars` to prevent `RuntimeError` during application boot.
 
 ## [v0.9.0] - 2026-05-15
 
 ### Added
+
 - **Multimodal Attachment Engine**: Support for uploading and managing multiple file attachments in the chat interface.
 - **Vision Integration**: Native base64 image encoding for vision-capable models (Gemini, Llama 3.2), enabling AI analysis of JPG, PNG, and WEBP files.
 - **PDF Extraction**: Integrated `pypdf` for automated text extraction from PDF documents, allowing the AI to reason about document contents.
@@ -17,11 +36,13 @@ All notable changes to this project will be documented in this file.
 - **UI Refinement**: Relocated the attachment action button to the primary input bar with a premium, state-aware design.
 
 ### Fixed
+
 - **Backend Routing**: Resolved a duplicate router definition in `chat.py` and consolidated all API endpoints under a single `/api` prefix.
 
 ## [v0.8.0] - 2026-05-15
 
 ### Added
+
 - **Interactive Python Sandbox**: Integrated Pyodide (WebAssembly) to enable safe, browser-side execution of Python artifacts.
 - **Data Science Toolkit**: Added automatic package loading for `matplotlib`, `numpy`, and `pandas`, allowing for rich data visualization.
 - **Live Rendering Engine**: Implemented real-time, token-by-token rendering for HTML and SVG artifacts using a debounced blob-based preview system.
@@ -29,6 +50,7 @@ All notable changes to this project will be documented in this file.
 - **Matplotlib Visualization**: Custom monkeypatching for `plt.show()` to intercept figures and render them as high-resolution images in the terminal.
 
 ### Fixed
+
 - **Interaction Stability**: Implemented a global capture-phase event listener and unique message IDs to ensure artifact cards are 100% responsive even during high-speed streaming.
 - **Modal Ghosting**: Resolved an issue where closing and opening different artifacts would briefly show previous content by implementing a hard-reset state protocol.
 - **Refined Navigation**: Standardized the default artifact view to the "Code" tab based on user developer workflow preferences.
@@ -37,15 +59,18 @@ All notable changes to this project will be documented in this file.
 ## [v0.7.0] - 2026-05-15
 
 ### Changed
+
 - **Artifact System Overhaul**: Transitioned to a robust `[[ARTIFACT:id]]` anchoring system for reliable inline rendering during both live streaming and historical reloads.
 - **Premium Inline Artifacts**: Inline artifact cards now feature the full premium design, including frosted-glass headers and automatic 120px code previews.
 - **Improved Interaction**: Refactored the artifact opening logic using Alpine.js state lookup, ensuring consistent behavior after page refreshes.
 
 ### Added
+
 - **Cinematic State Transitions**: Implemented smooth Alpine.js cross-fade transitions between the Welcome Screen and the Message List, creating a fluid, high-end feel when loading chats.
 - **Artifact Preview Rendering**: Integrated an `escapeHtml` utility in `chat.js` to safely render code previews within inline artifact cards.
 
 ### Fixed
+
 - **Message Alignment**: Restored the centered Apple aesthetic for user and assistant messages that was briefly broken by container refactoring.
 - **Artifact Modal Spacing**: Fixed a persistent bottom-margin/gap issue in the artifact modal by allowing the code preview to fill the viewport naturally.
 - **Sidebar Chronology**: Standardized the conversation sorting to ensure the newest chats always appear at the top.

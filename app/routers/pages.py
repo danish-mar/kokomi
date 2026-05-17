@@ -29,3 +29,7 @@ async def whatsapp_page(request: Request):
 @router.get("/insights")
 async def insights_page(request: Request):
     return templates.TemplateResponse(request, "insights.html", {"request": request})
+
+@router.get("/memories")
+async def memories_page(request: Request):
+    return templates.TemplateResponse(request, "memories.html", {"request": request})

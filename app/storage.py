@@ -79,6 +79,7 @@ def load_chars() -> dict:
             "avatar": None,
             "mcp_servers": [],
             "model": "default",
+            "memory_enabled": True,
             "created_at": now,
         }
         chars["nahida"] = {
@@ -93,6 +94,7 @@ def load_chars() -> dict:
             "avatar": None,
             "mcp_servers": [],
             "model": "default",
+            "memory_enabled": True,
             "created_at": now,
         }
         _save(CHARS_FILE, chars)

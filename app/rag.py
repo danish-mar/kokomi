@@ -11,8 +11,11 @@ from app.config import QDRANT_URL
 # Initialize Qdrant Client (pointing to the configured Qdrant instance)
 qdrant = QdrantClient(url=QDRANT_URL)
 
+# Global cache for embedding models to avoid re-initialization latency
+_EMBEDDING_MODEL_CACHE = {}
+
 def get_embeddings(task_type: str = "RETRIEVAL_DOCUMENT"):
-    """Get embedding model configured for a specific task.
+    """Get embedding model configured for a specific task with caching.
     
     task_type: 
       - "RETRIEVAL_DOCUMENT" when embedding documents for storage
@@ -20,15 +23,24 @@ def get_embeddings(task_type: str = "RETRIEVAL_DOCUMENT"):
     """
     if not GOOGLE_API_KEY:
         raise ValueError("GOOGLE_API_KEY is required for RAG embeddings")
+        
     from app.storage import load_prefs
     prefs = load_prefs()
-    emb_model = prefs.get("embedding_model", "models/gemini-embedding-2")
+    emb_model_name = prefs.get("embedding_model", "models/gemini-embedding-2")
     
-    return GoogleGenerativeAIEmbeddings(
-        model=emb_model, 
+    # Cache key based on model and task type
+    cache_key = f"{emb_model_name}_{task_type}"
+    if cache_key in _EMBEDDING_MODEL_CACHE:
+        return _EMBEDDING_MODEL_CACHE[cache_key]
+    
+    model = GoogleGenerativeAIEmbeddings(
+        model=emb_model_name, 
         google_api_key=GOOGLE_API_KEY,
         task_type=task_type,
     )
+    
+    _EMBEDDING_MODEL_CACHE[cache_key] = model
+    return model
 
 def ensure_collection(collection_name: str, vector_size: int):
     collections = qdrant.get_collections().collections

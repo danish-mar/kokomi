@@ -41,6 +41,7 @@ async def create_character(
     local_model: str = Form("default"),
     nvidia_model: str = Form("default"),
     voice: str = Form("aoede"),
+    memory_enabled: bool = Form(True),
     avatar: Optional[UploadFile] = File(None),
 ):
     chars = load_chars()
@@ -66,6 +67,7 @@ async def create_character(
         "local_model": local_model.strip(),
         "nvidia_model": nvidia_model.strip(),
         "voice": voice.strip(),
+        "memory_enabled": memory_enabled,
         "created_at": datetime.datetime.utcnow().isoformat(),
     }
     save_chars(chars)
@@ -83,6 +85,7 @@ async def update_character(
     local_model: str = Form("default"),
     nvidia_model: str = Form("default"),
     voice: str = Form("aoede"),
+    memory_enabled: bool = Form(True),
     avatar: Optional[UploadFile] = File(None),
 ):
     chars = load_chars()
@@ -107,6 +110,7 @@ async def update_character(
     chars[cid]["local_model"] = local_model.strip()
     chars[cid]["nvidia_model"] = nvidia_model.strip()
     chars[cid]["voice"] = voice.strip()
+    chars[cid]["memory_enabled"] = memory_enabled
     save_chars(chars)
     return chars[cid]
 
@@ -169,3 +173,91 @@ Ensure the prompts match the character's tone and expertise.
             {"icon": "fa-solid fa-message", "label": "Say Hello",   "text": f"Hello {char['name']}!"},
             {"icon": "fa-solid fa-question", "label": "Ask Anything", "text": "Tell me something interesting about yourself."},
         ]
+
+
+@router.get("/{cid}/memories")
+async def list_character_memories(cid: str):
+    from app.rag import qdrant
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
+    
+    # Check if character exists
+    chars = load_chars()
+    if cid not in chars:
+        raise HTTPException(404, "Character not found")
+        
+    try:
+        collections = qdrant.get_collections().collections
+        if not any(c.name == "user_memories" for c in collections):
+            return []
+            
+        results, _ = qdrant.scroll(
+            collection_name="user_memories",
+            scroll_filter=Filter(
+                must=[FieldCondition(key="user_id", match=MatchValue(value=cid))]
+            ),
+            limit=100
+        )
+        
+        memories = []
+        for point in results:
+            if point.payload:
+                memories.append({
+                    "id": point.id,
+                    "text": point.payload.get("text"),
+                    "timestamp": point.payload.get("timestamp")
+                })
+        # Sort by timestamp descending
+        memories.sort(key=lambda x: x.get("timestamp") or 0, reverse=True)
+        return memories
+    except Exception as e:
+        print(f"Error listing memories: {e}")
+        return []
+
+
+@router.delete("/{cid}/memories/{mid}")
+async def delete_character_memory(cid: str, mid: str):
+    from app.rag import qdrant
+    try:
+        qdrant.delete(
+            collection_name="user_memories",
+            points_selector=[mid]
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to delete memory: {e}")
+
+
+from pydantic import BaseModel
+class ManualMemoryRequest(BaseModel):
+    text: str
+
+
+@router.post("/{cid}/memories")
+async def add_character_memory(cid: str, req: ManualMemoryRequest):
+    from app.memory import save_memory
+    chars = load_chars()
+    if cid not in chars:
+        raise HTTPException(404, "Character not found")
+    if not req.text.strip():
+        raise HTTPException(400, "Memory text cannot be empty")
+    try:
+        save_memory(cid, req.text.strip(), {"source": "manual_entry"})
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to add memory: {e}")
+
+
+@router.delete("/{cid}/memories")
+async def clear_character_memories(cid: str):
+    from app.rag import qdrant
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
+    try:
+        qdrant.delete(
+            collection_name="user_memories",
+            filter=Filter(
+                must=[FieldCondition(key="user_id", match=MatchValue(value=cid))]
+            )
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to clear memories: {e}")

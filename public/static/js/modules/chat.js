@@ -150,7 +150,7 @@ export function getChatActions() {
                             const charId = data.character_id || this.activeCharId;
                             
                             let targetIdx = charMsgMap[charId];
-                            if (targetIdx === undefined && (data.type === 'content' || data.type === 'reasoning')) {
+                            if (targetIdx === undefined && (data.type === 'content' || data.type === 'reasoning' || data.type === 'tool_start')) {
                                 const char = this.characters.find(c => c.id === charId) || { name: charId, id: charId };
                                 this.messages.push({
                                     id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
