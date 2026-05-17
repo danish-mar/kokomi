@@ -260,7 +260,7 @@ def get_llm(
             model=model,
             api_key=NVIDIA_API_KEY,
             temperature=0.6,
-            max_completion_tokens=2048, 
+            max_completion_tokens=4096, 
         )
 
     elif provider == "google":

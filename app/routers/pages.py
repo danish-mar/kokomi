@@ -33,3 +33,8 @@ async def insights_page(request: Request):
 @router.get("/memories")
 async def memories_page(request: Request):
     return templates.TemplateResponse(request, "memories.html", {"request": request})
+
+
+@router.get("/atlas")
+async def atlas_page(request: Request):
+    return templates.TemplateResponse(request, "atlas.html", {"request": request})

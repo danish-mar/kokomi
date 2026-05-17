@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" x-data="{ darkMode: localStorage.getItem('theme') !== 'light' }" :class="darkMode ? 'dark' : ''">
+<html lang="en" x-data="{ darkMode: localStorage.getItem('theme') === 'dark' || (localStorage.getItem('theme') !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches) }" :class="darkMode ? 'dark' : ''">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -58,7 +58,7 @@
                 css += ':root, .dark { --accent: ' + customAccent + ' !important; }\n';
             }
             if (customWallpaper) {
-                var isDark = localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                var isDark = localStorage.getItem('theme') === 'dark' || (localStorage.getItem('theme') !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
                 css += 'body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: url(' + customWallpaper + ') !important; background-size: cover !important; background-position: center !important; background-attachment: fixed !important; filter: blur(' + customBlur + 'px); z-index: -1; transform: scale(1.1); }\n';
                 css += 'body { background: transparent !important; }\n';
                 if (isDark) {

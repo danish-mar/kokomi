@@ -103,3 +103,11 @@ async def mcp_pool_init(force: bool = False):
 
     await init_pool(force=force)
     return {"ok": True, **get_pool_status()}
+
+
+@router.get("/pool/tools", name="mcp_pool_tools")
+async def mcp_pool_tools():
+    """Return list of all tool names currently loaded in the MCP pool."""
+    from app.mcp import get_pool_tools
+    td, _, _, _ = get_pool_tools()
+    return [t["function"]["name"] for t in td]

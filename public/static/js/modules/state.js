@@ -43,7 +43,7 @@ export function getInitialState() {
         toasts: [],
         isAnonymous: false,
         exitTempModal: false,
-        useWebSearch: false,
+        useWebSearch: localStorage.getItem('useWebSearch') === 'true',
         isRecording: false,
         liveStats: { tps: null, ttft: null, context: null },
 

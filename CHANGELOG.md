@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.1] - 2026-05-18
+
+### Added
+
+- **Multi-Agent Document & Slide Deck Exporter Suite**: Integrated support for Microsoft Word (`.docx`), Microsoft PowerPoint (`.pptx`), and Microsoft Excel (`.xlsx`) generation into the core compilation workers.
+- **Apple HIG Inline Bold-Text Parser**: Developed a state-of-the-art markdown inline text parser for PowerPoint slides and Word paragraphs. Converts raw `**bold**` markup decorators dynamically into native bold runs (`run.font.bold = True`), creating pristine, presentation-grade slide decks.
+- **Dynamic Allowed Tools Endpoint**: Added `/api/workflow/tools` FastAPI router endpoint to dynamically populate available agent tools, decoupling Alpine.js frontend from hardcoded tool lists and enabling live discovery of connected external MCP services.
+- **Thread-Safe Context Redirection**: Redirected all document compilation tools (`pdf_export`, `docx_export`, `pptx_export`, `excel_export`) to dynamically save output assets directly inside the active workflow storage folder (`active_storage_dir.get()`) rather than general upload folders.
+- **Self-Healing LLM Task Recovery**: Refactored the `pdf_worker` system prompt to act as a *Professional Document Layout Designer*, instructing it to utilize dependent task prompt context to recover draft markdown sections when files are not physically present on disk.
+
 ## [v1.0.1] - 2026-05-17
 
 ### Added

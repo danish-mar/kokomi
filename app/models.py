@@ -51,6 +51,9 @@ class PrefsUpdate(BaseModel):
     whatsapp_show_thinking: bool = True
     tavily_api_key: Optional[str] = ""
     web_search_enabled: bool = False
+    search_provider: Optional[str] = "tavily"
+    searxng_url: Optional[str] = "http://localhost:8080"
+    web_scrape_enabled: bool = False
     browser_redirect_enabled: bool = True
     user_name: Optional[str] = "User"
     user_avatar: Optional[str] = None

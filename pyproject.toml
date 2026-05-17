@@ -1,6 +1,6 @@
 [project]
 name = "kokomi"
-version = "1.0.1"
+version = "2.0.1"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -26,4 +26,6 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "v>=1",
+    "langgraph>=1.1.9",
+    "reportlab>=4.5.1",
 ]

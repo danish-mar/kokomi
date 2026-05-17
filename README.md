@@ -55,6 +55,13 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
     *   **Paste-to-Attach**: Support for `Ctrl+V` pasting of screenshots and files directly into the chat bar.
 *   **Cinematic UI DNA**: Seamless cross-fade transitions between the Welcome Screen and active chats, powered by Alpine.js for a fluid OS-like experience.
 
+
+### 📁 Multi-Agent Document & Slide Deck Exporter Suite (New)
+*   **Universal Document Compiler**: Integrated tools (`pdf_export`, `docx_export`, `pptx_export`, `excel_export`) to compile rich research reports into publication-grade assets including PDFs, Word Documents, PowerPoint slide decks, and Excel spreadsheets.
+*   **Apple HIG Inline Bold-Text Parser**: Converts raw double asterisks (`**bold**`) dynamically into native styled bold text runs inside PowerPoint and Word documents instead of dump-pasting raw markdown text decorators.
+*   **Thread-Safe Workspace Isolation**: All compiled documents are saved dynamically inside the active workflow storage folder (`active_storage_dir`) for a clean project structure rather than general common uploads.
+*   **Dynamic Allowed Tools UI**: Added a dynamically populated router system that decouples Alpine.js templates from hardcoded lists, automatically fetching active Model Context Protocol (MCP) server tools on load.
+
 ### 📚 RAG & Knowledge Spaces
 *   **Vector Orchestration**: Documents are automatically chunked and vectorized using `gemini-embedding-2` and stored in **Qdrant**.
 *   **Smart Retrieval**: Characters proactively query their assigned "Spaces" using semantic search to provide grounded, fact-based answers.

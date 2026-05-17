@@ -50,7 +50,6 @@ export function getChatActions() {
                     }),
                     signal: this.abortController.signal,
                 });
-                this.useWebSearch = false;
 
                 clearTimeout(timer);
 
@@ -113,7 +112,6 @@ export function getChatActions() {
                     }),
                     signal: this.abortController.signal
                 });
-                this.useWebSearch = false;
 
                 if (!response.ok) throw new Error("Failed to start stream");
 

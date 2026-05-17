@@ -545,22 +545,13 @@
                         <i class="fa-solid fa-phone text-[13px]"></i>
                         <span class="text-[10px] font-semibold uppercase tracking-wider">Call</span>
                     </a>
-                    <!-- Theme -->
-                    <button @click="toggleTheme()" title="Toggle Dark/Light"
+                    <!-- Atlas Terminal -->
+                    <a href="/atlas" title="Atlas Terminal"
                         class="flex flex-col items-center justify-center gap-1.5 p-2 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.03] hover:bg-accent-sub text-3 hover:text-accent-c t-apple">
-                        <i :class="darkMode ? 'fa-solid fa-sun text-amber-400' : 'fa-solid fa-moon'" class="text-[13px]"></i>
-                        <span class="text-[10px] font-semibold uppercase tracking-wider" x-text="darkMode ? 'Light' : 'Dark'"></span>
-                    </button>
+                        <i class="fa-solid fa-terminal text-[13px]"></i>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider">Atlas</span>
+                    </a>
                 </div>
-
-                <!-- Memory Explorer Pinned -->
-                <a href="/memories"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] text-2 hover:text-1 t-apple">
-                    <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
-                        <i class="fa-solid fa-brain text-[11px] text-accent-c"></i>
-                    </div>
-                    <span class="text-[13px] font-semibold">Memory Explorer</span>
-                </a>
 
                 <!-- Settings Pinned -->
                 <a href="/settings"
@@ -1341,7 +1332,7 @@
                         <div class="flex items-center gap-1.5 text-4">
                             <!-- Search pill button -->
                             <template x-if="prefs && prefs.web_search_enabled">
-                                <button @click="useWebSearch = !useWebSearch" title="Search the web"
+                                <button @click="useWebSearch = !useWebSearch; localStorage.setItem('useWebSearch', useWebSearch)" title="Search the web"
                                     class="flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
                                     :class="useWebSearch
                                         ? 'bg-accent-sub border-accent-c text-accent-c px-2.5 py-1'

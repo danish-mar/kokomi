@@ -428,11 +428,6 @@
         </a>
         <h1>Settings</h1>
         <div style="flex-grow:1;"></div>
-        <button @click="toggleTheme()" class="icon-btn">
-            <i :class="darkMode ? 'fa-solid fa-sun' : 'fa-solid fa-moon'"
-               :style="darkMode ? 'color:#FBBF24' : ''"
-               style="font-size:13px;"></i>
-        </button>
     </header>
 
     <div class="tahoe-layout">
@@ -460,10 +455,6 @@
                     <span class="nav-icon"><i class="fa-solid fa-brain" style="font-size:10px;"></i></span>
                     Memory
                 </button>
-                <a href="/memories" class="tahoe-nav-item" style="text-decoration:none;">
-                    <span class="nav-icon"><i class="fa-solid fa-brain" style="font-size:10px; color:var(--accent);"></i></span>
-                    Memory Explorer
-                </a>
                 <button @click="tab = 'mcp'" class="tahoe-nav-item" :class="tab === 'mcp' ? 'active' : ''">
                     <span class="nav-icon"><i class="fa-solid fa-plug" style="font-size:10px;"></i></span>
                     MCP Servers
@@ -681,7 +672,7 @@
                 <h2 class="section-title">Integrations</h2>
                 <p class="section-subtitle">Connect external services and tools to power up your AI.</p>
 
-                <!-- Tavily Web Search card -->
+                <!-- Switchable Web Search & Scraping Card -->
                 <div class="glass-card">
                     <div class="card-row" style="background: var(--accent-subtle);">
                         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
@@ -690,8 +681,8 @@
                                     <i class="fa-solid fa-magnifying-glass" style="font-size:13px;"></i>
                                 </div>
                                 <div>
-                                    <label class="apple-label" style="margin-bottom:0;">Web Search (Tavily)</label>
-                                    <p style="font-size:11px; color:var(--text-tertiary);">Search the web in real-time via Tavily AI.</p>
+                                    <label class="apple-label" style="margin-bottom:0;">Web Search Integration</label>
+                                    <p style="font-size:11px; color:var(--text-tertiary);">Search the web in real-time using Tavily or self-hosted SearxNG.</p>
                                 </div>
                             </div>
                             <button @click="prefs.web_search_enabled = !prefs.web_search_enabled; savePrefs()"
@@ -699,11 +690,54 @@
                                 <div class="toggle-knob"></div>
                             </button>
                         </div>
-                        <div>
-                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Tavily API Key</label>
-                            <input type="password" x-model="prefs.tavily_api_key" @blur="savePrefs()"
-                                placeholder="tvly-xxxxxxxxxxxxxxxxxxxx" class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
-                            <p style="font-size:11px; color:var(--text-quaternary); margin-top:6px;">Get a free key at <a href="https://app.tavily.com" target="_blank" style="color:var(--accent);">app.tavily.com</a> — 1,000 free searches/month.</p>
+                        
+                        <div x-show="prefs.web_search_enabled" x-transition style="display:flex; flex-direction:column; gap:14px; margin-top:10px; border-top: 1px solid var(--border); padding-top: 14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Search Engine Provider</label>
+                                <div class="seg-control" style="max-width:400px; margin-bottom:4px;">
+                                    <button @click="prefs.search_provider = 'tavily'; savePrefs()"
+                                        :class="prefs.search_provider !== 'searxng' ? 'seg-active' : ''" class="seg-btn">
+                                        Tavily
+                                    </button>
+                                    <button @click="prefs.search_provider = 'searxng'; savePrefs()"
+                                        :class="prefs.search_provider === 'searxng' ? 'seg-active' : ''" class="seg-btn">
+                                        SearxNG (Self-Hosted)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Tavily settings -->
+                            <div x-show="prefs.search_provider !== 'searxng'" x-transition>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Tavily API Key</label>
+                                <input type="password" x-model="prefs.tavily_api_key" @blur="savePrefs()"
+                                    placeholder="tvly-xxxxxxxxxxxxxxxxxxxx" class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
+                                <p style="font-size:11px; color:var(--text-quaternary); margin-top:6px;">Get a free key at <a href="https://app.tavily.com" target="_blank" style="color:var(--accent);">app.tavily.com</a> — 1,000 free searches/month.</p>
+                            </div>
+
+                            <!-- SearxNG settings -->
+                            <div x-show="prefs.search_provider === 'searxng'" x-transition>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">SearxNG Instance URL</label>
+                                <input type="text" x-model="prefs.searxng_url" @blur="savePrefs()"
+                                    placeholder="http://localhost:8080" class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
+                                <p style="font-size:11px; color:var(--text-quaternary); margin-top:6px;">Enter the base URL of your self-hosted SearxNG instance (e.g. <code>http://localhost:8080</code>).</p>
+                            </div>
+
+                            <!-- Web Scrape toggle -->
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px; border-top: 1px solid var(--border); padding-top: 14px;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div style="width:30px; height:30px; border-radius:8px; background: linear-gradient(135deg, #0F0E47, #505081); display:flex; align-items:center; justify-content:center; color:#fff;">
+                                        <i class="fa-solid fa-code" style="font-size:13px;"></i>
+                                    </div>
+                                    <div>
+                                        <label class="apple-label" style="margin-bottom:0;">Web Scrape (scrape_page)</label>
+                                        <p style="font-size:11px; color:var(--text-tertiary);">Allow AI to scrape pure text content from web URLs (strips JS/CSS/HTML tags).</p>
+                                    </div>
+                                </div>
+                                <button @click="prefs.web_scrape_enabled = !prefs.web_scrape_enabled; savePrefs()"
+                                    class="apple-toggle" :class="prefs.web_scrape_enabled ? 'on' : 'off'">
+                                    <div class="toggle-knob"></div>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -835,6 +869,25 @@
             <div x-show="tab === 'memory'" x-transition class="tab-panel">
                 <h2 class="section-title">Long-term Memory</h2>
                 <p class="section-subtitle">Manage how characters remember facts and preferences across conversations.</p>
+
+                <!-- Neural Memory Explorer Launch Card -->
+                <div class="glass-card" style="margin-bottom: 20px; border-color: rgba(134, 134, 172, 0.25); background: linear-gradient(135deg, rgba(80, 80, 129, 0.15) 0%, rgba(39, 39, 87, 0.3) 100%);">
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 20px 24px;">
+                        <div style="display:flex; align-items:center; gap:16px;">
+                            <div style="width:48px; height:48px; border-radius:12px; background:var(--muted-indigo); display:flex; align-items:center; justify-content:center; color:#FFFFFF; font-size:20px;">
+                                <i class="fa-solid fa-brain"></i>
+                            </div>
+                            <div>
+                                <h3 style="font-size:15px; font-weight:700; color:var(--text-primary); margin:0 0 2px 0;">Neural Memory Explorer</h3>
+                                <p style="font-size:11px; color:var(--text-secondary); margin:0;">Audit, filter, and manually inject persistent context memory atoms across all AI personas.</p>
+                            </div>
+                        </div>
+                        <a href="/memories" class="btn-accent" style="font-size:12px; padding:8px 16px; border-radius:10px; font-weight:600; text-decoration:none; display:flex; align-items:center; gap:6px;">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            Launch Explorer
+                        </a>
+                    </div>
+                </div>
 
                 <div class="glass-card">
                     <!-- Global Memory Toggle -->
@@ -997,6 +1050,24 @@
                 <p class="section-subtitle">Customize the visual theme and background.</p>
 
                 <div class="glass-card">
+                    <!-- Interface Theme (Light / Dark / System) -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:8px;">Interface Style</label>
+                        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
+                            <button @click="setTheme('light')" class="tahoe-nav-item" :class="activeTheme === 'light' ? 'active' : ''" style="justify-content:center; padding:12px; background:rgba(134,134,172,0.1); border:1px solid rgba(134,134,172,0.15); margin-bottom:0;">
+                                <i class="fa-solid fa-sun" style="font-size:14px; margin-right:6px; color:#F59E0B;"></i>
+                                Light
+                            </button>
+                            <button @click="setTheme('dark')" class="tahoe-nav-item" :class="activeTheme === 'dark' ? 'active' : ''" style="justify-content:center; padding:12px; background:rgba(134,134,172,0.1); border:1px solid rgba(134,134,172,0.15); margin-bottom:0;">
+                                <i class="fa-solid fa-moon" style="font-size:14px; margin-right:6px; color:#A78BFA;"></i>
+                                Dark
+                            </button>
+                            <button @click="setTheme('system')" class="tahoe-nav-item" :class="activeTheme === 'system' ? 'active' : ''" style="justify-content:center; padding:12px; background:rgba(134,134,172,0.1); border:1px solid rgba(134,134,172,0.15); margin-bottom:0;">
+                                <i class="fa-solid fa-circle-half-stroke" style="font-size:14px; margin-right:6px; color:var(--text-secondary);"></i>
+                                System
+                            </button>
+                        </div>
+                    </div>
                     <!-- Accent Color -->
                     <div class="card-row">
                         <label class="apple-label" style="margin-bottom:10px;">Custom Accent Color</label>
@@ -1390,6 +1461,9 @@ function settingsApp() {
             whatsapp_character_id: 'kokomi',
             whatsapp_api_url: 'http://localhost:3013',
             tavily_api_key: '',
+            search_provider: 'tavily',
+            searxng_url: 'http://localhost:8080',
+            web_scrape_enabled: false,
             browser_redirect_enabled: true,
             user_name: 'User',
             user_avatar: null,
@@ -1454,13 +1528,30 @@ function settingsApp() {
         mcpCommand: '', mcpArgs: '', mcpEnv: '', mcpUrl: '', mcpEnabled: true,
         testingId: null, testResult: null,
 
-        get darkMode() { return document.documentElement.classList.contains('dark'); },
-        toggleTheme() {
+        activeTheme: localStorage.getItem('theme') || 'system',
+        setTheme(theme) {
+            this.activeTheme = theme;
+            localStorage.setItem('theme', theme);
+            
+            let isDark = false;
+            if (theme === 'system') {
+                isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            } else {
+                isDark = (theme === 'dark');
+            }
+            
             const d = document.documentElement;
-            const isDark = d.classList.toggle('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            document.getElementById('hljs-theme').href =
-                `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${isDark ? 'github-dark' : 'github'}.min.css`;
+            if (isDark) {
+                d.classList.add('dark');
+            } else {
+                d.classList.remove('dark');
+            }
+            
+            const hljsTheme = document.getElementById('hljs-theme');
+            if (hljsTheme) {
+                hljsTheme.href =
+                    `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${isDark ? 'github-dark' : 'github'}.min.css`;
+            }
         },
 
         async init() {

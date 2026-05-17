@@ -37,6 +37,7 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 from pypdf import PdfReader
+from app.workflow import is_complex_workflow, MultiAgentWorkflowEngine, load_workflows
 
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
@@ -68,18 +69,134 @@ def open_url(url: str) -> str:
 
 
 def _get_tavily_tool(prefs: dict):
-    """Build a TavilySearchResults tool from prefs, or None if not configured."""
+    """Build a search tool (Tavily or SearxNG) from prefs, or None if not configured."""
     try:
         if not prefs.get("web_search_enabled"):
             return None
+            
+        provider = prefs.get("search_provider") or "tavily"
+        
+        if provider == "searxng":
+            from langchain_core.tools import tool
+            import httpx
+            import json
+            
+            searxng_url = prefs.get("searxng_url") or "http://localhost:8080"
+            searxng_url = searxng_url.rstrip("/")
+            
+            @tool("web_search")
+            def searxng_search_tool(query: str, max_results: int = 5) -> str:
+                """Search the web for up-to-date facts on a specific query, specifying the number of results desired (max_results)."""
+                try:
+                    resp = httpx.get(
+                        f"{searxng_url}/",
+                        params={"q": query, "format": "json"},
+                        timeout=10.0
+                    )
+                    if resp.status_code != 200:
+                        resp = httpx.get(
+                            f"{searxng_url}/search",
+                            params={"q": query, "format": "json"},
+                            timeout=10.0
+                        )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_results = data.get("results", [])
+                        formatted_results = []
+                        for r in raw_results[:max_results]:
+                            formatted_results.append({
+                                "title": r.get("title") or "",
+                                "url": r.get("url") or "",
+                                "content": r.get("content") or r.get("snippet") or ""
+                            })
+                        return json.dumps(formatted_results)
+                    else:
+                        return f"SearxNG query failed with status code {resp.status_code}."
+                except Exception as e:
+                    return f"SearxNG query failed: {str(e)}."
+            
+            return searxng_search_tool
+            
+        from langchain_core.tools import tool
         from langchain_community.tools.tavily_search import TavilySearchResults
+        import json
+        
         api_key = prefs.get("tavily_api_key") or ""
         if not api_key:
             return None
         import os
         os.environ["TAVILY_API_KEY"] = api_key
-        return TavilySearchResults(max_results=5, name="web_search")
-    except ImportError:
+        
+        @tool("web_search")
+        def tavily_search_tool(query: str, max_results: int = 5) -> str:
+            """Search the web for up-to-date facts on a specific query, specifying the number of results desired (max_results)."""
+            try:
+                tavily = TavilySearchResults(max_results=max_results, tavily_api_key=api_key)
+                res = tavily.invoke(query)
+                return json.dumps(res)
+            except Exception as e:
+                return f"Tavily search failed: {str(e)}"
+                
+        return tavily_search_tool
+    except Exception:
+        return None
+
+def _get_scrape_tool(prefs: dict):
+    """Build a scrape_page tool from prefs, or None if not configured."""
+    try:
+        if not prefs.get("web_scrape_enabled"):
+            return None
+            
+        from langchain_core.tools import tool
+        import httpx
+        from html.parser import HTMLParser
+        
+        @tool("scrape_page")
+        def scrape_page_tool(url: str) -> str:
+            """Scrape a webpage and return clean text content, stripped of JavaScript, CSS, and HTML tags."""
+            class TextExtractor(HTMLParser):
+                def __init__(self):
+                    super().__init__()
+                    self.text_parts = []
+                    self.in_ignored_tag = False
+                    self.ignored_tags = {"script", "style", "head", "meta", "link", "noscript", "svg"}
+
+                def handle_starttag(self, tag, attrs):
+                    if tag in self.ignored_tags:
+                        self.in_ignored_tag = True
+
+                def handle_endtag(self, tag):
+                    if tag in self.ignored_tags:
+                        self.in_ignored_tag = False
+
+                def handle_data(self, data):
+                    if not self.in_ignored_tag:
+                        clean_data = data.strip()
+                        if clean_data:
+                            self.text_parts.append(clean_data)
+
+                def get_text(self):
+                    return "\n".join(self.text_parts)
+
+            try:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+                resp = httpx.get(url, headers=headers, follow_redirects=True, timeout=15.0)
+                if resp.status_code == 200:
+                    parser = TextExtractor()
+                    parser.feed(resp.text)
+                    text = parser.get_text()
+                    if len(text) > 12000:
+                        text = text[:12000] + "\n\n[Content truncated due to length limits...]"
+                    return text if text.strip() else "Webpage returned no extractable text content."
+                else:
+                    return f"Failed to retrieve page content. Status code: {resp.status_code}"
+            except Exception as e:
+                return f"Error occurred while scraping the page: {str(e)}"
+                
+        return scrape_page_tool
+    except Exception:
         return None
 
 async def _ensure_pool():
@@ -92,6 +209,46 @@ async def _ensure_pool():
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
+    if is_complex_workflow(req.message):
+        run_id = await MultiAgentWorkflowEngine.create_run(req.message)
+        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+        
+        reply = (
+            "🌊 **Atlas Intelligence Supervisor Activated**\n\n"
+            "I have dynamically routed your complex outcome-based request into our **Multi-Agent Execution Graph**.\n\n"
+            f"*   **Run ID**: `{run_id}`\n"
+            "*   **Mode**: Parallel Task Execution\n"
+            "*   **Engine**: LangGraph & LangChain Supervisor\n\n"
+            "You can track real-time task pipelines, logs, downloads, and output statuses directly on the **[Atlas Terminal](/atlas)**."
+        )
+        
+        convos = load_convos()
+        conv_id = req.conversation_id or str(uuid.uuid4())[:12]
+        if conv_id not in convos:
+            convos[conv_id] = {
+                "id": conv_id,
+                "title": "Atlas Workflow: " + req.message[:20],
+                "character_id": req.character_id or "kokomi",
+                "updated_at": time.time(),
+                "messages": []
+            }
+        
+        now = datetime.datetime.utcnow().isoformat()
+        convos[conv_id]["messages"].append({"role": "user", "content": req.message, "timestamp": now})
+        convos[conv_id]["messages"].append({
+            "role": "assistant", 
+            "content": reply, 
+            "timestamp": now,
+            "metrics": {"tps": 0, "ttft": 0, "total_time": 0}
+        })
+        save_convos(convos)
+        
+        return {
+            "conversation_id": conv_id,
+            "reply": reply,
+            "thinking": "Routing to LangGraph workflow..."
+        }
+
     t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
@@ -182,6 +339,15 @@ async def chat(req: ChatRequest):
                     "\n\nYou have access to a real-time web search tool called 'web_search'. "
                     "USE it to answer questions that require current information, news, facts, or anything you are unsure about."
                 )
+
+        scrape_tool = _get_scrape_tool(prefs)
+        if scrape_tool:
+            tool_defs.append(scrape_tool)
+            builtin_tools[scrape_tool.name] = scrape_tool
+            persona += (
+                "\n\nYou have access to a web scraping tool called 'scrape_page'. "
+                "USE it to extract clean text from any URL when you need to read page contents."
+            )
         
         if prefs.get("browser_redirect_enabled", True):
             tool_defs.append(open_url)
@@ -338,6 +504,57 @@ async def chat(req: ChatRequest):
 
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
+    if is_complex_workflow(req.message):
+        run_id = await MultiAgentWorkflowEngine.create_run(req.message)
+        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+        
+        reply = (
+            "🌊 **Atlas Intelligence Supervisor Activated**\n\n"
+            "I have dynamically routed your complex outcome-based request into our **Multi-Agent Execution Graph**.\n\n"
+            f"*   **Run ID**: `{run_id}`\n"
+            "*   **Mode**: Parallel Task Execution\n"
+            "*   **Engine**: LangGraph & LangChain Supervisor\n\n"
+            "You can track real-time task pipelines, logs, downloads, and output statuses directly on the **[Atlas Terminal](/atlas)**."
+        )
+        
+        convos = load_convos()
+        conv_id = req.conversation_id or str(uuid.uuid4())[:12]
+        if conv_id not in convos:
+            convos[conv_id] = {
+                "id": conv_id,
+                "title": "Atlas Workflow: " + req.message[:20],
+                "character_id": req.character_id or "kokomi",
+                "updated_at": time.time(),
+                "messages": []
+            }
+        
+        now = datetime.datetime.utcnow().isoformat()
+        convos[conv_id]["messages"].append({"role": "user", "content": req.message, "timestamp": now})
+        convos[conv_id]["messages"].append({
+            "role": "assistant", 
+            "content": reply, 
+            "timestamp": now,
+            "metrics": {"tps": 0, "ttft": 0, "total_time": 0}
+        })
+        save_convos(convos)
+
+        async def workflow_stream_generator():
+            yield f"data: {json.dumps({'type': 'start'})}\n\n"
+            yield f"data: {json.dumps({'type': 'thinking', 'text': 'Routing to LangGraph...' })}\n\n"
+            yield f"data: {json.dumps({'type': 'chunk', 'text': reply })}\n\n"
+            yield f"data: {json.dumps({'type': 'metrics', 'tps': 0, 'ttft': 0, 'total_time': 0})}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        return StreamingResponse(
+            workflow_stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
@@ -401,6 +618,11 @@ async def chat_stream(req: ChatRequest):
                     if tavily_tool:
                         tool_defs.append(tavily_tool)
                         builtin_tools[tavily_tool.name] = tavily_tool
+
+                scrape_tool = _get_scrape_tool(prefs)
+                if scrape_tool:
+                    tool_defs.append(scrape_tool)
+                    builtin_tools[scrape_tool.name] = scrape_tool
 
                 if prefs.get("browser_redirect_enabled", True):
                     tool_defs.append(open_url)
@@ -504,6 +726,12 @@ async def chat_stream(req: ChatRequest):
                         p_persona += (
                             "\n\nYou have access to a real-time web search tool called 'web_search'. "
                             "USE it to answer questions that require current information, news, facts, or anything you are unsure about."
+                        )
+
+                    if "scrape_page" in builtin_tools:
+                        p_persona += (
+                            "\n\nYou have access to a web scraping tool called 'scrape_page'. "
+                            "USE it to extract clean text from any URL when you need to read page contents."
                         )
 
                     if prefs.get("browser_redirect_enabled", True) and "open_url" in builtin_tools:
@@ -1063,3 +1291,382 @@ async def chat_stream(req: ChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ── Workflow API Endpoints ───────────────────────────────────────────
+
+@router.get("/workflows")
+async def get_workflows():
+    """Retrieve all multi-agent LangGraph workflow execution runs."""
+    return load_workflows()
+
+@router.get("/workflows/{run_id}")
+async def get_workflow_details(run_id: str):
+    """Retrieve the high-fidelity state graph for a specific workflow run."""
+    db = load_workflows()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+    return db[run_id]
+
+@router.post("/workflows")
+async def create_workflow_run(payload: dict):
+    """Directly launch a new multi-agent LangGraph workflow execution run."""
+    query = payload.get("message")
+    if not query:
+        raise HTTPException(status_code=400, detail="Query message is required")
+    run_id = await MultiAgentWorkflowEngine.create_run(query)
+    asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+    return {"run_id": run_id, "status": "pending"}
+
+@router.post("/workflows/{run_id}/chat")
+async def chat_with_workflow_supervisor(run_id: str, payload: dict):
+    """Send a collaborative instruction/message directly to the active workflow's supervisor."""
+    from app.workflow import load_workflows, save_workflows, get_llm, load_prefs, MultiAgentWorkflowEngine
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+    
+    query = payload.get("message")
+    if not query:
+        raise HTTPException(status_code=400, detail="Query message is required")
+        
+    db = load_workflows()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+        
+    state = db[run_id]
+    
+    # Record user message
+    state["notifications"].append(f"💬 User: {query}")
+    state["debug_logs"].append(f"Received interactive instruction: {query}")
+    
+    # Load LLM
+    prefs = load_prefs()
+    llm = get_llm(prefs, streaming=False)
+    
+    # Context summary
+    tasks_summary = []
+    for t in state["tasks"]:
+        out_summary = "None"
+        if t.get("output"):
+            out_summary = json.dumps(t["output"])[:300] + "..." if len(json.dumps(t["output"])) > 300 else json.dumps(t["output"])
+        tasks_summary.append({
+            "task_id": t["task_id"],
+            "title": t["title"],
+            "worker_type": t["worker_type"],
+            "status": t["status"],
+            "output_summary": out_summary
+        })
+        
+    prompt = (
+        "You are the Top-Level Workflow Supervisor. The user is collaborating with you on an active workflow.\n"
+        f"Workflow Goal: {state['plan'].get('goal')}\n"
+        f"Active Tasks State:\n{json.dumps(tasks_summary, indent=2)}\n\n"
+        f"User's Instruction: {query}\n\n"
+        "You have two options to respond:\n"
+        "1. CONVERSATION: If the user is asking a question, asking for status, or requesting a simple clarification, answer them directly. "
+        "Format your answer as a clear markdown explanation.\n"
+        "2. APPEND_TASKS: If the user is requesting new actions, modifications, or additions that require specialized worker execution (e.g. searching, writing, exporting PDF, emailing, executing shell commands), define the new task nodes to be appended to the workflow.\n\n"
+        "Respond ONLY with a valid JSON matching this schema:\n"
+        "{\n"
+        '  "response_type": "conversation" or "append_tasks",\n'
+        '  "conversation_text": "Your markdown answer (if response_type is conversation)",\n'
+        '  "new_tasks": [\n'
+        "    {\n"
+        '      "task_id": "t_new_1",\n'
+        '      "title": "Task title",\n'
+        '      "description": "Specific dynamic details for this worker",\n'
+        '      "worker_type": "researcher" or "writer" or "pdf_worker" or "email_worker" or "code_worker",\n'
+        '      "depends_on": [],  # Specify dependencies. You can depend on existing tasks like \"t1\", \"t2\", etc.\n'
+        '      "allowed_tools": ["web_search"],\n'
+        '      "success_criteria": "Criteria"\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+    
+    try:
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw_text = response.content.strip()
+        # Strip <think> tags from reasoning models if present
+        if "<think>" in raw_text:
+            import re as _re_think
+            raw_text = _re_think.sub(r'<think>.*?</think>', '', raw_text, flags=_re_think.DOTALL).strip()
+            
+        clean_text = raw_text
+        if "```json" in clean_text:
+            clean_text = clean_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in clean_text:
+            clean_text = clean_text.split("```")[1].split("```")[0].strip()
+            
+        try:
+            res = json.loads(clean_text)
+        except Exception:
+            # Fall back gracefully to conversation mode if parsing fails!
+            res = {
+                "response_type": "conversation",
+                "conversation_text": raw_text
+            }
+        
+        if res.get("response_type") == "conversation":
+            text = res.get("conversation_text", "")
+            state["notifications"].append(f"🤖 Supervisor: {text}")
+            if state.get("final_result"):
+                state["final_result"] = state["final_result"] + "\n\n---\n\n" + text
+            else:
+                state["final_result"] = text
+            db[run_id] = state
+            save_workflows(db)
+            return {"status": "conversation", "response": text}
+            
+        elif res.get("response_type") == "append_tasks" and res.get("new_tasks"):
+            new_tasks = res["new_tasks"]
+            start_num = len(state["tasks"]) + 1
+            for idx, nt in enumerate(new_tasks):
+                nt["task_id"] = f"t{start_num + idx}"
+                nt["status"] = "pending"
+                nt["retries"] = 0
+                nt["artifacts"] = []
+                state["tasks"].append(nt)
+                state["notifications"].append(f"➕ Supervisor added new task: '{nt['title']}' ({nt['worker_type']})")
+            
+            # Reset workflow status to pending to execute new tasks!
+            state["status"] = "pending"
+            db[run_id] = state
+            save_workflows(db)
+            
+            asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+            return {"status": "tasks_appended", "count": len(new_tasks)}
+            
+    except Exception as e:
+        state["notifications"].append(f"⚠️ Supervisor error processing instruction: {str(e)}")
+        db[run_id] = state
+        save_workflows(db)
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    return {"status": "ignored"}
+
+@router.delete("/workflows/{run_id}")
+async def delete_workflow(run_id: str):
+    """Delete a workflow run and its storage directory."""
+    from app.workflow import load_workflows as _lw, save_workflows as _sw
+    db = _lw()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    wf = db.pop(run_id)
+    _sw(db)
+    # Clean storage dir
+    sdir = wf.get("storage_dir")
+    if sdir and os.path.isdir(sdir):
+        import shutil as _shutil
+        _shutil.rmtree(sdir, ignore_errors=True)
+    return {"status": "deleted"}
+
+# ── Workflow File Explorer ───────────────────────────────────────────
+
+# ── Workflow File Explorer ───────────────────────────────────────────
+
+@router.get("/workflows/{run_id}/files")
+async def list_workflow_files(run_id: str, path: str = ""):
+    """List all files and subdirectories in a workflow's storage directory relative to path."""
+    from app.config import DATA_DIR
+    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    if not os.path.isdir(base_dir):
+        os.makedirs(base_dir, exist_ok=True)
+        
+    # Resolve target directory cleanly
+    target_dir = os.path.abspath(os.path.join(base_dir, path.strip("/")))
+    if not target_dir.startswith(os.path.abspath(base_dir)):
+        raise HTTPException(status_code=400, detail="Directory traversal detected")
+        
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir, exist_ok=True)
+        
+    items = []
+    for f in os.listdir(target_dir):
+        fpath = os.path.join(target_dir, f)
+        is_dir = os.path.isdir(fpath)
+        items.append({
+            "name": f,
+            "is_dir": is_dir,
+            "size": 0 if is_dir else os.path.getsize(fpath),
+            "modified": datetime.datetime.fromtimestamp(os.path.getmtime(fpath)).isoformat()
+        })
+    return items
+
+@router.post("/workflows/{run_id}/upload")
+async def upload_workflow_file(run_id: str, path: str = "", file: UploadFile = File(...)):
+    """Upload a file to a workflow's storage directory or subdirectory."""
+    from app.config import DATA_DIR
+    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    target_dir = os.path.abspath(os.path.join(base_dir, path.strip("/")))
+    if not target_dir.startswith(os.path.abspath(base_dir)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+        
+    os.makedirs(target_dir, exist_ok=True)
+    fpath = os.path.join(target_dir, file.filename)
+    with open(fpath, "wb") as buf:
+        shutil.copyfileobj(file.file, buf)
+    return {"name": file.filename, "size": os.path.getsize(fpath)}
+
+@router.get("/workflows/{run_id}/download")
+async def download_workflow_file(run_id: str, filepath: str):
+    """Download a file from a workflow's storage directory or subdirectory."""
+    from app.config import DATA_DIR
+    from fastapi.responses import FileResponse
+    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    fpath = os.path.abspath(os.path.join(base_dir, filepath.lstrip("/")))
+    if not fpath.startswith(os.path.abspath(base_dir)) or not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(fpath, filename=os.path.basename(fpath))
+
+@router.post("/workflows/{run_id}/mkdir")
+async def make_workflow_dir(run_id: str, data: dict):
+    """Create a new folder inside the workflow's storage folder."""
+    from app.config import DATA_DIR
+    path = data.get("path", "")
+    folder_name = data.get("name", "").strip()
+    if not folder_name:
+        raise HTTPException(status_code=400, detail="Folder name is required")
+        
+    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    target_dir = os.path.abspath(os.path.join(base_dir, path.strip("/"), folder_name))
+    if not target_dir.startswith(os.path.abspath(base_dir)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+        
+    os.makedirs(target_dir, exist_ok=True)
+    return {"status": "success", "path": path}
+
+@router.post("/workflows/{run_id}/touch")
+async def touch_workflow_file(run_id: str, data: dict):
+    """Create an empty file inside the workflow's storage folder."""
+    from app.config import DATA_DIR
+    path = data.get("path", "")
+    filename = data.get("name", "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+        
+    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    target_file = os.path.abspath(os.path.join(base_dir, path.strip("/"), filename))
+    if not target_file.startswith(os.path.abspath(base_dir)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+        
+    os.makedirs(os.path.dirname(target_file), exist_ok=True)
+    with open(target_file, "w") as f:
+        f.write("")
+    return {"status": "success", "path": path}
+
+
+# ── Agent Templates API Endpoints ────────────────────────────────────
+
+@router.get("/workflow/tools")
+async def get_available_tools():
+    """Retrieve all available system tools dynamically from the backend."""
+    tools = [
+        {"id": "web_search", "name": "Web Search", "description": "Search the web using Tavily API for general public information."},
+        {"id": "scrape_page", "name": "Scrape Page", "description": "Scrape raw text and table contents from web page URLs."},
+        {"id": "fetch_url", "name": "Fetch URL", "description": "Read content directly from standard HTTP URLs."},
+        {"id": "memory_search", "name": "Memory Search", "description": "Semantic search inside the active memory space vector databases."},
+        {"id": "artifact_read", "name": "Artifact Read", "description": "Read content of existing file drafts in the working directories."},
+        {"id": "file_write", "name": "File Write", "description": "Write final output contents or chapters to disk files."},
+        {"id": "directory_create", "name": "Directory Create", "description": "Create isolated working folders for data compilation."},
+        {"id": "pdf_export", "name": "PDF Export", "description": "Compile markdown contents into ReportLab-styled high-fidelity PDF booklets."},
+        {"id": "docx_export", "name": "DOCX Export", "description": "Render structured markdown text into styled Word DOCX documents."},
+        {"id": "pptx_export", "name": "PPTX Export", "description": "Compile markdowns into curated, minimalist PowerPoint presentation slides."},
+        {"id": "excel_export", "name": "Excel Export", "description": "Convert tabular JSON or CSV dataset tables into styled Excel spreadsheets."},
+        {"id": "send_email", "name": "Send Email", "description": "Send summary files, PDFs, or compiled doc suites to the user's inbox."},
+        {"id": "browser_automation", "name": "Browser Automation", "description": "Execute browser automation tasks and navigation flows."},
+        {"id": "shell_exec", "name": "Shell Exec", "description": "Execute sandboxed CLI calculations or python commands."}
+    ]
+    
+    try:
+        from app.mcp import get_pool_tools
+        pool_tools = get_pool_tools()
+        for t in pool_tools:
+            tools.append({
+                "id": t.name,
+                "name": f"MCP: {t.name.replace('_', ' ').title()}",
+                "description": t.description or "MCP-registered external service tool."
+            })
+    except Exception as e:
+        print(f"[Dynamic Tools] Could not load MCP pool tools: {e}")
+        
+    return tools
+
+
+@router.get("/workflow/templates")
+async def get_agent_templates():
+    """Retrieve all customized worker templates."""
+    from app.workflow import load_templates
+    return load_templates()
+
+@router.post("/workflow/templates")
+async def create_agent_template(payload: dict):
+    """Add a new custom worker template dynamically."""
+    from app.workflow import load_templates, save_templates
+    name = payload.get("name")
+    worker_id = payload.get("id")
+    purpose = payload.get("purpose")
+    system_prompt = payload.get("system_prompt_template")
+    allowed_tools = payload.get("allowed_tools", [])
+    
+    if not name or not worker_id or not purpose or not system_prompt:
+        raise HTTPException(status_code=400, detail="Missing required template properties")
+        
+    templates = load_templates()
+    templates[worker_id] = {
+        "name": name,
+        "purpose": purpose,
+        "allowed_tools": allowed_tools,
+        "system_prompt_template": system_prompt,
+        "expected_output_schema": payload.get("expected_output_schema", {"result": "string"}),
+        "timeout": int(payload.get("timeout", 60)),
+        "retry_limit": int(payload.get("retry_limit", 2))
+    }
+    save_templates(templates)
+    return {"status": "success", "template_id": worker_id}
+
+@router.delete("/workflow/templates/{template_id}")
+async def delete_agent_template(template_id: str):
+    """Delete a custom worker template."""
+    from app.workflow import load_templates, save_templates
+    templates = load_templates()
+    if template_id not in templates:
+        raise HTTPException(status_code=404, detail="Template not found")
+    del templates[template_id]
+    save_templates(templates)
+    return {"status": "deleted"}
+
+@router.post("/workflow/templates/generate")
+async def ai_generate_template(payload: dict):
+    """Use the active LLM to generate a worker template from a natural language description."""
+    description = payload.get("description", "")
+    if not description:
+        raise HTTPException(status_code=400, detail="Description is required")
+    
+    from app.llm import get_llm
+    from app.storage import load_prefs
+    from langchain_core.messages import HumanMessage
+    
+    prefs = load_prefs()
+    llm = get_llm(prefs, streaming=False)
+    
+    prompt = (
+        "Generate a JSON worker agent template for a multi-agent workflow system.\n"
+        f"User description: {description}\n\n"
+        "Available tools: web_search, fetch_url, memory_search, artifact_read, file_write, pdf_export, send_email, browser_automation, shell_exec\n\n"
+        "Respond ONLY with valid JSON (no markdown fencing):\n"
+        '{"id": "snake_case_id", "name": "Human Name", "purpose": "one-liner", '
+        '"system_prompt_template": "You are... Task-specific context: {task_description}", '
+        '"allowed_tools": ["tool1"], "expected_output_schema": {"result": "string"}, "timeout": 90, "retry_limit": 2}'
+    )
+    
+    try:
+        resp = await llm.ainvoke([HumanMessage(content=prompt)])
+        raw = resp.content.strip()
+        if "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
+            if raw.startswith("json"):
+                raw = raw[4:].strip()
+        return json.loads(raw)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
