@@ -1,4 +1,26 @@
 from contextlib import asynccontextmanager
+import logging
+
+class WebSocketLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage().lower()
+        if (
+            "websocket" in msg or 
+            "/ws/" in msg or 
+            "connection open" in msg or 
+            "connection closed" in msg or 
+            "connection accepted" in msg or
+            "accepted" in msg
+        ):
+            return False
+        return True
+
+# Apply filter to uvicorn loggers to silence websocket open/close output
+for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    logger = logging.getLogger(logger_name)
+    logger.addFilter(WebSocketLogFilter())
+    for handler in logger.handlers:
+        handler.addFilter(WebSocketLogFilter())
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles

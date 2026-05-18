@@ -10,7 +10,7 @@ from operator import add
 
 from app.mcp import MCP_TOOL_CALL_TIMEOUT
 
-from fastapi import APIRouter, HTTPException, File, UploadFile
+from fastapi import APIRouter, HTTPException, File, UploadFile, WebSocket, WebSocketDisconnect
 import shutil
 import os
 
@@ -1445,6 +1445,42 @@ async def chat_with_workflow_supervisor(run_id: str, payload: dict):
         
     return {"status": "ignored"}
 
+@router.post("/workflows/{run_id}/stop")
+async def stop_workflow(run_id: str):
+    from app.workflow import load_workflows as _lw, save_workflows as _sw
+    db = _lw()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if db[run_id]["status"] == "running":
+        db[run_id]["status"] = "failed"
+        db[run_id]["final_result"] = "Workflow manually stopped by user."
+        db[run_id].setdefault("debug_logs", []).append(f"[{datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}] 🛑 Workflow manually stopped")
+        _sw(db)
+    return {"status": "stopped"}
+
+@router.post("/workflows/{run_id}/restart")
+async def restart_workflow(run_id: str):
+    from app.workflow import load_workflows as _lw, save_workflows as _sw, MultiAgentWorkflowEngine
+    db = _lw()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    state = db[run_id]
+    if state["status"] in ["failed", "completed"]:
+        # Restart all incomplete/failed tasks
+        failed_set = set(state.get("failed_tasks", []))
+        for t in state.get("tasks", []):
+            if t["task_id"] in failed_set or t["status"] not in ["completed"]:
+                t["status"] = "pending"
+                t["retries"] = 0
+        state["failed_tasks"] = []
+        state["status"] = "pending"
+        state["final_result"] = None
+        state.setdefault("debug_logs", []).append(f"[{datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}] 🔄 Workflow restarted")
+        _sw(db)
+        import asyncio
+        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+    return {"status": "restarted"}
+
 @router.delete("/workflows/{run_id}")
 async def delete_workflow(run_id: str):
     """Delete a workflow run and its storage directory."""
@@ -1460,6 +1496,57 @@ async def delete_workflow(run_id: str):
         import shutil as _shutil
         _shutil.rmtree(sdir, ignore_errors=True)
     return {"status": "deleted"}
+
+@router.post("/workflows/{run_id}/restart-node")
+async def restart_workflow_node(run_id: str, payload: dict):
+    from app.workflow import load_workflows, save_workflows, MultiAgentWorkflowEngine
+    task_id = payload.get("task_id")
+    if not task_id:
+        raise HTTPException(status_code=400, detail="Task ID is required")
+        
+    db = load_workflows()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+        
+    state = db[run_id]
+    
+    # Reset target task node
+    target_task = None
+    for t in state["tasks"]:
+        if t["task_id"] == task_id:
+            target_task = t
+            break
+            
+    if not target_task:
+        raise HTTPException(status_code=404, detail="Task node not found in this workflow")
+        
+    # Reset the task attributes
+    target_task["status"] = "pending"
+    target_task["retries"] = 0
+    target_task.pop("error", None)
+    
+    # Remove from lists safely
+    if task_id in state.get("failed_tasks", []):
+        state["failed_tasks"].remove(task_id)
+    if task_id in state.get("completed_tasks", []):
+        state["completed_tasks"].remove(task_id)
+    if task_id in state.get("running_tasks", []):
+        state["running_tasks"].remove(task_id)
+        
+    # Reset overall workflow state status to allow running again
+    state["status"] = "running"
+    state["final_result"] = None
+    state.setdefault("notifications", []).append(f"🔄 Restarting task node '{target_task['title']}'...")
+    state.setdefault("debug_logs", []).append(f"User requested restart of task node '{target_task['title']}' ({task_id})")
+    
+    db[run_id] = state
+    save_workflows(db)
+    
+    # Launch execution background loop again to continue the run!
+    asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+    
+    return {"ok": True, "status": "running"}
+
 
 # ── Workflow File Explorer ───────────────────────────────────────────
 
@@ -1514,10 +1601,41 @@ async def download_workflow_file(run_id: str, filepath: str):
     from app.config import DATA_DIR
     from fastapi.responses import FileResponse
     base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    
+    # 1. Primary check inside isolated base_dir
     fpath = os.path.abspath(os.path.join(base_dir, filepath.lstrip("/")))
-    if not fpath.startswith(os.path.abspath(base_dir)) or not os.path.isfile(fpath):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(fpath, filename=os.path.basename(fpath))
+    if fpath.startswith(os.path.abspath(base_dir)) and os.path.isfile(fpath):
+        return FileResponse(fpath, filename=os.path.basename(fpath))
+
+    # 2. Resilient check in DATA_DIR, public uploads folder, or relative project path
+    proj_root = os.path.abspath(os.path.dirname(os.path.abspath(DATA_DIR)))
+    candidates = [
+        filepath,
+        os.path.join(DATA_DIR, filepath.lstrip("/")),
+        os.path.join(DATA_DIR, "uploads", os.path.basename(filepath)),
+        os.path.join(DATA_DIR, "workflows", run_id, "uploads", os.path.basename(filepath))
+    ]
+    for candidate in candidates:
+        cand_abs = os.path.abspath(candidate)
+        if cand_abs.startswith(proj_root) and os.path.isfile(cand_abs):
+            return FileResponse(cand_abs, filename=os.path.basename(cand_abs))
+
+    raise HTTPException(status_code=404, detail=f"File not found: {filepath}")
+
+@router.get("/workflows/{run_id}/download_zip")
+async def download_workflow_zip(run_id: str):
+    """Download the entire workflow storage directory as a zip file."""
+    from app.config import DATA_DIR
+    from fastapi.responses import FileResponse
+    import shutil
+    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
+    if not os.path.exists(base_dir):
+        raise HTTPException(status_code=404, detail="Workflow directory not found")
+        
+    zip_path = os.path.join(DATA_DIR, f"{run_id}_export.zip")
+    shutil.make_archive(zip_path.replace('.zip', ''), 'zip', base_dir)
+    
+    return FileResponse(zip_path, media_type="application/zip", filename=f"{run_id}_workspace.zip")
 
 @router.post("/workflows/{run_id}/mkdir")
 async def make_workflow_dir(run_id: str, data: dict):
@@ -1672,3 +1790,82 @@ async def ai_generate_template(payload: dict):
         return json.loads(raw)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+
+@router.websocket("/ws/workflows")
+async def ws_workflows_summary(websocket: WebSocket):
+    await websocket.accept()
+    last_hash = None
+    try:
+        while True:
+            db = load_workflows()
+            
+            summary = []
+            for rid, wf in db.items():
+                summary.append({
+                    "run_id": rid,
+                    "run_title": wf.get("run_title", rid),
+                    "status": wf.get("status", "pending"),
+                    "created_at": wf.get("created_at", "")
+                })
+            
+            summary.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            
+            import json
+            current_hash = hash(json.dumps(summary, sort_keys=True))
+            if current_hash != last_hash:
+                await websocket.send_json({
+                    "type": "workflows_list",
+                    "workflows": summary
+                })
+                last_hash = current_hash
+            
+            await asyncio.sleep(0.5)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+
+@router.websocket("/ws/workflows/{run_id}")
+async def ws_workflow_detail(websocket: WebSocket, run_id: str):
+    await websocket.accept()
+    last_hash = None
+    try:
+        while True:
+            db = load_workflows()
+            if run_id not in db:
+                await websocket.send_json({"type": "error", "message": "Workflow not found"})
+                await asyncio.sleep(2)
+                continue
+            
+            wf = db[run_id]
+            payload = {
+                "run_id": run_id,
+                "run_title": wf.get("run_title", ""),
+                "status": wf.get("status", "pending"),
+                "plan": wf.get("plan", None),
+                "tasks": wf.get("tasks", []),
+                "artifacts": wf.get("artifacts", []),
+                "final_result": wf.get("final_result", ""),
+                "notifications": wf.get("notifications", []),
+                "debug_logs": wf.get("debug_logs", []),
+                "run_icon": wf.get("run_icon", ""),
+                "created_at": wf.get("created_at", None),
+                "started_at": wf.get("started_at", None),
+                "completed_at": wf.get("completed_at", None)
+            }
+            
+            import json
+            current_hash = hash(json.dumps(payload, default=str, sort_keys=True))
+            if current_hash != last_hash:
+                await websocket.send_json({
+                    "type": "workflow_detail",
+                    "run_id": run_id,
+                    "workflow": payload
+                })
+                last_hash = current_hash
+            
+            await asyncio.sleep(0.5)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass

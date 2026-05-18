@@ -720,6 +720,11 @@
     0% { opacity: 0.85; }
     100% { opacity: 1; box-shadow: 0 0 4px rgba(239, 68, 68, 0.1); }
   }
+  @keyframes simple-ping {
+    0% { transform: scale(1); opacity: 1; }
+    70% { transform: scale(2.2); opacity: 0; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
 
   /* ── Graph View Layout ── */
   .graph-container {
@@ -732,6 +737,7 @@
     overflow: auto;
     margin-bottom: 20px;
     padding: 20px;
+    cursor: grab;
   }
   .graph-canvas {
     width: 100%;
@@ -760,22 +766,36 @@
     border-color: var(--accent);
     box-shadow: 0 4px 12px rgba(80, 80, 129, 0.15);
   }
-  .graph-node.node-running {
-    border-color: #ef4444;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
-    animation: node-pulse 1.5s infinite alternate;
+  .graph-node.node-pending {
+    border-color: rgba(80, 80, 129, 0.4);
+    background: rgba(15, 14, 71, 0.4);
+    opacity: 0.85;
+  }
+  .graph-node.node-waiting {
+    border-color: rgba(134, 134, 172, 0.3);
+    border-style: dashed;
+    background: rgba(15, 14, 71, 0.2);
+    opacity: 0.65;
+  }
+  .graph-node.node-working {
+    border-color: var(--accent);
+    background: rgba(39, 39, 87, 0.6);
+    box-shadow: 0 0 15px rgba(80, 80, 129, 0.4);
+    animation: node-pulse-accent 1.5s infinite alternate;
   }
   .graph-node.node-completed {
     border-color: #22c55e;
-    background: rgba(34, 197, 94, 0.03);
+    background: rgba(34, 197, 94, 0.05);
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.1);
   }
   .graph-node.node-failed {
     border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.03);
+    background: rgba(239, 68, 68, 0.05);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
   }
-  @keyframes node-pulse {
-    0% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.1); }
-    100% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.3); }
+  @keyframes node-pulse-accent {
+    0% { border-color: rgba(80, 80, 129, 0.4); box-shadow: 0 0 5px rgba(80, 80, 129, 0.2); }
+    100% { border-color: var(--accent); box-shadow: 0 0 15px rgba(80, 80, 129, 0.6); }
   }
   .graph-node-icon {
     width: 24px;
@@ -797,6 +817,239 @@
     overflow: hidden;
     text-overflow: ellipsis;
     flex: 1;
+  }
+
+  /* ── Cyber Intel Loader Styles ── */
+  .cyber-loader-box {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    background: rgba(15, 14, 71, 0.75); /* Obsidian Blue Glassmorphism */
+    border: 1px solid rgba(80, 80, 129, 0.4);
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(80, 80, 129, 0.15);
+  }
+  
+  .cyber-glow-border {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--accent), #8686AC, transparent);
+    animation: border-laser 3s linear infinite;
+  }
+  @keyframes border-laser {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+
+  .cyber-body {
+    padding: 40px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .holo-core-container {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .holo-brain {
+    font-size: 34px;
+    color: var(--accent);
+    z-index: 10;
+    text-shadow: 0 0 15px var(--accent);
+    animation: brain-float 2s ease-in-out infinite alternate;
+  }
+  @keyframes brain-float {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-6px); }
+  }
+
+  .holo-radar-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(134, 134, 172, 0.15);
+    animation: radar-pulse 3s infinite linear;
+  }
+  .holo-radar-ring.ring-1 { width: 50px; height: 50px; animation-delay: 0s; }
+  .holo-radar-ring.ring-2 { width: 75px; height: 75px; animation-delay: 1s; }
+  .holo-radar-ring.ring-3 { width: 100px; height: 100px; animation-delay: 2s; }
+  
+  @keyframes radar-pulse {
+    0% { transform: scale(0.6); opacity: 0; }
+    50% { opacity: 0.6; border-color: var(--accent); }
+    100% { transform: scale(1.3); opacity: 0; }
+  }
+
+  .cyber-header-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #8686AC; /* Dusty Lavender */
+    letter-spacing: 0.12em;
+    padding: 6px 14px;
+    background: rgba(39, 39, 87, 0.6); /* Deep Midnight */
+    border: 1px solid rgba(80, 80, 129, 0.3);
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .cyber-pulse-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+    animation: dot-pulse 1s infinite alternate;
+  }
+  @keyframes dot-pulse {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    100% { transform: scale(1.2); opacity: 1; }
+  }
+
+  .cyber-step-text {
+    font-size: 12.5px;
+    font-family: monospace;
+    color: white;
+    text-align: center;
+    background: rgba(15, 14, 71, 0.4);
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(80, 80, 129, 0.2);
+    width: 100%;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Zoom Controls Style ── */
+  .zoom-controls {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(39, 39, 87, 0.85); /* Deep Midnight */
+    border: 1px solid rgba(134, 134, 172, 0.3);
+    border-radius: 12px;
+    padding: 6px 10px;
+    backdrop-filter: blur(10px);
+    z-index: 50;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  }
+  .zoom-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(80, 80, 129, 0.3);
+    border: 1px solid rgba(134, 134, 172, 0.25);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .zoom-btn:hover {
+    background: rgba(80, 80, 129, 0.6);
+    transform: scale(1.05);
+  }
+  .zoom-btn:active {
+    transform: scale(0.95);
+  }
+  .zoom-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8686AC;
+    min-width: 36px;
+    text-align: center;
+    font-family: monospace;
+  }
+
+  /* ── Active Worker Badge Styles ── */
+  .active-worker-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #0F0E47; /* Obsidian Blue */
+    border: 2px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 9px;
+    box-shadow: 0 0 10px rgba(80,80,129,0.6);
+    z-index: 30;
+    animation: badge-pulse-accent 1s infinite alternate;
+  }
+  .active-worker-badge.waiting-badge {
+    color: #8686AC; /* Dusty Lavender */
+    border-color: #505081;
+    box-shadow: none;
+    animation: none;
+  }
+  @keyframes badge-pulse-accent {
+    0% { box-shadow: 0 0 5px rgba(80,80,129,0.4); }
+    100% { box-shadow: 0 0 15px rgba(80,80,129,0.8); }
+  }
+
+  /* ── Node Artifacts Styles ── */
+  .node-artifacts-container {
+    position: absolute;
+    top: 50px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto; /* Allow clicking the links */
+    z-index: 20;
+  }
+  .artifact-arrow {
+    height: 14px;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2px;
+  }
+  .node-artifact-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(39, 39, 87, 0.95); /* Deep Midnight */
+    border: 1px solid rgba(80, 80, 129, 0.5); /* Muted Indigo */
+    border-radius: 8px;
+    padding: 4px 8px;
+    color: var(--text-primary);
+    font-size: 9.5px;
+    font-weight: 600;
+    max-width: 150px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+    text-decoration: none;
+    transition: transform 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .node-artifact-pill:hover {
+    transform: translateY(1px) scale(1.02);
+    border-color: var(--accent);
+    background: rgba(80, 80, 129, 0.4);
+    color: white;
   }
 </style>
 {% endblock %}
@@ -891,10 +1144,24 @@
 
       <!-- Status badge -->
       <template x-if="activeWorkflow">
-        <span class="status-badge" :class="'status-' + (activeWorkflow.status || 'pending')">
-          <template x-if="activeWorkflow.status === 'running'"><i class="fa fa-circle-notch spinner-sm"></i></template>
-          <span x-text="activeWorkflow.status || 'pending'"></span>
-        </span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-badge" :class="'status-' + (activeWorkflow.status || 'pending')">
+            <template x-if="activeWorkflow.status === 'running'"><i class="fa fa-circle-notch spinner-sm"></i></template>
+            <span x-text="activeWorkflow.status || 'pending'"></span>
+          </span>
+          
+          <!-- Stop / Restart buttons in topbar -->
+          <template x-if="activeWorkflow.status === 'running'">
+            <button @click.stop="stopWorkflow()" title="Force Stop Workflow" style="background: rgba(255, 107, 107, 0.15); border: 1px solid rgba(255, 107, 107, 0.3); color: #ff6b6b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" x-on:mouseover="$el.style.background='rgba(255,107,107,0.25)'" x-on:mouseout="$el.style.background='rgba(255,107,107,0.15)'">
+              <i class="fa fa-stop"></i> Stop
+            </button>
+          </template>
+          <template x-if="activeWorkflow.status === 'failed' || activeWorkflow.status === 'completed'">
+            <button @click.stop="restartWorkflow()" title="Restart Workflow" style="background: rgba(111, 207, 151, 0.15); border: 1px solid rgba(111, 207, 151, 0.3); color: #6fcf97; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" x-on:mouseover="$el.style.background='rgba(111,207,151,0.25)'" x-on:mouseout="$el.style.background='rgba(111,207,151,0.15)'">
+              <i class="fa fa-rotate-right"></i> Restart
+            </button>
+          </template>
+        </div>
       </template>
 
       <!-- Debug toggle -->
@@ -924,7 +1191,7 @@
     <div id="atlas-content">
 
       <!-- ── EMPTY STATE ── -->
-      <template x-if="!activeRunId && currentView === 'home'">
+      <template x-if="!activeRunId && !submitting && currentView === 'home'">
         <div class="atlas-view-enter">
           <div class="empty-hero">
             <div class="empty-hero-icon"><i class="fa fa-terminal"></i></div>
@@ -947,6 +1214,38 @@
                 </div>
               </div>
             </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- ── AGENTIC SUPERVISOR PLANNING SCREEN ── -->
+      <template x-if="!activeRunId && submitting && currentView === 'home'">
+        <div class="atlas-view-enter" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; padding: 40px; text-align: center;">
+          
+          <!-- Cyber Intel Loader Box -->
+          <div class="cyber-loader-box">
+            <div class="cyber-glow-border"></div>
+            
+            <div class="cyber-body">
+              <!-- Holographic Brain Core -->
+              <div class="holo-core-container">
+                <div class="holo-radar-ring ring-1"></div>
+                <div class="holo-radar-ring ring-2"></div>
+                <div class="holo-radar-ring ring-3"></div>
+                <i class="fa-solid fa-brain holo-brain"></i>
+              </div>
+              
+              <div class="cyber-header-tag">
+                <span class="cyber-pulse-dot"></span>
+                DECOMPOSING REQUEST
+              </div>
+              
+              <div class="cyber-step-text" x-text="planningSubtitle()"></div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 24px; font-size: 11px; font-weight: 600; color: var(--text-tertiary); letter-spacing: 0.08em; text-transform: uppercase;">
+            Designing specialized agent mesh & dependency execution pipelines...
           </div>
         </div>
       </template>
@@ -977,7 +1276,20 @@
                 <template x-for="task in activeWorkflow.tasks" :key="task.task_id">
                   <div class="task-card"
                     :class="taskCardClass(task.status)"
-                    @click="openTaskModal(task)">
+                    @click="openTaskModal(task)"
+                    style="position: relative;">
+                    <!-- Active worker spinning badge -->
+                    <template x-if="getTaskDisplayStatus(task) === 'working'">
+                      <div class="active-worker-badge">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                      </div>
+                    </template>
+                    <!-- Sleeping/Waiting badge -->
+                    <template x-if="getTaskDisplayStatus(task) === 'waiting'">
+                      <div class="active-worker-badge waiting-badge" title="Waiting for dependencies...">
+                        <i class="fa-solid fa-moon"></i>
+                      </div>
+                    </template>
                     <div style="display:flex; align-items:flex-start; gap:10px; margin-bottom:8px;">
                       <div class="task-worker-icon" :style="workerIconStyle(task.worker_type)">
                         <i :class="'fa ' + workerIcon(task.worker_type)"></i>
@@ -1058,8 +1370,8 @@
               </div>
               <div>
                 <template x-for="(art, i) in activeWorkflow.artifacts" :key="i">
-                  <a :href="'/uploads/' + encodeURIComponent(artFilename(art))"
-                     target="_blank" class="artifact-chip">
+                  <a :href="getArtifactDownloadUrl(art)"
+                     download class="artifact-chip">
                     <i :class="'fa ' + fileIcon(art)"></i>
                     <span x-text="artFilename(art)"></span>
                     <i class="fa fa-download" style="font-size:10px; opacity:0.6;"></i>
@@ -1095,8 +1407,49 @@
             </div>
           </template>
 
-          <div class="graph-container">
-            <div class="graph-canvas">
+          <div class="graph-container" style="position: relative;" @mousedown="startPan($event)">
+            <!-- Floating Apple-style Duration Pill Overlay -->
+            <template x-if="activeWorkflow && (activeWorkflow.started_at || activeWorkflow.created_at)">
+              <div style="position: absolute; top: 16px; right: 16px; z-index: 20; display: flex; align-items: center; gap: 8px; background: rgba(39,39,87,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(134,134,172,0.25); border-radius: 99px; padding: 6px 14px; box-shadow: 0 8px 32px rgba(15,14,71,0.35); pointer-events: auto; transition: all 0.3s ease;">
+                <!-- Glowing heartbeat pulse or icon depending on status -->
+                <span style="display: flex; align-items: center; justify-content: center; pointer-events: none;">
+                  <template x-if="activeWorkflow.status === 'running'">
+                    <span style="position: relative; display: flex; height: 8px; width: 8px;">
+                      <span style="position: absolute; display: inline-flex; height: 100%; width: 100%; border-radius: 9999px; background-color: #6fcf97; opacity: 0.75; animation: simple-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+                      <span style="position: relative; display: inline-flex; border-radius: 9999px; height: 8px; width: 8px; background-color: #6fcf97;"></span>
+                    </span>
+                  </template>
+                  <template x-if="activeWorkflow.status === 'completed'">
+                    <i class="fa fa-circle-check" style="color: #6fcf97; font-size: 11px;"></i>
+                  </template>
+                  <template x-if="activeWorkflow.status === 'failed'">
+                    <i class="fa fa-circle-exclamation" style="color: #ff6b6b; font-size: 11px;"></i>
+                  </template>
+                  <template x-if="activeWorkflow.status === 'pending'">
+                    <i class="fa fa-circle-notch fa-spin" style="color: var(--text-tertiary); font-size: 11px;"></i>
+                  </template>
+                </span>
+                
+                <!-- Label and duration text -->
+                <span style="font-size: 11px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px; pointer-events: none;">
+                  Time: <span style="font-weight: 700; color: var(--text-primary); font-family: monospace;" x-text="getWorkflowDurationText(activeWorkflow, currentTime)"></span>
+                </span>
+                
+                <!-- Action Buttons -->
+                <template x-if="activeWorkflow.status === 'running'">
+                  <button @click.stop="stopWorkflow()" title="Force Stop Workflow" style="background: rgba(255, 107, 107, 0.15); border: 1px solid rgba(255, 107, 107, 0.3); color: #ff6b6b; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; cursor: pointer; margin-left: 4px; transition: all 0.2s;" x-on:mouseover="$el.style.background='rgba(255,107,107,0.25)'" x-on:mouseout="$el.style.background='rgba(255,107,107,0.15)'">
+                    <i class="fa fa-stop" style="margin-right: 3px;"></i> Stop
+                  </button>
+                </template>
+                <template x-if="activeWorkflow.status === 'failed' || activeWorkflow.status === 'completed'">
+                  <button @click.stop="restartWorkflow()" title="Restart Workflow" style="background: rgba(111, 207, 151, 0.15); border: 1px solid rgba(111, 207, 151, 0.3); color: #6fcf97; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; cursor: pointer; margin-left: 4px; transition: all 0.2s;" x-on:mouseover="$el.style.background='rgba(111,207,151,0.25)'" x-on:mouseout="$el.style.background='rgba(111,207,151,0.15)'">
+                    <i class="fa fa-rotate-right" style="margin-right: 3px;"></i> Restart
+                  </button>
+                </template>
+              </div>
+            </template>
+
+            <div class="graph-canvas" :style="'transform: scale(' + zoomLevel + '); transform-origin: top left;'">
               <!-- SVG connector paths -->
               <svg style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;">
                 <defs>
@@ -1114,20 +1467,13 @@
                   </marker>
                 </defs>
                 
-                <template x-for="e in getGraphLayout().edges" :key="e.fromId + '-' + e.toId">
-                  <path :d="'M ' + e.fromX + ' ' + e.fromY + ' C ' + (e.fromX + 40) + ' ' + e.fromY + ', ' + (e.toX - 40) + ' ' + e.toY + ', ' + e.toX + ' ' + e.toY"
-                        :stroke="e.status === 'running' ? '#ef4444' : (e.status === 'completed' ? '#22c55e' : 'rgba(134,134,172,0.25)')"
-                        fill="none" 
-                        :stroke-dasharray="e.status === 'pending' ? '4' : 'none'"
-                        :stroke-width="e.status === 'running' ? '2.5' : '1.5'" 
-                        :marker-end="'url(#arrow-' + (e.status || 'pending') + ')'"/>
-                </template>
+                <g x-html="renderSvgEdges()"></g>
               </svg>
 
               <!-- Node Cards -->
               <template x-for="n in getGraphLayout().nodes" :key="n.id">
                 <div class="graph-node"
-                     :class="'node-' + (n.task.status || 'pending')"
+                     :class="'node-' + getTaskDisplayStatus(n.task)"
                      :style="'left: ' + n.x + 'px; top: ' + n.y + 'px;'"
                      @click="openTaskModal(n.task)">
                   <div class="graph-node-icon" :style="workerIconStyle(n.task.worker_type)">
@@ -1135,12 +1481,45 @@
                   </div>
                   <div class="graph-node-title" x-text="n.task.title"></div>
                   
-                  <!-- Small top right smartwatch pulse if running -->
-                  <template x-if="n.task.status === 'running'">
-                    <span style="position:absolute; top:-6px; right:-6px; width:12px; height:12px; border-radius:50%; background:#ef4444; border:2px solid var(--bg-canvas); display:inline-block; animation: pulse-timer 1s infinite alternate;"></span>
+                  <!-- Active worker badge with spinner -->
+                  <template x-if="getTaskDisplayStatus(n.task) === 'working'">
+                    <div class="active-worker-badge">
+                      <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    </div>
+                  </template>
+
+                  <!-- Sleeping/Waiting badge -->
+                  <template x-if="getTaskDisplayStatus(n.task) === 'waiting'">
+                    <div class="active-worker-badge waiting-badge" title="Waiting for dependencies...">
+                      <i class="fa-solid fa-moon"></i>
+                    </div>
+                  </template>
+
+                  <!-- Downward connector arrow & Artifact download pills underneath the node -->
+                  <template x-if="n.task.artifacts && n.task.artifacts.length">
+                    <div class="node-artifacts-container" @click.stop>
+                      <div class="artifact-arrow"><i class="fa-solid fa-arrow-down-long"></i></div>
+                      <template x-for="art in n.task.artifacts" :key="art">
+                        <a :href="getArtifactDownloadUrl(art)" 
+                           download
+                           class="node-artifact-pill"
+                           :title="'Download ' + getFilename(art)">
+                          <i :class="'fa ' + getArtifactIcon(art)"></i>
+                          <span x-text="truncateFilename(getFilename(art), 16)"></span>
+                        </a>
+                      </template>
+                    </div>
                   </template>
                 </div>
               </template>
+            </div>
+
+            <!-- Dynamic Floating Zoom Controls (Static to graph container) -->
+            <div class="zoom-controls">
+              <button class="zoom-btn" @click="zoomOut()" title="Zoom Out"><i class="fa fa-minus"></i></button>
+              <span class="zoom-text" x-text="Math.round(zoomLevel * 100) + '%'"></span>
+              <button class="zoom-btn" @click="zoomIn()" title="Zoom In"><i class="fa fa-plus"></i></button>
+              <button class="zoom-btn" @click="resetZoom()" title="Reset Zoom"><i class="fa-solid fa-compress"></i></button>
             </div>
           </div>
         </div>
@@ -1174,6 +1553,9 @@
               </button>
               <button class="action-btn-sm" @click="makeFile()" title="Create Empty File">
                 <i class="fa fa-file-circle-plus"></i> New File
+              </button>
+              <button class="action-btn-sm" @click="downloadZip()" title="Download Workspace as ZIP">
+                <i class="fa-solid fa-file-zipper"></i> Download ZIP
               </button>
               <button class="action-btn-sm primary" @click="$refs.fileInput.click()" title="Upload File">
                 <i class="fa fa-upload"></i> Upload
@@ -1522,10 +1904,61 @@
           </div>
         </template>
 
+        <template x-if="selectedTask.status === 'failed'">
+          <div style="margin-bottom:14px;">
+            <button class="action-btn-sm primary" 
+              style="width: 100%; justify-content: center; height: 38px; border-radius: 12px; font-size: 13px; font-weight: 600; gap: 8px; background: var(--accent); color: white;"
+              @click="restartTaskNode(selectedTask.task_id)">
+              <i class="fa-solid fa-arrows-rotate"></i>
+              Restart Task Node & Resume Workflow
+            </button>
+          </div>
+        </template>
+
         <template x-if="selectedTask.output">
           <div>
             <div style="font-size:12px; font-weight:600; color:var(--text-tertiary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.06em;">Output</div>
             <div class="json-block" x-text="JSON.stringify(selectedTask.output, null, 2)"></div>
+          </div>
+        </template>
+
+        <!-- ReAct Step Log — live agent trace -->
+        <template x-if="selectedTask.step_log && selectedTask.step_log.length">
+          <div style="margin-top:14px;">
+            <div style="font-size:12px; font-weight:600; color:var(--text-tertiary); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.06em; display:flex; align-items:center; gap:6px;">
+              <i class="fa fa-terminal" style="color:var(--accent);"></i>
+              Agent Trace
+              <span style="font-size:10px; font-weight:400; color:var(--text-quaternary);" x-text="selectedTask.step_log.length + ' steps'"></span>
+              <template x-if="selectedTask.status === 'running'">
+                <span style="margin-left:auto; display:flex; align-items:center; gap:4px; font-size:10px; color:#6fcf97; font-weight:500;">
+                  <i class="fa fa-circle-notch fa-spin" style="font-size:9px;"></i> Live
+                </span>
+              </template>
+            </div>
+            <div style="background:rgba(15,14,71,0.6); border:1px solid rgba(134,134,172,0.15); border-radius:12px; padding:12px; max-height:380px; overflow-y:auto; font-family:monospace; font-size:11px; line-height:1.6; display:flex; flex-direction:column; gap:6px;">
+              <template x-for="(step, idx) in selectedTask.step_log" :key="idx">
+                <div style="display:flex; gap:8px; align-items:flex-start;">
+                  <!-- Step kind icon/badge -->
+                  <div style="flex-shrink:0; margin-top:1px;">
+                    <template x-if="step.kind === 'thought'">
+                      <span style="font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; background:rgba(80,80,129,0.4); color:#8686AC; text-transform:uppercase;">ACT</span>
+                    </template>
+                    <template x-if="step.kind === 'observation'">
+                      <span style="font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; background:rgba(39,39,87,0.5); color:#6fcf97; text-transform:uppercase;">OBS</span>
+                    </template>
+                    <template x-if="step.kind === 'final'">
+                      <span style="font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; background:rgba(111,207,151,0.15); color:#6fcf97; text-transform:uppercase;">DONE</span>
+                    </template>
+                  </div>
+                  <!-- Tool name badge (for act/obs) -->
+                  <template x-if="step.tool">
+                    <span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(134,134,172,0.12); color:#8686AC; flex-shrink:0; margin-top:1px;" x-text="step.tool"></span>
+                  </template>
+                  <!-- Content -->
+                  <div style="color:rgba(255,255,255,0.75); word-break:break-word; white-space:pre-wrap; flex:1;" x-text="step.content"></div>
+                </div>
+              </template>
+            </div>
           </div>
         </template>
       </div>
@@ -1539,11 +1972,17 @@ function atlasApp() {
   return {
     // State
     workflows: {},
+    lastWorkflowStates: {},
     workflowList: [],
     activeRunId: null,
     activeWorkflow: null,
     currentView: 'home',
     activeTab: 'overview',
+    zoomLevel: 1.0,
+    planningStep: 0,
+    planningInterval: null,
+    wsList: null,
+    wsDetail: null,
     selectedTask: null,
     debugMode: false,
     inputText: '',
@@ -1583,6 +2022,11 @@ function atlasApp() {
       this.loadAvailableTools();
       // Live stopwatch clock
       setInterval(() => { this.currentTime = Date.now(); }, 1000);
+      
+      // Request browser notification permission
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
     },
 
     async loadModels() {
@@ -1666,6 +2110,15 @@ function atlasApp() {
           this.$refs.mainInput.style.height = '24px';
         }
       });
+
+      // Start planning subtitle interval if starting a brand new workflow
+      if (!this.activeRunId) {
+        this.planningStep = 0;
+        this.planningInterval = setInterval(() => {
+          this.planningStep = (this.planningStep + 1) % 5;
+        }, 1500);
+      }
+
       try {
         if (this.activeRunId) {
           // Send collaborative message to existing supervisor
@@ -1677,6 +2130,7 @@ function atlasApp() {
           const resp = await this.api('POST', '/api/workflows', { message: msg });
           await this.loadWorkflows();
           if (resp.run_id) {
+            this.activeTab = 'graph';
             this.selectWorkflow(resp.run_id);
           }
         }
@@ -1684,6 +2138,10 @@ function atlasApp() {
         alert('Failed to send instruction: ' + e.message);
       } finally {
         this.submitting = false;
+        if (this.planningInterval) {
+          clearInterval(this.planningInterval);
+          this.planningInterval = null;
+        }
       }
     },
 
@@ -1691,6 +2149,88 @@ function atlasApp() {
       this.inputText = text;
       this.currentView = 'home';
       this.$nextTick(() => this.submitWorkflow());
+    },
+
+    async restartTaskNode(taskId) {
+      if (!this.activeRunId) return;
+      try {
+        const resp = await this.api('POST', `/api/workflows/${this.activeRunId}/restart-node`, { task_id: taskId });
+        if (resp.ok) {
+          this.selectedTask = null;
+          await this.loadWorkflowDetail();
+          await this.loadWorkflows();
+          this.restartDetailPolling();
+        }
+      } catch(e) {
+        alert('Failed to restart task node: ' + e.message);
+      }
+    },
+
+    zoomIn() {
+      this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
+    },
+    zoomOut() {
+      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.5);
+    },
+    resetZoom() {
+      this.zoomLevel = 1.0;
+    },
+
+    planningSubtitle() {
+      const steps = [
+        "Initializing Top-Level Workflow Supervisor...",
+        "Analyzing project constraints & dependency requirements...",
+        "Spawning custom Multi-Agent LangGraph layout...",
+        "Structuring recursive research & compiler nodes...",
+        "Saving workflow blueprint to disk..."
+      ];
+      return steps[this.planningStep || 0];
+    },
+
+    getTaskDisplayStatus(task) {
+      if (!task) return 'pending';
+      if (task.status === 'completed') return 'completed';
+      if (task.status === 'failed') return 'failed';
+      if (task.status === 'running') return 'working';
+      
+      if (task.depends_on && task.depends_on.length) {
+        const tasks = this.activeWorkflow?.tasks || [];
+        const unmet = task.depends_on.some(depId => {
+          const depTask = tasks.find(tk => tk.task_id === depId);
+          return !depTask || depTask.status !== 'completed';
+        });
+        if (unmet) return 'waiting';
+      }
+      return 'pending';
+    },
+
+    getFilename(path) {
+      if (!path) return '';
+      return path.split('/').pop().split('\\').pop();
+    },
+    truncateFilename(name, len = 16) {
+      if (!name) return '';
+      if (name.length <= len) return name;
+      const ext = name.split('.').pop();
+      const base = name.substring(0, name.lastIndexOf('.'));
+      if (base.length > len - 4) {
+        return base.substring(0, len - 5 - ext.length) + '...' + ext;
+      }
+      return name;
+    },
+    getArtifactIcon(path) {
+      if (!path) return 'fa-file';
+      const ext = path.split('.').pop().toLowerCase();
+      if (ext === 'pdf') return 'fa-file-pdf text-red-500';
+      if (ext === 'pptx' || ext === 'ppt') return 'fa-file-powerpoint text-orange-500';
+      if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') return 'fa-file-excel text-green-500';
+      if (ext === 'docx' || ext === 'doc') return 'fa-file-word text-blue-500';
+      if (ext === 'md') return 'fa-file-code text-indigo-400';
+      return 'fa-file';
+    },
+    getArtifactDownloadUrl(filepath) {
+      if (!this.activeRunId) return '#';
+      return `/api/workflows/${this.activeRunId}/download?filepath=${encodeURIComponent(filepath)}`;
     },
 
     async confirmDeleteWorkflow(runId) {
@@ -1704,21 +2244,216 @@ function atlasApp() {
       } catch(e) { alert('Delete failed: ' + e.message); }
     },
 
-    // ── Polling ──
-    startPolling() {
-      this.pollingTimer = setInterval(() => this.loadWorkflows(), 2000);
-    },
-    restartDetailPolling() {
-      clearInterval(this.detailPollingTimer);
-      this.detailPollingTimer = setInterval(() => {
-        if (!this.activeRunId) return;
-        const wf = this.workflows[this.activeRunId];
-        if (wf && (wf.status === 'completed' || wf.status === 'failed')) {
-          clearInterval(this.detailPollingTimer);
-          return;
+    getWorkflowDurationText(wf, tick) {
+      if (!wf) return '';
+      
+      const startStr = wf.started_at || wf.created_at;
+      if (!startStr) return '';
+      
+      const start = new Date(startStr).getTime();
+      let end = tick || Date.now();
+      
+      if (wf.status === 'completed' || wf.status === 'failed') {
+        if (wf.completed_at) {
+          end = new Date(wf.completed_at).getTime();
         }
-        this.loadWorkflowDetail();
-      }, 1500);
+      }
+      
+      const diffMs = Math.max(0, end - start);
+      const totalSec = Math.floor(diffMs / 1000);
+      
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+      
+      if (mins > 0) {
+        return `${mins}m ${secs}s`;
+      }
+      return `${secs}s`;
+    },
+
+    playNotificationSound(isSuccess = true) {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+        
+        if (isSuccess) {
+          // Success chime: gentle high notes (E6 -> G6 -> C7)
+          const notes = [1318.51, 1567.98, 2093.00];
+          notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+            gain.gain.setValueAtTime(0.08, now + idx * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.12 + 0.5);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + idx * 0.12);
+            osc.stop(now + idx * 0.12 + 0.55);
+          });
+        } else {
+          // Failure chime: flat gentle warning notes (A4 -> Ab4)
+          const notes = [440.00, 415.30];
+          notes.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.18);
+            gain.gain.setValueAtTime(0.12, now + idx * 0.18);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.18 + 0.7);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + idx * 0.18);
+            osc.stop(now + idx * 0.18 + 0.75);
+          });
+        }
+      } catch(e) {
+        console.warn('Failed to play audio chime:', e);
+      }
+    },
+
+    triggerBrowserNotification(w) {
+      this.playNotificationSound(w.status === 'completed');
+      
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          const title = w.status === 'completed' ? 'Workflow Completed ✓' : 'Workflow Failed ✗';
+          const body = `"${w.run_title}" is now ${w.status}.`;
+          try {
+            new Notification(title, {
+              body: body,
+              tag: w.run_id,
+              requireInteraction: false
+            });
+          } catch(err) {
+            console.error('Notification creation failed:', err);
+          }
+        }
+      }
+    },
+
+    // ── WebSockets / Real-time ──
+    startPolling() {
+      const loc = window.location;
+      const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProto}//${loc.host}/api/ws/workflows`;
+      
+      if (this.wsList) {
+        try { this.wsList.close(); } catch(e) {}
+      }
+      
+      this.wsList = new WebSocket(wsUrl);
+      this.wsList.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'workflows_list') {
+          this.workflowList = data.workflows;
+          data.workflows.forEach(w => {
+            const oldStatus = this.lastWorkflowStates[w.run_id] || w.status;
+            
+            if (!this.workflows[w.run_id]) {
+              this.workflows[w.run_id] = w;
+            } else {
+              this.workflows[w.run_id].status = w.status;
+              this.workflows[w.run_id].run_title = w.run_title;
+            }
+            
+            if (oldStatus === 'running' && (w.status === 'completed' || w.status === 'failed')) {
+              this.triggerBrowserNotification(w);
+            }
+            this.lastWorkflowStates[w.run_id] = w.status;
+          });
+        }
+      };
+      
+      this.wsList.onclose = () => {
+        setTimeout(() => this.startPolling(), 3000);
+      };
+    },
+
+    restartDetailPolling() {
+      if (!this.activeRunId) {
+        if (this.wsDetail) {
+          try { this.wsDetail.close(); } catch(e) {}
+          this.wsDetail = null;
+        }
+        return;
+      }
+      
+      const loc = window.location;
+      const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProto}//${loc.host}/api/ws/workflows/${this.activeRunId}`;
+      
+      if (this.wsDetail) {
+        try { this.wsDetail.close(); } catch(e) {}
+      }
+      
+      this.wsDetail = new WebSocket(wsUrl);
+      this.wsDetail.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'workflow_detail' && data.run_id === this.activeRunId) {
+          const oldStatus = this.lastWorkflowStates[this.activeRunId] || data.workflow.status;
+          
+          this.activeWorkflow = data.workflow;
+          this.workflows[this.activeRunId] = data.workflow;
+          
+          if (oldStatus === 'running' && (data.workflow.status === 'completed' || data.workflow.status === 'failed')) {
+            this.triggerBrowserNotification(data.workflow);
+          }
+          this.lastWorkflowStates[this.activeRunId] = data.workflow.status;
+          
+          this.$nextTick(() => {
+            if (this.$refs.consoleEl) {
+              this.$refs.consoleEl.scrollTop = this.$refs.consoleEl.scrollHeight;
+            }
+            if (this.$refs.debugConsole) {
+              this.$refs.debugConsole.scrollTop = this.$refs.debugConsole.scrollHeight;
+            }
+          });
+        }
+      };
+      
+      this.wsDetail.onclose = () => {
+        if (this.activeRunId) {
+          setTimeout(() => this.restartDetailPolling(), 3000);
+        }
+      };
+    },
+
+    startPan(e) {
+      if (e.target.closest('.graph-node') || e.target.closest('.zoom-controls') || e.target.closest('.node-artifact-pill')) return;
+      
+      this.isPanning = true;
+      const container = e.currentTarget;
+      this.startX = e.pageX - container.offsetLeft;
+      this.startY = e.pageY - container.offsetTop;
+      this.scrollLeft = container.scrollLeft;
+      this.scrollTop = container.scrollTop;
+      
+      container.style.cursor = 'grabbing';
+      container.style.userSelect = 'none';
+      
+      const onMouseMove = (moveEvt) => {
+        if (!this.isPanning) return;
+        const x = moveEvt.pageX - container.offsetLeft;
+        const y = moveEvt.pageY - container.offsetTop;
+        const walkX = (x - this.startX) * 1.3;
+        const walkY = (y - this.startY) * 1.3;
+        container.scrollLeft = this.scrollLeft - walkX;
+        container.scrollTop = this.scrollTop - walkY;
+      };
+      
+      const onMouseUp = () => {
+        this.isPanning = false;
+        container.style.cursor = 'grab';
+        container.style.userSelect = 'auto';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+      
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
     },
 
     // ── Files ──
@@ -1732,6 +2467,35 @@ function atlasApp() {
         this.workflowFiles = []; 
       }
       this.filesLoading = false;
+    },
+
+    downloadZip() {
+      if (!this.activeRunId) return;
+      window.open(`/api/workflows/${this.activeRunId}/download_zip`, '_blank');
+    },
+
+    async stopWorkflow() {
+      if (!this.activeRunId) return;
+      if (!confirm("Are you sure you want to stop this workflow run?")) return;
+      try {
+        await this.api('POST', `/api/workflows/${this.activeRunId}/stop`);
+        // Refresh details
+        await this.loadWorkflowDetails();
+      } catch (e) {
+        alert("Failed to stop workflow: " + e.message);
+      }
+    },
+
+    async restartWorkflow() {
+      if (!this.activeRunId) return;
+      if (!confirm("Are you sure you want to restart failed/incomplete tasks in this workflow?")) return;
+      try {
+        await this.api('POST', `/api/workflows/${this.activeRunId}/restart`);
+        // Refresh details
+        await this.loadWorkflowDetails();
+      } catch (e) {
+        alert("Failed to restart workflow: " + e.message);
+      }
     },
 
     async uploadFile(event) {
@@ -1947,6 +2711,25 @@ function atlasApp() {
       });
       
       return { nodes, edges };
+    },
+
+    renderSvgEdges() {
+      const layout = this.getGraphLayout();
+      let html = '';
+      layout.edges.forEach(e => {
+        const stroke = e.status === 'running' ? '#ef4444' : (e.status === 'completed' ? '#22c55e' : 'rgba(134,134,172,0.35)');
+        const dash = e.status === 'pending' ? 'stroke-dasharray="4"' : '';
+        const width = e.status === 'running' ? '2.5' : '1.5';
+        const marker = `url(#arrow-${e.status || 'pending'})`;
+        
+        html += `<path d="M ${e.fromX} ${e.fromY} C ${e.fromX + 40} ${e.fromY}, ${e.toX - 40} ${e.toY}, ${e.toX} ${e.toY}" 
+                       stroke="${stroke}" 
+                       ${dash} 
+                       stroke-width="${width}" 
+                       fill="none" 
+                       marker-end="${marker}"></path>`;
+      });
+      return html;
     },
 
     // ── Templates ──
