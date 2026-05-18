@@ -1580,12 +1580,14 @@ async def get_available_tools():
     
     try:
         from app.mcp import get_pool_tools
-        pool_tools = get_pool_tools()
+        pool_tools, _, _, _ = get_pool_tools()
         for t in pool_tools:
+            tname = t["function"]["name"]
+            tdesc = t["function"].get("description") or "MCP-registered external service tool."
             tools.append({
-                "id": t.name,
-                "name": f"MCP: {t.name.replace('_', ' ').title()}",
-                "description": t.description or "MCP-registered external service tool."
+                "id": tname,
+                "name": f"MCP: {tname.replace('_', ' ').title()}",
+                "description": tdesc
             })
     except Exception as e:
         print(f"[Dynamic Tools] Could not load MCP pool tools: {e}")
