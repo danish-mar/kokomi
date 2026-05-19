@@ -1447,7 +1447,7 @@ async def chat_with_workflow_supervisor(run_id: str, payload: dict):
 
 @router.post("/workflows/{run_id}/stop")
 async def stop_workflow(run_id: str):
-    from app.workflow import load_workflows as _lw, save_workflows as _sw
+    from app.workflow import load_workflows as _lw, save_workflows as _sw, MultiAgentWorkflowEngine
     db = _lw()
     if run_id not in db:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -1456,6 +1456,13 @@ async def stop_workflow(run_id: str):
         db[run_id]["final_result"] = "Workflow manually stopped by user."
         db[run_id].setdefault("debug_logs", []).append(f"[{datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}] 🛑 Workflow manually stopped")
         _sw(db)
+        
+    # Cancel active asyncio Task if running
+    active_task = MultiAgentWorkflowEngine.active_tasks.get(run_id)
+    if active_task:
+        active_task.cancel()
+        print(f"🛑 [STOP] Forcefully cancelled active asyncio task for workflow {run_id}")
+        
     return {"status": "stopped"}
 
 @router.post("/workflows/{run_id}/restart")

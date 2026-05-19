@@ -79,12 +79,24 @@ class TaskDict(TypedDict, total=False):
     allowed_tools: List[str]
     success_criteria: str
     expected_output_schema: Dict[str, Any]
-    status: str  # "pending", "running", "completed", "failed"
+    status: str  # "pending", "running", "completed", "retrying", "failed_transient", "failed_validation", "blocked", "failed_terminal", "aborted"
     output: Any
     artifacts: List[str]
     retries: int
     error: Optional[str]
     timestamps: Dict[str, str]
+    # Recovery metadata
+    attempt_count: int
+    failure_type: str
+    recovery_decision: str
+    retry_backoff_until: float
+    correction_context: str
+    step_traces: List[Dict[str, Any]]
+    idempotency_key: str
+    executed_side_effects: List[str]
+    last_error: str
+    last_error_signature: str
+    error_signature_count: int
 
 class WorkflowState(TypedDict):
     run_id: str
@@ -99,6 +111,7 @@ class WorkflowState(TypedDict):
     failed_tasks: List[str]
     artifacts: List[str]
     notifications: List[str]
+    debug_logs: List[str]
     final_result: Optional[str]
     status: str  # "pending", "running", "completed", "failed", "paused"
 
@@ -247,7 +260,7 @@ def web_search(query: str, max_results: int = 5) -> str:
             resp = httpx.get(
                 f"{searxng_url}/",
                 params={"q": query, "format": "json"},
-                timeout=10.0
+                timeout=15.0
             )
             if resp.status_code != 200:
                 resp = httpx.get(
@@ -265,13 +278,15 @@ def web_search(query: str, max_results: int = 5) -> str:
                         "url": r.get("url") or "",
                         "content": r.get("content") or r.get("snippet") or ""
                     })
-                return json.dumps(formatted_results)
+                if formatted_results:
+                    return json.dumps(formatted_results)
+                return "Error: SearxNG search returned 0 results. The search engine might be rate-limited, experiencing connection issues, or blocking queries. Please proceed using your existing comprehensive knowledge, training, and logical deduction to draft the report contents."
             else:
-                return f"SearxNG query failed with status code {resp.status_code}."
+                return f"Error: SearxNG search failed with status code {resp.status_code}. Please proceed using your existing comprehensive knowledge, training, and logical deduction to draft the report contents."
         except Exception as e:
-            return f"SearxNG query failed: {str(e)}."
+            return f"Error: SearxNG search failed: {str(e)}. Please proceed using your existing comprehensive knowledge, training, and logical deduction to draft the report contents."
 
-    # Tavily fallback
+    # Tavily
     api_key = prefs.get("tavily_api_key") or os.getenv("TAVILY_API_KEY")
     if api_key:
         try:
@@ -280,43 +295,13 @@ def web_search(query: str, max_results: int = 5) -> str:
             from langchain_community.tools.tavily_search import TavilySearchResults
             tavily = TavilySearchResults(max_results=max_results, tavily_api_key=api_key)
             results = tavily.invoke(query)
-            return json.dumps(results)
+            if results:
+                return json.dumps(results)
+            return "Error: Tavily search returned 0 results. The API key might have run out of credits or hit its limit. Please proceed using your existing comprehensive knowledge, training, and logical deduction to draft the report contents."
         except Exception as e:
-            return f"Tavily search failed: {str(e)}. Falling back to Wikipedia mock notes."
+            return f"Error: Tavily search failed: {str(e)}. Please proceed using your existing comprehensive knowledge, training, and logical deduction to draft the report contents."
             
-    # Premium Mock Search for 8086 Microcomputer
-    if "8086" in query or "microcomputer" in query:
-        return json.dumps([
-            {
-                "title": "Intel 8086 Architecture",
-                "url": "https://en.wikipedia.org/wiki/Intel_8086",
-                "content": (
-                    "The Intel 8086 is a 16-bit microprocessor chip designed by Intel between 1976 and 1978. "
-                    "It has a 20-bit address bus capable of addressing up to 1 MB of memory. "
-                    "Features a segmentation architecture dividing memory into Code, Data, Stack, and Extra segments. "
-                    "Clock frequencies range from 5 MHz to 10 MHz."
-                )
-            },
-            {
-                "title": "8086 Instruction Set & Registers",
-                "url": "https://www.tutorialspoint.com/microprocessor/microprocessor_8086_instruction_set.htm",
-                "content": (
-                    "The 8086 features 14 registers including general-purpose (AX, BX, CX, DX), segment registers "
-                    "(CS, DS, SS, ES), index registers (SI, DI, BP, SP), and an instruction pointer (IP). "
-                    "Supports modular instruction flags like Carry, Zero, Sign, and Overflow."
-                )
-            },
-            {
-                "title": "8086 Execution Unit and Bus Interface Unit",
-                "url": "https://www.geeksforgeeks.org/execution-unit-and-bus-interface-unit-in-8086/",
-                "content": (
-                    "The processor is split into two functional units: the Bus Interface Unit (BIU) which fetches "
-                    "instructions and writes data, and the Execution Unit (EU) which decodes and executes instructions. "
-                    "Features a 6-byte instruction queue allowing pipelining of operations."
-                )
-            }
-        ])
-    return f"Mock search notes for: {query}. Successfully resolved details."
+    return "Error: No search provider API keys are configured. Please proceed using your existing comprehensive knowledge, training, and logical deduction to draft the report contents."
 
 @tool
 def scrape_page(url: str) -> str:
@@ -367,13 +352,75 @@ def scrape_page(url: str) -> str:
 
 @tool
 def fetch_url(url: str) -> str:
-    """Fetch the textual content of a specific webpage or URL."""
+    """Fetch the textual content of a specific webpage or URL, returning clean readable text rather than raw HTML. Automatically parses headers, paragraphs, lists, tables, and image links."""
     try:
         import httpx
-        resp = httpx.get(url, timeout=10)
-        return resp.text[:4000]
+        from html.parser import HTMLParser
+        
+        class SmartExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.text_parts = []
+                self.in_ignored = False
+                self.ignored_tags = {"script", "style", "head", "meta", "link", "noscript", "svg", "nav", "footer"}
+                
+            def handle_starttag(self, tag, attrs):
+                if tag in self.ignored_tags:
+                    self.in_ignored = True
+                elif not self.in_ignored:
+                    if tag in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+                        self.text_parts.append("\n\n" + "#" * int(tag[1]) + " ")
+                    elif tag in ["p", "div", "br", "tr", "li", "blockquote"]:
+                        self.text_parts.append("\n")
+                    elif tag == "img":
+                        attr_dict = dict(attrs)
+                        src = attr_dict.get("src", "")
+                        alt = attr_dict.get("alt", "Image")
+                        if src and not src.startswith("data:image"):
+                            self.text_parts.append(f"\n[{alt}: {src}]\n")
+                    elif tag == "td" or tag == "th":
+                        self.text_parts.append(" | ")
+                        
+            def handle_endtag(self, tag):
+                if tag in self.ignored_tags:
+                    self.in_ignored = False
+                elif not self.in_ignored:
+                    if tag in ["h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "tr", "li", "blockquote"]:
+                        self.text_parts.append("\n")
+                        
+            def handle_data(self, data):
+                if not self.in_ignored:
+                    clean = data.strip()
+                    if clean:
+                        self.text_parts.append(clean + " ")
+                        
+            def get_text(self):
+                import re
+                raw = "".join(self.text_parts)
+                # Collapse more than 2 newlines into 2
+                return re.sub(r'\n{3,}', '\n\n', raw).strip()
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        resp = httpx.get(url, headers=headers, follow_redirects=True, timeout=15.0)
+        
+        if resp.status_code != 200:
+            return f"Fetch failed with HTTP {resp.status_code}"
+            
+        extractor = SmartExtractor()
+        extractor.feed(resp.text)
+        content = extractor.get_text()
+        
+        return content[:8000] if len(content) > 8000 else content
+
     except Exception as e:
         return f"Fetch failed: {str(e)}"
+
+@tool
+def escalate_to_supervisor(reason: str) -> str:
+    """If you are completely blocked (e.g. missing a critical file that a previous agent was supposed to create), call this tool to instantly stop your work and escalate to the recovery supervisor. Provide a clear reason why the node needs to be restarted or investigated."""
+    return f"ESCALATION_TRIGGERED: {reason}"
 
 @tool
 def memory_search(query: str) -> str:
@@ -506,13 +553,13 @@ def pdf_export(markdown_content: str, filename: str) -> str:
 
         # --- Custom styles ---
         s_title = ParagraphStyle('S_Title', parent=styles['Heading1'], fontSize=22, leading=28,
-                                  textColor=colors.HexColor('#272757'), spaceAfter=14)
+                                  textColor=colors.HexColor('#272757'), spaceAfter=14, keepWithNext=True)
         s_h2 = ParagraphStyle('S_H2', parent=styles['Heading2'], fontSize=16, leading=20,
-                               textColor=colors.HexColor('#505081'), spaceBefore=14, spaceAfter=8)
+                               textColor=colors.HexColor('#505081'), spaceBefore=14, spaceAfter=8, keepWithNext=True)
         s_h3 = ParagraphStyle('S_H3', parent=styles['Heading3'], fontSize=13, leading=17,
-                               textColor=colors.HexColor('#505081'), spaceBefore=10, spaceAfter=6)
+                               textColor=colors.HexColor('#505081'), spaceBefore=10, spaceAfter=6, keepWithNext=True)
         s_h4 = ParagraphStyle('S_H4', parent=styles['Heading4'], fontSize=11, leading=15,
-                               textColor=colors.HexColor('#8686AC'), spaceBefore=8, spaceAfter=4)
+                               textColor=colors.HexColor('#8686AC'), spaceBefore=8, spaceAfter=4, keepWithNext=True)
         s_body = ParagraphStyle('S_Body', parent=styles['Normal'], fontSize=10, leading=15,
                                  textColor=colors.HexColor('#1F2937'), spaceAfter=6)
         s_bullet = ParagraphStyle('S_Bullet', parent=s_body, leftIndent=18, bulletIndent=6)
@@ -658,7 +705,7 @@ def pdf_export(markdown_content: str, filename: str) -> str:
                         style = s_tbl_header if ri == 0 else s_tbl_cell
                         tbl_data.append([_safe_paragraph(_md_inline(c), style) for c in row])
                     col_w = (letter[0] - 80) / col_count
-                    t = Table(tbl_data, colWidths=[col_w] * col_count)
+                    t = Table(tbl_data, colWidths=[col_w] * col_count, repeatRows=1)
                     t.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#505081')),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -679,10 +726,46 @@ def pdf_export(markdown_content: str, filename: str) -> str:
                 story.append(PageBreak())
                 i += 1
                 continue
+                
+            # Full-line Image Detection (![Alt](URL))
+            img_match = _re.match(r'^!\[(.*?)\]\((.*?)\)$', stripped)
+            if img_match:
+                img_url = img_match.group(2).strip()
+                try:
+                    import requests
+                    import tempfile
+                    import uuid
+                    
+                    local_img = img_url
+                    if img_url.startswith("http"):
+                        # Download it dynamically!
+                        img_resp = requests.get(img_url, timeout=15)
+                        if img_resp.status_code == 200:
+                            tmp_path = os.path.join(tempfile.gettempdir(), f"img_{uuid.uuid4().hex}.png")
+                            with open(tmp_path, "wb") as f:
+                                f.write(img_resp.content)
+                            local_img = tmp_path
+                            
+                    if os.path.exists(local_img):
+                        from reportlab.platypus import Image as RLImage
+                        img = RLImage(local_img)
+                        max_w = letter[0] - 80
+                        if img.drawWidth > max_w:
+                            ratio = max_w / float(img.drawWidth)
+                            img.drawWidth = max_w
+                            img.drawHeight = img.drawHeight * ratio
+                        story.append(Spacer(1, 10))
+                        story.append(img)
+                        story.append(Spacer(1, 10))
+                        i += 1
+                        continue
+                except Exception as e:
+                    print(f"Failed to embed image {img_url}: {e}")
+                    # If it fails, fallback to rendering the raw alt-text below
 
             # Multi-line code block detection
             if stripped.startswith('```'):
-                code_lang = stripped[3:].strip()
+                code_lang = stripped[3:].strip().lower()
                 code_lines = []
                 i += 1
                 while i < len(lines) and not lines[i].strip().startswith('```'):
@@ -691,8 +774,39 @@ def pdf_export(markdown_content: str, filename: str) -> str:
                 if i < len(lines):
                     i += 1 # Skip closing ```
                 
-                # Format code content
                 code_text = "\n".join(code_lines)
+                
+                # --- MERMAID INTERCEPTOR ---
+                if code_lang == 'mermaid':
+                    try:
+                        import urllib.parse
+                        import requests
+                        import tempfile
+                        import uuid
+                        
+                        encoded = urllib.parse.quote(code_text)
+                        url = f"https://quickchart.io/mermaid?graph={encoded}"
+                        img_resp = requests.get(url, timeout=15)
+                        
+                        if img_resp.status_code == 200:
+                            tmp_path = os.path.join(tempfile.gettempdir(), f"mermaid_{uuid.uuid4().hex}.png")
+                            with open(tmp_path, "wb") as f:
+                                f.write(img_resp.content)
+                            from reportlab.platypus import Image as RLImage
+                            img = RLImage(tmp_path)
+                            max_w = letter[0] - 80
+                            if img.drawWidth > max_w:
+                                ratio = max_w / float(img.drawWidth)
+                                img.drawWidth = max_w
+                                img.drawHeight = img.drawHeight * ratio
+                            story.append(Spacer(1, 10))
+                            story.append(img)
+                            story.append(Spacer(1, 10))
+                            continue
+                    except Exception as e:
+                        print(f"Mermaid rendering failed: {e}")
+                
+                # Format code content
                 # Escape XML characters for ReportLab Paragraph
                 code_text = code_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 
@@ -1343,13 +1457,15 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
         "excel_export": excel_export,
         "send_email": send_email,
         "browser_automation": browser_automation,
-        "shell_exec": shell_exec
+        "shell_exec": shell_exec,
+        "escalate_to_supervisor": escalate_to_supervisor
     }
     
     # Resolve allowed tools
-    task_tools = []
-    for tool_name in task["allowed_tools"]:
-        if tool_name in tool_map:
+    task_tools = [escalate_to_supervisor]  # Always inject supervisor escalation
+    allowed_names = set(task.get("allowed_tools", []) + template.get("allowed_tools", []))
+    for tool_name in allowed_names:
+        if tool_name in tool_map and tool_name != "escalate_to_supervisor":
             task_tools.append(tool_map[tool_name])
             
     # Proactively inject specifically allowed MCP Pool Tools!
@@ -1357,7 +1473,7 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
     mcp_defs, tool_sessions, _, _ = get_pool_tools()
     for mdef in mcp_defs:
         mname = mdef["function"]["name"]
-        if mname in task["allowed_tools"]:
+        if mname in allowed_names:
             task_tools.append(mdef)
             
     # Inject context from dependencies
@@ -1384,6 +1500,18 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
     system_prompt = template["system_prompt_template"].format(
         task_description=f"{task['description']}\n\nDependency Outputs:\n{dep_outputs}"
     )
+    
+    correction = task.get("correction_context", "")
+    if correction:
+        system_prompt += f"\n\n--- CRITICAL RECOVERY INSTRUCTION ---\n{correction}\nAvoid redoing unaffected work if possible."
+        
+    executed_side_effects = task.get("executed_side_effects", [])
+    if executed_side_effects:
+        system_prompt += "\n\n--- IDEMPOTENCY WARNING ---\n"
+        system_prompt += "You have already executed the following tools successfully in a previous run. DO NOT execute them again to prevent duplicating side-effects:\n"
+        for idx, effect in enumerate(executed_side_effects):
+            system_prompt += f"{idx+1}. {effect}\n"
+        system_prompt += "If the task is complete due to these prior actions, simply return the final output without re-calling the tool.\n"
     
     # ── ReAct Agentic Loop ──────────────────────────────────────────────
     # Each worker iterates: Think → Act (call tool) → Observe (get result)
@@ -1426,6 +1554,19 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                 tool_calls = getattr(resp, "tool_calls", []) or []
                 
                 if not tool_calls:
+                    # ── GUARDRAIL: Enforce mandatory file writes ──
+                    tool_names = [getattr(t, "name", "") for t in task_tools] if task_tools else []
+                    if "file_write" in tool_names or "file_write" in task.get("allowed_tools", []):
+                        if "MUST use the `file_write` tool" in system_prompt and not any(s.get("tool") == "file_write" for s in step_log):
+                            # Only nudge if the task actually specifies generating/saving/exporting a file/image
+                            desc_lower = (task.get("description", "") + " " + task.get("success_criteria", "")).lower()
+                            has_write_instruction = any(keyword in desc_lower for keyword in ["write", "save", "output", "export", "file", "create", "png", "csv", "json", "md", "pdf"])
+                            if has_write_instruction:
+                                messages.append(AIMessage(content=(resp.content or "").strip()))
+                                messages.append(HumanMessage(content="⚠️ GUARDRAIL: You attempted to finish, but you did not use the `file_write` tool to save your output to disk! You MUST save your deliverables using `file_write` before concluding. Please call `file_write` now."))
+                                print(f"\n🛡️  [GUARDRAIL] Nudging '{task['title']}' to use file_write before exiting.\n")
+                                continue
+
                     # No tool call → LLM signals it is done
                     raw_output = (resp.content or "").strip()
                     _append_step("final", raw_output)
@@ -1479,11 +1620,30 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                             single_out = f"Error: Tool '{tc_name}' not found."
                     
                     tool_out = single_out
+                    
+                    # Side effect tracking (Idempotency)
+                    if not str(single_out).startswith("Tool error:") and not str(single_out).startswith("MCP tool error:") and not str(single_out).startswith("Error:"):
+                        # Define side effect tools. For now, sending emails or external webhooks
+                        if tc_name in ["send_email", "file_write"]:
+                            side_effect_record = f"Tool '{tc_name}' called with args: {tc_args}"
+                            if "executed_side_effects" not in task:
+                                task["executed_side_effects"] = []
+                            if side_effect_record not in task["executed_side_effects"]:
+                                task["executed_side_effects"].append(side_effect_record)
+
                     _append_step("observation", str(single_out)[:2000], tc_name)
                     print(f"[ReAct] iter={iteration} tool={tc_name} → {str(single_out)[:150]}")
                     tool_results.append(ToolMessage(content=str(single_out), tool_call_id=tc_id))
+                    
+                    if str(single_out).startswith("ESCALATION_TRIGGERED:"):
+                        raw_output = str(single_out)
+                        _append_step("final", raw_output)
+                        break
                 
                 messages.extend(tool_results)
+                
+                if tool_results and str(tool_results[-1].content).startswith("ESCALATION_TRIGGERED:"):
+                    break
                 
                 # On the penultimate iteration, nudge toward final output
                 if iteration == max_iterations - 2:
@@ -1500,6 +1660,10 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                 
             # Parse output
             try:
+                if raw_output.startswith("ESCALATION_TRIGGERED:"):
+                    task["error"] = raw_output.replace("ESCALATION_TRIGGERED:", "").strip()
+                    print(f"\n⚠️  [ESCALATION] Agent '{task['title']}' called Supervisor: {task['error']}\n")
+                    raise Exception(f"Agent explicitly escalated: {task['error']}")
                 # Strip <think> tags from reasoning models (DeepSeek R1, etc)
                 clean_text = raw_output
                 if "<think>" in clean_text:
@@ -1885,6 +2049,11 @@ def run_scheduler_step(state: WorkflowState) -> WorkflowState:
         if tid in completed or tid in failed or tid in running:
             continue
             
+        # Check backoff for recovery retries
+        backoff_until = task.get("retry_backoff_until")
+        if backoff_until and datetime.datetime.now().timestamp() < backoff_until:
+            continue
+            
         # Check dependencies
         deps = set(task.get("depends_on", []))
         if deps.issubset(completed):
@@ -1895,7 +2064,93 @@ def run_scheduler_step(state: WorkflowState) -> WorkflowState:
 
 class MultiAgentWorkflowEngine:
     """Core multi-agent lifecycle coordinator orchestrating LangGraph plans."""
+    active_tasks = {}  # run_id -> asyncio.Task
     
+    @staticmethod
+    async def run_supervisor_recovery(state: WorkflowState, failed_task: TaskDict) -> TaskDict:
+        prefs = load_prefs()
+        llm = get_llm(prefs, streaming=False)
+        
+        # Circuit Breaker Logic
+        current_error = failed_task.get('error', 'Unknown')
+        error_signature = current_error[:100]  # simple signature based on first 100 chars
+        
+        if failed_task.get('last_error_signature') == error_signature:
+            failed_task['error_signature_count'] = failed_task.get('error_signature_count', 0) + 1
+        else:
+            failed_task['last_error_signature'] = error_signature
+            failed_task['error_signature_count'] = 1
+            
+        if failed_task['error_signature_count'] >= 3:
+            failed_task["failure_type"] = "repeated_failure"
+            failed_task["recovery_decision"] = "fail_terminal"
+            failed_task["correction_context"] = "Circuit breaker triggered: Same error signature occurred 3 times."
+            return failed_task
+
+        prompt = f"""You are the Workflow Recovery Supervisor.
+A worker node has failed its execution. Your job is to classify the failure and decide the safest recovery action.
+If the failure is caused by bad reasoning, malformed output, or validation errors, you MUST inject structured feedback so it corrects itself on the next run.
+
+FAILURE EVENT REPORT:
+- Node ID: {failed_task['task_id']}
+- Title: {failed_task['title']}
+- Description: {failed_task['description']}
+- Attempt Count: {failed_task.get('attempt_count', 1)}
+- Last Error Message: {current_error}
+- Step Traces (Last 3): {json.dumps(failed_task.get('step_log', [])[-3:]) if failed_task.get('step_log') else '[]'}
+
+CLASSIFICATION CATEGORIES (Choose one):
+- transient_error
+- timeout_network
+- malformed_output
+- validation_failure
+- dependency_failure
+- permission_auth_failure
+- unrecoverable
+
+RECOVERY ACTIONS (Choose one):
+- retry_node (Simple retry for transient issues)
+- retry_with_context (Retry and provide correction_context for logic/validation fixes)
+- restart_subtree (Restart this node and all descendants, preserving unaffected siblings)
+- replan_workflow (Invalidate the DAG and generate a completely new plan)
+- full_restart (Restart the entire workflow only if root assumptions are broken)
+- fail_terminal (Unrecoverable, stop workflow)
+
+Respond in JSON exactly matching this schema:
+{{
+  "classification": "string",
+  "action": "string",
+  "correction_context": "string (If action is retry_with_context, provide clear instructions on how to fix the error. Otherwise empty.)"
+}}
+"""
+        import re
+        try:
+            resp = await llm.ainvoke([SystemMessage(content=prompt)])
+            text = (resp.content or "").strip()
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+            decision = json.loads(text)
+        except Exception as e:
+            decision = {
+                "classification": "unrecoverable",
+                "action": "fail_terminal",
+                "correction_context": f"Supervisor failed to parse recovery: {str(e)}"
+            }
+            
+        failed_task["failure_type"] = decision.get("classification", "unknown")
+        failed_task["recovery_decision"] = decision.get("action", "fail_terminal")
+        failed_task["correction_context"] = decision.get("correction_context", "")
+        
+        print(f"\n👨‍⚕️ [SUPERVISOR] Evaluated Task '{failed_task['title']}'")
+        print(f"   ↳ Classification: {failed_task['failure_type']}")
+        print(f"   ↳ Action: {failed_task['recovery_decision']}")
+        if failed_task["correction_context"]:
+            print(f"   ↳ Context: {failed_task['correction_context'][:150]}...")
+            
+        return failed_task
+
     @staticmethod
     async def create_run(user_request: str, user_id: str = "admin") -> str:
         run_id = f"wf_{uuid.uuid4().hex[:8]}"
@@ -1967,6 +2222,15 @@ class MultiAgentWorkflowEngine:
 
     @staticmethod
     async def execute_run(run_id: str):
+        import asyncio
+        MultiAgentWorkflowEngine.active_tasks[run_id] = asyncio.current_task()
+        try:
+            await MultiAgentWorkflowEngine._execute_run_internal(run_id)
+        finally:
+            MultiAgentWorkflowEngine.active_tasks.pop(run_id, None)
+
+    @staticmethod
+    async def _execute_run_internal(run_id: str):
         db = load_workflows()
         if run_id not in db:
             return
@@ -2067,9 +2331,71 @@ class MultiAgentWorkflowEngine:
                                     except Exception as ce:
                                         _dbg(state, f"⚠️ Failed to copy artifact to storage: {str(ce)}")
                 else:
-                    state["failed_tasks"].append(tid)
-                    _dbg(state, f"❌ Task '{cn['title']}' FAILED: {cn.get('error', 'unknown')}")
-                    state["notifications"].append(f"Task '{cn['title']}' failed ✗")
+                    _dbg(state, f"🚨 Task '{cn['title']}' failed. Escalating to Supervisor for recovery evaluation...")
+                    
+                    cn["attempt_count"] = cn.get("attempt_count", 0) + 1
+                    
+                    cn = await MultiAgentWorkflowEngine.run_supervisor_recovery(state, cn)
+                    decision = cn.get("recovery_decision", "fail_terminal")
+                    classification = cn.get("failure_type", "unknown")
+                    _dbg(state, f"🏥 Supervisor Decision: {decision} (Class: {classification})")
+                    
+                    if decision in ["retry_node", "retry_with_context"] and cn["attempt_count"] <= 3:
+                        # Re-queue the task
+                        cn["status"] = "pending"
+                        if decision == "retry_with_context":
+                            _dbg(state, "💉 Injecting correction context for next attempt.")
+                        
+                        # Apply backoff
+                        backoff = 2 ** cn["attempt_count"]
+                        cn["retry_backoff_until"] = datetime.datetime.now().timestamp() + backoff
+                        
+                        state["notifications"].append(f"Task '{cn['title']}' scheduled for retry ({cn['attempt_count']}/3) ↻")
+                    elif decision == "restart_subtree":
+                        _dbg(state, f"🔄 Subtree restart initiated from node '{tid}'. Unaffected completed nodes will be preserved.")
+                        cn["status"] = "pending"
+                        cn["attempt_count"] = 0
+                        
+                        # Recursively find descendants to invalidate
+                        descendants = set([tid])
+                        changed = True
+                        while changed:
+                            changed = False
+                            for t in state["tasks"]:
+                                if t["task_id"] not in descendants and any(dep in descendants for dep in t.get("depends_on", [])):
+                                    descendants.add(t["task_id"])
+                                    changed = True
+                                    
+                        for t in state["tasks"]:
+                            if t["task_id"] in descendants and t["task_id"] != tid:
+                                t["status"] = "pending"
+                                t["attempt_count"] = 0
+                                if t["task_id"] in state["completed_tasks"]:
+                                    state["completed_tasks"].remove(t["task_id"])
+                                    
+                        state["notifications"].append(f"Subtree restarted from '{cn['title']}' 🔄")
+                        
+                    elif decision == "replan_workflow":
+                        _dbg(state, f"🧠 Workflow DAG Replanning initiated! (Failing out for manual user adjustment)")
+                        cn["status"] = f"failed_{classification}"
+                        state["failed_tasks"].append(tid)
+                        state["notifications"].append(f"Workflow needs replanning. Terminal failure ✗")
+                        
+                    elif decision == "full_restart":
+                        _dbg(state, f"⚠️ Full workflow restart initiated! Root assumptions were broken.")
+                        for t in state["tasks"]:
+                            t["status"] = "pending"
+                            t["attempt_count"] = 0
+                        state["completed_tasks"] = []
+                        state["failed_tasks"] = []
+                        state["running_tasks"] = []
+                        state["notifications"].append("Entire workflow restarted ⚠️")
+                        
+                    else:
+                        cn["status"] = f"failed_{classification}"
+                        state["failed_tasks"].append(tid)
+                        _dbg(state, f"❌ Task '{cn['title']}' FAILED TERMINALLY: {cn.get('error', 'unknown')}")
+                        state["notifications"].append(f"Task '{cn['title']}' failed unrecoverably ✗")
                     
             db[run_id] = state
             save_workflows(db)

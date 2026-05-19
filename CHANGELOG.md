@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.0.1] - 2026-05-19
+
+### Added
+
+- **Multi-Page Table Header Repeating (`repeatRows=1`)**: Enabled automatic repeating of table headers at the top of subsequent pages when a table is split across page boundaries in compiled PDF reports.
+- **Page Boundary Orphan Protection (`keepWithNext`)**: Added custom `keepWithNext=True` styling on all titles and heading styles to prevent orphan headings at the bottom of pages.
+- **Provider-Specific Loop-Prevention Guardrails**: Configured the `web_search` tool to return clear, provider-specific instructions to agent workers when search queries return empty or error out, forcing them to instantly fall back to pre-trained internal knowledge instead of entering infinite ReAct loops.
+- **Strict Search Provider Isolation**: Refactored the `web_search` tool to strictly use the configured `search_provider` (SearxNG or Tavily) and removed all general mocks and automatic search engines fallbacks.
+
 ## [v2.0.1] - 2026-05-18
 
 ### Added

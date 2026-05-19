@@ -1,6 +1,6 @@
 [project]
 name = "kokomi"
-version = "2.0.1"
+version = "3.0.1"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -31,4 +31,6 @@ dependencies = [
     "python-pptx>=1.0.2",
     "openpyxl>=3.1.2",
     "python-docx>=1.1.2",
+    "matplotlib>=3.8.2",
+    "requests>=2.31.0",
 ]

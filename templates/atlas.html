@@ -756,10 +756,17 @@
     display: flex;
     align-items: center;
     padding: 6px 10px;
-    cursor: pointer;
-    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    cursor: grab;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, left 0.35s cubic-bezier(0.4, 0, 0.2, 1), top 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     user-select: none;
     z-index: 10;
+  }
+  .graph-node.dragging {
+    transition: none !important;
+    z-index: 1000;
+    box-shadow: 0 16px 32px rgba(0,0,0,0.4) !important;
+    transform: scale(1.05) !important;
+    cursor: grabbing;
   }
   .graph-node:hover {
     transform: translateY(-2px);
@@ -1307,13 +1314,28 @@
                         <div class="task-desc" x-text="task.description"></div>
                       </div>
                     </div>
-                    <div class="task-footer">
+                    <div class="task-footer" style="display:flex; flex-wrap:wrap; gap:6px;">
                       <span class="status-badge" :class="'status-' + (task.status || 'pending')" style="font-size:10px; padding:2px 8px;">
-                        <template x-if="task.status === 'running'"><i class="fa fa-circle-notch spinner-sm" style="font-size:9px;"></i></template>
+                        <template x-if="task.status === 'running' || task.status === 'retrying'"><i class="fa fa-circle-notch spinner-sm" style="font-size:9px;"></i></template>
                         <span x-text="task.status || 'pending'"></span>
                       </span>
+                      
+                      <!-- Recovery Stats -->
+                      <template x-if="task.attempt_count && task.attempt_count > 0">
+                        <span style="font-size:10px; color:var(--text-tertiary); display:flex; align-items:center; gap:4px; padding:2px 6px; background:rgba(255,165,0,0.1); border-radius:4px; border:1px solid rgba(255,165,0,0.2);" :title="'Recovery decision: ' + (task.recovery_decision || 'none')">
+                          <i class="fa fa-rotate-left" style="font-size:9px;"></i> Retry <span x-text="task.attempt_count"></span>
+                        </span>
+                      </template>
+                      
+                      <template x-if="task.failure_type && task.status.startsWith('failed')">
+                        <span style="font-size:10px; color:#ff6b6b; display:flex; align-items:center; gap:4px; padding:2px 6px; background:rgba(255,107,107,0.1); border-radius:4px; border:1px solid rgba(255,107,107,0.2);" :title="task.error">
+                          <i class="fa fa-triangle-exclamation" style="font-size:9px;"></i>
+                          <span x-text="task.failure_type"></span>
+                        </span>
+                      </template>
+
                       <template x-if="task.depends_on && task.depends_on.length">
-                        <span style="font-size:10px; color:var(--text-quaternary);">
+                        <span style="font-size:10px; color:var(--text-quaternary); display:flex; align-items:center; gap:4px;">
                           <i class="fa fa-arrow-right" style="font-size:9px;"></i>
                           <span x-text="task.depends_on.join(', ')"></span>
                         </span>
@@ -1473,9 +1495,10 @@
               <!-- Node Cards -->
               <template x-for="n in getGraphLayout().nodes" :key="n.id">
                 <div class="graph-node"
-                     :class="'node-' + getTaskDisplayStatus(n.task)"
-                     :style="'left: ' + n.x + 'px; top: ' + n.y + 'px;'"
-                     @click="openTaskModal(n.task)">
+                     :class="['node-' + getTaskDisplayStatus(n.task), draggingNode === n.id ? 'dragging' : '']"
+                     :style="'left: ' + n.x + 'px; top: ' + n.y + 'px; cursor: ' + (draggingNode === n.id ? 'grabbing' : 'grab') + ';'"
+                     @mousedown.stop="startDragNode($event, n.id)"
+                     @click="if (draggingNode !== n.id) openTaskModal(n.task)">
                   <div class="graph-node-icon" :style="workerIconStyle(n.task.worker_type)">
                     <i :class="'fa ' + workerIcon(n.task.worker_type)"></i>
                   </div>
@@ -2003,6 +2026,14 @@ function atlasApp() {
     pollingTimer: null,
     detailPollingTimer: null,
     availableTools: [],
+    
+    // Drag/Drop Graph Nodes
+    nodeOffsets: {},
+    draggingNode: null,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragInitialOffsetX: 0,
+    dragInitialOffsetY: 0,
     currentTime: Date.now(),
 
     suggestions: [
@@ -2480,7 +2511,7 @@ function atlasApp() {
       try {
         await this.api('POST', `/api/workflows/${this.activeRunId}/stop`);
         // Refresh details
-        await this.loadWorkflowDetails();
+        await this.loadWorkflowDetail();
       } catch (e) {
         alert("Failed to stop workflow: " + e.message);
       }
@@ -2492,7 +2523,7 @@ function atlasApp() {
       try {
         await this.api('POST', `/api/workflows/${this.activeRunId}/restart`);
         // Refresh details
-        await this.loadWorkflowDetails();
+        await this.loadWorkflowDetail();
       } catch (e) {
         alert("Failed to restart workflow: " + e.message);
       }
@@ -2619,6 +2650,48 @@ function atlasApp() {
         return s > 0 ? `${m}m ${s}s` : `${m}m`;
       }
     },
+    
+    startDragNode(event, nodeId) {
+      if (event.button !== 0) return; // Only left click
+      event.stopPropagation();
+      this.dragStartX = event.clientX;
+      this.dragStartY = event.clientY;
+      let hasMoved = false;
+      
+      if (!this.nodeOffsets[nodeId]) {
+        this.nodeOffsets[nodeId] = { x: 0, y: 0 };
+      }
+      this.dragInitialOffsetX = this.nodeOffsets[nodeId].x;
+      this.dragInitialOffsetY = this.nodeOffsets[nodeId].y;
+      
+      const moveHandler = (e) => {
+        if (!hasMoved) {
+          // Only start dragging if moved > 5 pixels
+          if (Math.abs(e.clientX - this.dragStartX) > 5 || Math.abs(e.clientY - this.dragStartY) > 5) {
+            hasMoved = true;
+            this.draggingNode = nodeId;
+          } else {
+            return;
+          }
+        }
+        const dx = (e.clientX - this.dragStartX) / this.zoomLevel;
+        const dy = (e.clientY - this.dragStartY) / this.zoomLevel;
+        this.nodeOffsets[this.draggingNode].x = this.dragInitialOffsetX + dx;
+        this.nodeOffsets[this.draggingNode].y = this.dragInitialOffsetY + dy;
+      };
+      
+      const upHandler = () => {
+        window.removeEventListener('mousemove', moveHandler);
+        window.removeEventListener('mouseup', upHandler);
+        if (hasMoved) {
+          setTimeout(() => { this.draggingNode = null; }, 100);
+        }
+      };
+      
+      window.addEventListener('mousemove', moveHandler);
+      window.addEventListener('mouseup', upHandler);
+    },
+    
     getGraphLayout() {
       if (!this.activeWorkflow || !this.activeWorkflow.tasks) return { nodes: [], edges: [] };
       const tasks = this.activeWorkflow.tasks;
@@ -2678,8 +2751,14 @@ function atlasApp() {
         const l = parseInt(lStr);
         const group = layerGroups[l];
         group.forEach((t, idx) => {
-          const x = X_OFFSET + l * H_SPACING;
-          const y = Y_OFFSET + idx * V_SPACING + (3 - group.length) * 30; 
+          const baseX = X_OFFSET + l * H_SPACING;
+          const baseY = Y_OFFSET + idx * V_SPACING + (3 - group.length) * 30; 
+          
+          const ox = this.nodeOffsets[t.task_id] ? this.nodeOffsets[t.task_id].x : 0;
+          const oy = this.nodeOffsets[t.task_id] ? this.nodeOffsets[t.task_id].y : 0;
+          
+          const x = baseX + ox;
+          const y = baseY + oy;
           nodeCoords[t.task_id] = { x, y };
           
           nodes.push({
