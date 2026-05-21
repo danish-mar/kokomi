@@ -37,7 +37,7 @@
     /* ── macOS Tahoe sidebar nav ── */
     .tahoe-layout {
         display: flex;
-        max-width: 860px;
+        max-width: 1200px;
         margin: 0 auto;
         gap: 0;
         padding: 24px 20px 48px;
@@ -45,7 +45,7 @@
     }
 
     .tahoe-sidebar {
-        width: 200px;
+        width: 240px;
         flex-shrink: 0;
         position: sticky;
         top: 76px;
@@ -528,15 +528,15 @@
                         <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
                             <button @click="prefs.llm_provider = 'groq'; savePrefs()"
                                 :class="prefs.llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-cloud" style="font-size:9px;"></i> Groq
+                                <i class="fa-solid fa-bolt" style="font-size:9px;"></i> Groq
                             </button>
                             <button @click="prefs.llm_provider = 'google'; savePrefs()"
                                 :class="prefs.llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-wand-sparkles" style="font-size:9px;"></i> Gemini
+                                <i class="fa-brands fa-google" style="font-size:9px;"></i> Gemini
                             </button>
                             <button @click="prefs.llm_provider = 'nvidia'; savePrefs()"
                                 :class="prefs.llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-microchip" style="font-size:9px;"></i> NVIDIA NIM
+                                <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
                             </button>
                             <button @click="prefs.llm_provider = 'local'; savePrefs()"
                                 :class="prefs.llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
@@ -830,15 +830,15 @@
                         <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
                             <button @click="prefs.atlas_llm_provider = 'groq'; savePrefs()"
                                 :class="prefs.atlas_llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-cloud" style="font-size:9px;"></i> Groq
+                                <i class="fa-solid fa-bolt" style="font-size:9px;"></i> Groq
                             </button>
                             <button @click="prefs.atlas_llm_provider = 'google'; savePrefs()"
                                 :class="prefs.atlas_llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-wand-sparkles" style="font-size:9px;"></i> Gemini
+                                <i class="fa-brands fa-google" style="font-size:9px;"></i> Gemini
                             </button>
                             <button @click="prefs.atlas_llm_provider = 'nvidia'; savePrefs()"
                                 :class="prefs.atlas_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-microchip" style="font-size:9px;"></i> NVIDIA NIM
+                                <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
                             </button>
                             <button @click="prefs.atlas_llm_provider = 'local'; savePrefs()"
                                 :class="prefs.atlas_llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
@@ -907,54 +907,102 @@
 
             <!-- ═══ TAB: CHARACTERS ═══ -->
             <div x-show="tab === 'characters'" x-transition class="tab-panel">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                <!-- Header Row -->
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; gap:12px; flex-wrap:wrap;">
                     <div>
                         <h2 class="section-title">Characters</h2>
                         <p class="section-subtitle" style="margin-bottom:0;">Personas with custom system prompts and tool access.</p>
                     </div>
-                    <button @click="openCharModal()" class="btn-accent">
-                        <i class="fa-solid fa-plus" style="font-size:10px;"></i> New
-                    </button>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <!-- AI Generate Button -->
+                        <button @click="aiCharModal = true; aiCharPrompt = ''; aiCharLoading = false;"
+                                style="display:flex; align-items:center; gap:7px; padding:7px 14px; border-radius:12px; font-size:12px; font-weight:700; border:1px solid rgba(134,134,172,0.3); cursor:pointer; transition:all 0.2s; background:linear-gradient(135deg, rgba(80,80,129,0.25), rgba(39,39,87,0.35)); color:var(--text-primary);" 
+                                x-on:mouseover="$el.style.borderColor='var(--accent)'; $el.style.background='linear-gradient(135deg, rgba(80,80,129,0.4), rgba(39,39,87,0.5))'"
+                                x-on:mouseout="$el.style.borderColor='rgba(134,134,172,0.3)'; $el.style.background='linear-gradient(135deg, rgba(80,80,129,0.25), rgba(39,39,87,0.35))'">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="font-size:11px; color:#a78bfa;"></i>
+                            <span>Generate with AI</span>
+                        </button>
+                        <button @click="openCharModal()" class="btn-accent">
+                            <i class="fa-solid fa-plus" style="font-size:10px;"></i> New
+                        </button>
+                    </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:10px;">
-                    <template x-for="char in characters" :key="char.id">
-                        <div class="char-card">
-                            <div>
-                                <template x-if="char.avatar">
-                                    <div class="avatar-circle"><img :src="char.avatar" /></div>
-                                </template>
-                                <template x-if="!char.avatar">
-                                    <div class="avatar-circle">
-                                        <span x-text="char.name.charAt(0).toUpperCase()"></span>
+                <!-- Search + Filter -->
+                <div style="position:relative; margin-bottom:14px;">
+                    <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text-tertiary); pointer-events:none;"></i>
+                    <input type="text" x-model="charSearch" placeholder="Search characters…"
+                           style="width:100%; padding:9px 12px 9px 36px; border-radius:11px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:13px; outline:none; box-sizing:border-box; transition:border-color 0.2s;"
+                           x-on:focus="$el.style.borderColor='var(--accent)'"
+                           x-on:blur="$el.style.borderColor='var(--border)'">
+                    <template x-if="charSearch">
+                        <button @click="charSearch = ''" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:11px; padding:2px 5px;">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Count chip -->
+                <div style="font-size:11px; color:var(--text-quaternary); margin-bottom:10px; font-weight:500;">
+                    <span x-text="filteredCharacters.length"></span> of <span x-text="characters.length"></span> characters
+                </div>
+
+                <!-- Grid -->
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:12px;">
+                    <template x-for="char in filteredCharacters" :key="char.id">
+                        <div class="char-card" style="flex-direction:column; gap:0; padding:0; overflow:hidden; align-items:stretch;">
+                            <!-- Card Header: avatar + name + badges -->
+                            <div style="display:flex; align-items:flex-start; gap:12px; padding:14px 14px 10px 14px;">
+                                <div style="flex-shrink:0;">
+                                    <template x-if="char.avatar">
+                                        <div class="avatar-circle" style="width:40px; height:40px; border-radius:11px;"><img :src="char.avatar" style="width:100%;height:100%;object-fit:cover;border-radius:11px;" /></div>
+                                    </template>
+                                    <template x-if="!char.avatar">
+                                        <div class="avatar-circle" style="width:40px; height:40px; border-radius:11px; font-size:16px;">
+                                            <span x-text="char.name.charAt(0).toUpperCase()"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div style="flex-grow:1; min-width:0;">
+                                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:3px;">
+                                        <p style="font-size:13px; font-weight:700; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.name"></p>
+                                        <template x-if="char.id === 'kokomi'">
+                                            <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent);">Default</span>
+                                        </template>
                                     </div>
-                                </template>
-                            </div>
-                            <div style="flex-grow:1; min-width:0;">
-                                <div style="display:flex; align-items:center; gap:7px; margin-bottom:3px;">
-                                    <p style="font-size:13px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.name"></p>
-                                    <template x-if="char.id === 'kokomi'">
-                                        <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent);">Default</span>
-                                    </template>
+                                    <!-- Description -->
+                                    <p x-show="char.description" style="font-size:11px; color:var(--accent); font-weight:600; margin-bottom:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="char.description"></p>
+                                    <!-- Persona preview -->
+                                    <p style="font-size:11px; color:var(--text-tertiary); display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.5;" x-text="char.persona"></p>
                                 </div>
-                                <p style="font-size:11px; color:var(--text-tertiary); display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.5;" x-text="char.persona"></p>
-                                <div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:6px;" x-show="char.mcp_servers && char.mcp_servers.length">
-                                    <template x-for="sid in (char.mcp_servers || [])" :key="sid">
-                                        <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                            x-text="getMCPName(sid)"></span>
-                                    </template>
-                                </div>
-                            </div>
-                            <div class="action-btns" style="display:flex; flex-direction:column; gap:3px; flex-shrink:0;">
-                                <button @click="openCharModal(char)" class="sm-icon-btn" style="color:var(--text-tertiary);">
-                                    <i class="fa-solid fa-pen" style="font-size:10px;"></i>
-                                </button>
-                                <template x-if="char.id !== 'kokomi'">
-                                    <button @click="deleteChar(char.id)" class="sm-icon-btn" style="color:#f87171;">
-                                        <i class="fa-solid fa-trash" style="font-size:10px;"></i>
+                                <!-- Actions -->
+                                <div class="action-btns" style="display:flex; flex-direction:column; gap:3px; flex-shrink:0;">
+                                    <button @click="openCharModal(char)" class="sm-icon-btn" style="color:var(--text-tertiary);">
+                                        <i class="fa-solid fa-pen" style="font-size:10px;"></i>
                                     </button>
+                                    <template x-if="char.id !== 'kokomi'">
+                                        <button @click="deleteChar(char.id)" class="sm-icon-btn" style="color:#f87171;">
+                                            <i class="fa-solid fa-trash" style="font-size:10px;"></i>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <!-- MCP Tags Footer -->
+                            <div x-show="char.mcp_servers && char.mcp_servers.length" style="border-top:1px solid var(--separator); padding:8px 14px; display:flex; flex-wrap:wrap; gap:4px; background:rgba(80,80,129,0.05);">
+                                <template x-for="sid in (char.mcp_servers || [])" :key="sid">
+                                    <span class="mini-badge" style="background:var(--accent-subtle); color:var(--accent); max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                        x-text="getMCPName(sid)"></span>
                                 </template>
                             </div>
+                        </div>
+                    </template>
+
+                    <!-- Empty state for search -->
+                    <template x-if="filteredCharacters.length === 0">
+                        <div style="grid-column:1/-1; text-align:center; padding:48px 24px; color:var(--text-tertiary);">
+                            <i class="fa-solid fa-user-slash" style="font-size:28px; opacity:0.4; margin-bottom:12px; display:block;"></i>
+                            <p style="font-weight:600; font-size:13px; color:var(--text-secondary);">No characters match "<span x-text="charSearch"></span>"</p>
+                            <p style="font-size:11px; margin-top:4px;">Try a different name or clear the search.</p>
                         </div>
                     </template>
                 </div>
@@ -1262,6 +1310,78 @@
         </main>
     </div>
 
+    <!-- ═══ AI CHARACTER GENERATOR MODAL ═══ -->
+    <div x-show="aiCharModal" x-cloak class="modal-overlay" @keydown.escape.window="aiCharModal = false">
+        <div class="modal-backdrop" @click="aiCharModal = false"
+            x-show="aiCharModal" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="aiCharModal" style="max-width:500px;"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="modal-handle"></div>
+            <!-- Header -->
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+                <div style="width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #505081, #272757); flex-shrink:0;">
+                    <i class="fa-solid fa-wand-magic-sparkles" style="font-size:16px; color:#a78bfa;"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin:0 0 2px 0;">Generate with AI</h3>
+                    <p style="font-size:11px; color:var(--text-tertiary); margin:0;">Describe your character concept and the AI will build it.</p>
+                </div>
+            </div>
+
+            <!-- Prompt input -->
+            <div style="margin-bottom:16px;">
+                <label class="apple-label">What kind of character do you want?</label>
+                <textarea x-model="aiCharPrompt" rows="4"
+                    placeholder="e.g. A witty Japanese history professor who loves haiku poetry and drops ancient wisdom into modern conversations…"
+                    class="apple-field" style="resize:none; line-height:1.65;"
+                    @keydown.meta.enter="generateCharWithAI()"
+                    @keydown.ctrl.enter="generateCharWithAI()"></textarea>
+                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
+                    <i class="fa-solid fa-lightbulb" style="color:#a78bfa; font-size:10px;"></i>
+                    Be creative — describe personality, expertise, tone, and purpose. Available MCP tools will be auto-assigned.
+                </p>
+            </div>
+
+            <!-- Error -->       <div x-show="aiCharError" style="background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3); border-radius:10px; padding:10px 14px; font-size:12px; color:#f87171; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-circle-exclamation" style="flex-shrink:0;"></i>
+                <span x-text="aiCharError"></span>
+            </div>
+
+            <!-- Examples row -->
+            <div x-show="!aiCharPrompt" style="margin-bottom:16px;">
+                <p style="font-size:10px; font-weight:700; color:var(--text-quaternary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px;">Try these</p>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    <button type="button" @click="aiCharPrompt = 'A cyberpunk hacker assistant who speaks in short punchy sentences and loves cryptography'" style="font-size:11px; font-weight:600; padding:5px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; transition:all 0.2s;" x-on:mouseover="$el.style.borderColor='var(--accent)'" x-on:mouseout="$el.style.borderColor='var(--border)'">🕶️ Cyber Hacker</button>
+                    <button type="button" @click="aiCharPrompt = 'A cheerful Japanese chef who gives cooking advice with poetic food descriptions'" style="font-size:11px; font-weight:600; padding:5px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; transition:all 0.2s;" x-on:mouseover="$el.style.borderColor='var(--accent)'" x-on:mouseout="$el.style.borderColor='var(--border)'">🍜 Zen Chef</button>
+                    <button type="button" @click="aiCharPrompt = 'A no-nonsense code reviewer who is brutally honest but always constructive'" style="font-size:11px; font-weight:600; padding:5px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-secondary); cursor:pointer; transition:all 0.2s;" x-on:mouseover="$el.style.borderColor='var(--accent)'" x-on:mouseout="$el.style.borderColor='var(--border)'">💻 Code Critic</button>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px;">
+                <button type="button" @click="aiCharModal = false" class="btn-ghost">Cancel</button>
+                <button type="button" @click="generateCharWithAI()" :disabled="!aiCharPrompt.trim() || aiCharLoading" class="btn-accent"
+                        style="min-width:140px; justify-content:center;">
+                    <template x-if="!aiCharLoading">
+                        <span style="display:flex; align-items:center; gap:7px;">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="font-size:11px;"></i>
+                            Generate Character
+                        </span>
+                    </template>
+                    <template x-if="aiCharLoading">
+                        <span style="display:flex; align-items:center; gap:7px;">
+                            <i class="fa-solid fa-circle-notch fa-spin" style="font-size:11px;"></i>
+                            Crafting persona…
+                        </span>
+                    </template>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ CHARACTER MODAL ═══ -->
     <div x-show="charModal" x-cloak class="modal-overlay" @keydown.escape.window="charModal = false">
         <div class="modal-backdrop" @click="charModal = false"
@@ -1305,6 +1425,12 @@
                 <div>
                     <label class="apple-label">Name</label>
                     <input x-model="charName" type="text" required placeholder="e.g. Luna, Sensei, CodeBot..." class="apple-field" />
+                </div>
+                <!-- Description (short tagline) -->
+                <div>
+                    <label class="apple-label">Short Description <span style="font-weight:400; color:var(--text-quaternary);">(optional)</span></label>
+                    <input x-model="charDescription" type="text" placeholder="e.g. Your poetic creative writing companion" class="apple-field" />
+                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:4px;">A single-line tagline shown on the character card.</p>
                 </div>
                 <!-- Persona -->
                 <div>
@@ -1604,10 +1730,21 @@ function settingsApp() {
             reader.readAsDataURL(file);
         },
 
-        charModal: false, charEditId: null, charName: '', charPersona: '',
+        charModal: false, charEditId: null, charName: '', charPersona: '', charDescription: '',
         charGroqModel: 'default', charGoogleModel: 'default', charLocalModel: 'default', charNvidiaModel: 'default',
         charVoice: 'aoede', charAvatarPreview: null, charAvatarFile: null, charMCPServers: [],
         mcpTools: {},
+        charSearch: '',
+        aiCharModal: false, aiCharPrompt: '', aiCharLoading: false, aiCharError: '',
+        get filteredCharacters() {
+            const q = (this.charSearch || '').toLowerCase().trim();
+            if (!q) return this.characters;
+            return this.characters.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                (c.description || '').toLowerCase().includes(q) ||
+                (c.persona || '').toLowerCase().includes(q)
+            );
+        },
 
         get currentCharModel() {
             const p = this.prefs.llm_provider;
@@ -1770,16 +1907,65 @@ function settingsApp() {
         openCharModal(char = null) {
             if (char) {
                 this.charEditId = char.id; this.charName = char.name; this.charPersona = char.persona;
+                this.charDescription = char.description || '';
                 this.charGroqModel = char.groq_model || 'default'; this.charGoogleModel = char.google_model || 'default';
                 this.charLocalModel = char.local_model || 'default'; this.charNvidiaModel = char.nvidia_model || 'default';
                 this.charVoice = char.voice || 'aoede';
                 this.charAvatarPreview = char.avatar; this.charMCPServers = [...(char.mcp_servers || [])];
             } else {
-                this.charEditId = null; this.charName = ''; this.charPersona = '';
+                this.charEditId = null; this.charName = ''; this.charPersona = ''; this.charDescription = '';
                 this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
                 this.charVoice = 'aoede'; this.charAvatarPreview = null; this.charMCPServers = [];
             }
             this.charAvatarFile = null; this.charModal = true;
+        },
+
+        async generateCharWithAI() {
+            if (!this.aiCharPrompt.trim()) return;
+            this.aiCharLoading = true;
+            this.aiCharError = '';
+            const availableTools = this.mcpServers.map(s => s.name).join(', ') || 'none';
+            try {
+                const resp = await fetch('/api/ai/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system: 'You are a character design AI. Return ONLY a valid raw JSON object with no explanation, no markdown fences, no extra text.',
+                        prompt: `Generate a JSON object for an AI assistant persona based on this concept: "${this.aiCharPrompt}".
+Available MCP tools the character can be assigned: ${availableTools}.
+The JSON object must have exactly these fields:
+- name: string (creative character name)
+- description: string (one punchy tagline, max 60 chars)
+- persona: string (a detailed system prompt, 3-5 sentences, written in second person starting with "You are...")
+- mcp_servers: array of tool names from the available list that suit this character (can be empty array)
+Return ONLY the raw JSON. No markdown. No explanation.`
+                    })
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                const raw = (data.text || '').trim()
+                    .replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '').trim();
+                const parsed = JSON.parse(raw);
+                // Pre-fill charModal fields
+                this.charName = parsed.name || '';
+                this.charDescription = parsed.description || '';
+                this.charPersona = parsed.persona || '';
+                // Match MCP server IDs from names
+                const nameMap = {};
+                this.mcpServers.forEach(s => { nameMap[s.name.toLowerCase()] = s.id; });
+                this.charMCPServers = (parsed.mcp_servers || []).map(n => nameMap[n.toLowerCase()]).filter(Boolean);
+                this.charEditId = null; this.charAvatarPreview = null; this.charAvatarFile = null;
+                this.charGroqModel = 'default'; this.charGoogleModel = 'default';
+                this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
+                this.charVoice = 'aoede';
+                this.aiCharModal = false;
+                this.charModal = true;
+            } catch(e) {
+                this.aiCharError = 'Could not parse AI response. Try rephrasing your concept.';
+                console.error('AI char gen error:', e);
+            } finally {
+                this.aiCharLoading = false;
+            }
         },
 
         previewCharAvatar(e) {
@@ -1810,6 +1996,7 @@ function settingsApp() {
             this.saving = true;
             const fd = new FormData();
             fd.append('name', this.charName.trim()); fd.append('persona', this.charPersona.trim());
+            fd.append('description', this.charDescription.trim());
             fd.append('groq_model', this.charGroqModel); fd.append('google_model', this.charGoogleModel);
             fd.append('local_model', this.charLocalModel); fd.append('nvidia_model', this.charNvidiaModel);
             fd.append('voice', this.charVoice);

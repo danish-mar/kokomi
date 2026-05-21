@@ -39,6 +39,7 @@ export function getInitialState() {
         welcomePickerOpen: false,
         groupParticipants: [],
         roomPickerOpen: false,
+        roomCharQ: '',
         currentStreamingCharId: null,
         toasts: [],
         isAnonymous: false,

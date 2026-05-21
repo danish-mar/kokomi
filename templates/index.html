@@ -507,22 +507,39 @@
                     <i class="fa-solid fa-chevron-down text-[9px] text-4 t-apple" :class="charPickerOpen && 'rotate-180'"></i>
                 </div>
 
-                <!-- Character Picker -->
-                <div x-show="charPickerOpen" x-collapse class="space-y-0.5 pl-1">
-                    <template x-for="char in characters" :key="char.id">
-                        <button @click="selectCharacter(char.id)"
-                            :class="activeCharId === char.id ? 'bg-accent-sub text-1' : 'text-2 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'"
-                            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-[8px] text-[12px] t-apple">
-                            <template x-if="char.avatar">
-                                <img :src="char.avatar" class="w-[18px] h-[18px] rounded-[5px] object-cover" />
-                            </template>
-                            <template x-if="!char.avatar">
-                                <div class="w-[18px] h-[18px] rounded-[5px] flex items-center justify-center text-[8px] font-bold text-white"
-                                     style="background: linear-gradient(135deg, #505081, #8686AC);" x-text="char.name.charAt(0)"></div>
-                            </template>
-                            <span class="truncate" x-text="char.name"></span>
-                        </button>
-                    </template>
+                <!-- Character Picker (sidebar) -->
+                <div x-show="charPickerOpen" x-collapse x-data="{ charSideQ: '' }">
+                    <!-- Search when many characters -->
+                    <div x-show="characters.length > 6" class="px-1 pb-1.5 pt-0.5">
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-4 pointer-events-none"></i>
+                            <input type="text" x-model="charSideQ" placeholder="Search…"
+                                   class="w-full pl-6 pr-2.5 py-1 text-[11.5px] bg-black/5 dark:bg-white/5 rounded-[8px] border border-transparent focus:border-accent-c outline-none text-1 t-apple" />
+                        </div>
+                    </div>
+                    <div class="space-y-0.5 pl-1 max-h-[220px] overflow-y-auto">
+                        <template x-for="char in characters.filter(c => !charSideQ || c.name.toLowerCase().includes(charSideQ.toLowerCase()))" :key="char.id">
+                            <button @click="selectCharacter(char.id)"
+                                :class="activeCharId === char.id ? 'bg-accent-sub text-1' : 'text-2 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'"
+                                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-[8px] text-[12px] t-apple">
+                                <template x-if="char.avatar">
+                                    <img :src="char.avatar" class="w-[18px] h-[18px] rounded-[5px] object-cover flex-shrink-0" />
+                                </template>
+                                <template x-if="!char.avatar">
+                                    <div class="w-[18px] h-[18px] rounded-[5px] flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
+                                         style="background: linear-gradient(135deg, #505081, #8686AC);" x-text="char.name.charAt(0)"></div>
+                                </template>
+                                <span class="truncate" x-text="char.name"></span>
+                                <template x-if="activeCharId === char.id">
+                                    <i class="fa-solid fa-check text-[9px] text-accent-c ml-auto flex-shrink-0"></i>
+                                </template>
+                            </button>
+                        </template>
+                        <div x-show="characters.filter(c => !charSideQ || c.name.toLowerCase().includes(charSideQ.toLowerCase())).length === 0"
+                             class="py-3 text-center text-4 text-[11px]">
+                            No match for "<span x-text="charSideQ"></span>"
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Quick Actions Grid -->
@@ -703,9 +720,16 @@
                         <p class="text-[11px] text-4 mt-0.5">Toggle characters to join the conversation.</p>
                     </div>
 
-                    <!-- Character List -->
-                    <div class="p-2 max-h-[300px] overflow-y-auto space-y-0.5">
-                        <template x-for="char in characters" :key="char.id">
+                    <!-- Character List in room picker -->
+                    <div class="px-2.5 pt-2 pb-1.5 border-b separator">
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-4 pointer-events-none"></i>
+                            <input type="text" x-model="roomCharQ" placeholder="Search…" @click.stop
+                                   class="w-full pl-6 pr-2.5 py-1.5 text-[12px] bg-black/5 dark:bg-white/5 rounded-[9px] border border-transparent focus:border-accent-c outline-none text-1 t-apple" />
+                        </div>
+                    </div>
+                    <div class="p-2 max-h-[260px] overflow-y-auto space-y-0.5">
+                        <template x-for="char in characters.filter(c => !roomCharQ || c.name.toLowerCase().includes(roomCharQ.toLowerCase()))" :key="char.id">
                             <button @click="toggleParticipant(char.id)"
                                 class="w-full flex items-center gap-3 p-2.5 rounded-[14px] text-left t-apple group/char"
                                 :class="groupParticipants.includes(char.id) 
@@ -738,7 +762,7 @@
                                        :class="groupParticipants.includes(char.id) ? 'text-1' : 'text-2'" 
                                        x-text="char.name"></p>
                                     <p class="text-[10px] text-4 truncate leading-tight mt-0.5" 
-                                       x-text="char.persona?.substring(0, 50) + '...'"></p>
+                                       x-text="char.description || (char.persona?.substring(0, 50) + '...')"></p>
                                 </div>
                                 <!-- Streaming indicator -->
                                 <template x-if="currentStreamingCharId === char.id">
@@ -750,6 +774,10 @@
                                 </template>
                             </button>
                         </template>
+                        <div x-show="characters.filter(c => !roomCharQ || c.name.toLowerCase().includes(roomCharQ.toLowerCase())).length === 0"
+                             class="py-4 text-center text-4 text-[11px]">
+                            No match for "<span x-text="roomCharQ"></span>"
+                        </div>
                     </div>
                 </div>
             </div>
@@ -911,26 +939,49 @@
                             x-transition:enter="transition ease-out duration-200"
                             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                            class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[240px] material-elevated border border-themed rounded-[18px] shadow-t-lg z-50 p-2 overflow-hidden">
-                            <div class="max-h-[300px] overflow-y-auto space-y-1">
-                                <template x-for="c in characters" :key="c.id">
-                                    <button @click="selectCharacter(c.id)"
+                            class="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[280px] material-elevated border border-themed rounded-[18px] shadow-t-lg z-50 overflow-hidden"
+                            x-data="{ charQ: '' }">
+                            <!-- Search -->
+                            <div class="px-2.5 pt-2.5 pb-1.5 border-b border-themed">
+                                <div class="relative">
+                                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-4 pointer-events-none"></i>
+                                    <input type="text" x-model="charQ" placeholder="Search characters"
+                                           class="w-full pl-7 pr-3 py-1.5 text-[12px] bg-black/5 dark:bg-white/5 rounded-[9px] border border-transparent focus:border-accent-c outline-none text-1 t-apple"
+                                           @click.stop />
+                                </div>
+                                <p class="text-[10px] text-4 mt-1.5 font-medium"><span x-text="characters.filter(c => !charQ || c.name.toLowerCase().includes(charQ.toLowerCase())).length"></span> of <span x-text="characters.length"></span> characters</p>
+                            </div>
+                            <div class="max-h-[280px] overflow-y-auto space-y-0.5 p-2">
+                                <template x-for="c in characters.filter(c => !charQ || c.name.toLowerCase().includes(charQ.toLowerCase()) || (c.description || '').toLowerCase().includes(charQ.toLowerCase()))" :key="c.id">
+                                    <button @click="selectCharacter(c.id); welcomePickerOpen = false; charQ = ''"
                                         class="w-full flex items-center gap-3 p-2.5 rounded-[12px] hover-surface t-apple text-left"
-                                        :class="activeCharId === c.id ? 'bg-accent-sub border-themed' : ''">
+                                        :class="activeCharId === c.id ? 'bg-accent-sub' : ''">
                                         <template x-if="c.avatar">
-                                            <img :src="c.avatar" class="w-[28px] h-[28px] rounded-[8px] object-cover" />
+                                            <img :src="c.avatar" class="w-[32px] h-[32px] rounded-[9px] object-cover flex-shrink-0" />
                                         </template>
                                         <template x-if="!c.avatar">
-                                            <div class="w-[28px] h-[28px] rounded-[8px] bg-accent-sub flex items-center justify-center">
-                                                <span class="text-[11px] font-bold text-accent-c" x-text="c.name.charAt(0)"></span>
+                                            <div class="w-[32px] h-[32px] rounded-[9px] bg-accent-sub flex items-center justify-center flex-shrink-0">
+                                                <span class="text-[13px] font-bold text-accent-c" x-text="c.name.charAt(0)"></span>
                                             </div>
                                         </template>
-                                        <div class="min-w-0">
-                                            <p class="text-[13px] font-semibold text-1 truncate" x-text="c.name"></p>
-                                            <p class="text-[10px] text-4 truncate" x-text="c.persona"></p>
+                                        <div class="min-w-0 flex-grow">
+                                            <div class="flex items-center gap-1.5">
+                                                <p class="text-[13px] font-semibold text-1 truncate" x-text="c.name"></p>
+                                                <template x-if="activeCharId === c.id">
+                                                    <i class="fa-solid fa-check text-[9px] text-accent-c flex-shrink-0"></i>
+                                                </template>
+                                            </div>
+                                            <p x-show="c.description" class="text-[10px] font-semibold truncate" style="color:var(--accent)" x-text="c.description"></p>
+                                            <p x-show="!c.description" class="text-[10px] text-4 truncate" x-text="(c.persona || '').substring(0, 55) + '...'"></p>
                                         </div>
                                     </button>
                                 </template>
+                                <!-- Empty state -->
+                                <div x-show="characters.filter(c => !charQ || c.name.toLowerCase().includes(charQ.toLowerCase())).length === 0"
+                                     class="py-6 text-center text-4">
+                                    <i class="fa-solid fa-user-slash text-[18px] opacity-30 block mb-1.5"></i>
+                                    <p class="text-[11px]">No match for "<span x-text="charQ"></span>"</p>
+                                </div>
                             </div>
                         </div>
                     </div>
