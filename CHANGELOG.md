@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.1.4] - 2026-05-21
+
+### Added
+
+- **AI Character Generator**: Introduced a dedicated `✨ Generate with AI` modal in Settings → Characters. Users describe a character concept in plain language; the AI auto-fills name, short description, system persona, and assigns relevant MCP tools. Powered by a new stateless `POST /api/ai/generate` backend endpoint that never pollutes chat history.
+- **Searchable Character Pickers**: All three character picker surfaces (welcome screen popover, sidebar list, and room picker) now have instant fuzzy search with a character count chip, an empty state, and a `max-h` scroll container — scaling gracefully to 40+ characters.
+- **Character Description Field**: Added a `description` field (short tagline) to every character. Shown in accent color on the character card, in character pickers, and editable in the New / Edit Character modal.
+- **Widescreen Settings Dashboard**: Expanded the Settings layout max-width from `860px` → `1200px` and sidebar from `200px` → `240px` for a more comfortable, premium feel on large screens.
+- **Company-Branded Provider Icons**: Replaced generic icons (`fa-cloud`, `fa-wand-sparkles`, `fa-microchip`) in both General and Atlas Intelligence Provider segment controls with proper brand icons (`fa-brands fa-google` for Gemini, `fa-solid fa-bolt` for Groq, `fa-solid fa-network-wired` for NVIDIA NIM).
+- **Model Brand Icons in Atlas Footer**: The Atlas terminal now shows the active model's company icon (`fa-brands fa-openai`, `fa-brands fa-google`, `fa-solid fa-bolt`, etc.) alongside just the clean model name (strips `org/` prefix) in the bottom status bar.
+- **Stateless AI Utility Endpoint**: `POST /api/ai/generate` — a lightweight, zero-history, single-shot LLM call endpoint usable for any internal AI-assisted feature without touching conversation storage.
+
+### Fixed
+
+- **AI Character Generator isolation**: Separated generation from `/api/chat` so AI-generated character JSON never appears in the user's conversation history.
+
 ## [v3.1.1] - 2026-05-21
 
 ### Added
