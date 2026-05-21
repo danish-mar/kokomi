@@ -2,1078 +2,30 @@
 {% block title %}Atlas Terminal{% endblock %}
 
 {% block head %}
-<style>
-  /* ── Atlas-specific layout ── */
-  #atlas-root {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* ── Sidebar ── */
-  #atlas-sidebar {
-    width: 280px;
-    min-width: 280px;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-sidebar);
-    backdrop-filter: var(--vibrancy);
-    -webkit-backdrop-filter: var(--vibrancy);
-    border-right: 1px solid var(--border);
-    overflow: hidden;
-  }
-
-  .sidebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 18px 16px 14px;
-    border-bottom: 1px solid var(--separator);
-  }
-  .sidebar-brand-icon {
-    width: 34px; height: 34px;
-    background: var(--accent);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--accent-text);
-    font-size: 15px;
-    flex-shrink: 0;
-  }
-  .sidebar-brand-title {
-    font-size: 15px; font-weight: 700;
-    letter-spacing: -0.03em;
-    color: var(--text-primary);
-    line-height: 1.1;
-  }
-  .sidebar-brand-sub {
-    font-size: 10px; font-weight: 500;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .sidebar-section-label {
-    font-size: 10px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--text-quaternary);
-    padding: 14px 16px 6px;
-  }
-
-  .sidebar-scroll {
-    flex: 1; overflow-y: auto; overflow-x: hidden;
-  }
-
-  .wf-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    margin: 1px 6px;
-    cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
-    position: relative;
-  }
-  .wf-item:hover { background: var(--bg-surface-hover); }
-  .wf-item:hover .wf-delete { opacity: 1; }
-  .wf-item.active {
-    background: var(--accent-subtle);
-  }
-  .wf-item-icon {
-    width: 26px; height: 26px; flex-shrink: 0;
-    border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px;
-  }
-  .wf-item-title {
-    flex: 1; min-width: 0;
-    font-size: 13px; font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .wf-item-time {
-    font-size: 10px; color: var(--text-quaternary);
-    flex-shrink: 0;
-  }
-  .wf-delete {
-    opacity: 0;
-    transition: opacity 0.15s;
-    padding: 2px 4px;
-    border-radius: 5px;
-    color: var(--text-tertiary);
-    background: transparent;
-    border: none; cursor: pointer;
-    font-size: 11px;
-  }
-  .wf-delete:hover { background: rgba(220,60,60,0.12); color: #e05555; }
-
-  .hub-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    margin: 1px 6px;
-    cursor: pointer;
-    transition: background 0.15s ease;
-    font-size: 13px; font-weight: 500;
-    color: var(--text-secondary);
-    text-decoration: none;
-  }
-  .hub-item:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
-  .hub-item.active { background: var(--accent-subtle); color: var(--accent); }
-  .hub-item i { width: 18px; text-align: center; color: var(--accent); }
-
-  .sidebar-footer {
-    border-top: 1px solid var(--separator);
-    padding: 12px 14px;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .admin-avatar {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; color: var(--accent-text); font-weight: 600;
-    flex-shrink: 0;
-  }
-  .admin-name {
-    flex: 1; font-size: 13px; font-weight: 600;
-    color: var(--text-primary);
-  }
-  .admin-role { font-size: 10px; color: var(--text-tertiary); }
-  .gear-btn {
-    background: none; border: none; cursor: pointer;
-    color: var(--text-tertiary); font-size: 14px; padding: 4px;
-    border-radius: 7px; transition: background 0.15s, color 0.15s;
-  }
-  .gear-btn:hover { background: var(--bg-surface-hover); color: var(--accent); }
-
-  /* ── Main panel ── */
-  #atlas-main {
-    flex: 1; display: flex; flex-direction: column;
-    min-width: 0; overflow: hidden;
-  }
-
-  /* ── Topbar ── */
-  #atlas-topbar {
-    height: 64px; min-height: 64px;
-    display: flex; align-items: center; gap: 12px;
-    padding: 0 20px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-sidebar);
-    backdrop-filter: var(--vibrancy);
-    -webkit-backdrop-filter: var(--vibrancy);
-  }
-  .topbar-title {
-    flex: 1; font-size: 15px; font-weight: 600;
-    letter-spacing: -0.02em; color: var(--text-primary);
-    min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .status-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 4px 10px; border-radius: 20px;
-    font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.06em;
-    flex-shrink: 0;
-  }
-  .status-pending { background: rgba(180,140,40,0.12); color: #b8922a; }
-  .dark .status-pending { background: rgba(220,170,50,0.15); color: #d4ab45; }
-  .status-running { background: rgba(50,140,200,0.12); color: #2a7fc8; }
-  .dark .status-running { background: rgba(80,160,220,0.15); color: #5aabdd; }
-  .status-completed { background: rgba(40,180,100,0.12); color: #28a860; }
-  .dark .status-completed { background: rgba(50,200,110,0.15); color: #3cc87a; }
-  .status-failed { background: rgba(220,60,60,0.1); color: #d03a3a; }
-  .dark .status-failed { background: rgba(240,80,80,0.15); color: #e05555; }
-
-  .model-select-wrap {
-    position: relative; flex-shrink: 0;
-  }
-  .model-select {
-    appearance: none;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text-primary);
-    font-size: 12px; font-weight: 500;
-    padding: 6px 26px 6px 10px;
-    cursor: pointer;
-    transition: border-color 0.2s;
-    font-family: inherit;
-  }
-  .model-select:focus { outline: none; border-color: var(--accent); }
-  .model-select-wrap::after {
-    content: "\f078";
-    font-family: "Font Awesome 6 Free"; font-weight: 900;
-    font-size: 9px; color: var(--text-tertiary);
-    position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
-    pointer-events: none;
-  }
-
-  .topbar-btn {
-    background: var(--bg-input); border: 1px solid var(--border);
-    border-radius: 10px; padding: 6px 12px;
-    font-size: 12px; font-weight: 500; color: var(--text-secondary);
-    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px;
-    white-space: nowrap; flex-shrink: 0;
-  }
-  .topbar-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
-  .topbar-btn.active { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent); }
-
-  /* ── Content area ── */
-  #atlas-content {
-    flex: 1; overflow-y: auto; overflow-x: hidden;
-    padding: 20px;
-  }
-
-  /* ── Input bar ── */
-  #atlas-inputbar {
-    border-top: 1px solid var(--border);
-    padding: 12px 20px;
-    background: var(--bg-sidebar);
-    backdrop-filter: var(--vibrancy);
-    -webkit-backdrop-filter: var(--vibrancy);
-  }
-  .input-wrap {
-    display: flex; align-items: flex-end; gap: 8px;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 10px 12px;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .input-wrap:focus-within {
-    border-color: var(--border-focus);
-    box-shadow: 0 0 0 3px var(--accent-subtle);
-  }
-  .atlas-input {
-    flex: 1; background: none; border: none; outline: none;
-    resize: none; overflow-y: hidden;
-    min-height: 24px; max-height: 120px;
-    font-size: 14px; color: var(--text-primary);
-    font-family: inherit; line-height: 1.5;
-    padding: 0;
-  }
-  .atlas-input::placeholder { color: var(--text-quaternary); }
-  .input-action-btn {
-    background: none; border: none; cursor: pointer;
-    color: var(--text-tertiary); font-size: 15px; padding: 2px 4px;
-    border-radius: 7px; transition: color 0.15s, background 0.15s;
-    flex-shrink: 0;
-  }
-  .input-action-btn:hover { color: var(--accent); background: var(--accent-subtle); }
-  .submit-btn {
-    background: var(--accent); border: none; cursor: pointer;
-    color: var(--accent-text); font-size: 14px;
-    width: 32px; height: 32px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s, transform 0.1s;
-    flex-shrink: 0;
-  }
-  .submit-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
-  .submit-btn:active { transform: scale(0.95); }
-  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  /* ── Cards ── */
-  .atlas-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 16px 18px;
-    margin-bottom: 14px;
-    backdrop-filter: blur(var(--material-blur));
-    -webkit-backdrop-filter: blur(var(--material-blur));
-    transition: all 0.25s ease;
-  }
-
-  /* ── Task grid ── */
-  .task-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .task-card {
-    background: var(--bg-surface);
-    border: 1.5px solid var(--border);
-    border-radius: 14px;
-    padding: 14px;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    position: relative; overflow: hidden;
-  }
-  .task-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    background: var(--bg-surface-hover);
-  }
-  .task-card.status-running-card {
-    border-color: #2a7fc8;
-    box-shadow: 0 0 0 1px rgba(42, 127, 200, 0.3), 0 4px 16px rgba(42, 127, 200, 0.15);
-    animation: runningGlow 2s infinite ease-in-out;
-  }
-  .dark .task-card.status-running-card {
-    border-color: #5aabdd;
-    box-shadow: 0 0 0 1px rgba(90,171,221,0.35), 0 4px 18px rgba(90,171,221,0.18);
-  }
-  .task-card.status-running-card::after {
-    content: "";
-    position: absolute; top: 0; left: -100%; width: 60px; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
-    animation: shimmerSweep 2s infinite ease-in-out;
-  }
-  .task-card.status-completed-card { border-color: rgba(40,168,96,0.4); }
-  .task-card.status-failed-card { border-color: rgba(208,58,58,0.4); }
-
-  @keyframes runningGlow {
-    0%, 100% { box-shadow: 0 0 0 1px rgba(42,127,200,0.3), 0 4px 16px rgba(42,127,200,0.1); }
-    50% { box-shadow: 0 0 0 2px rgba(42,127,200,0.5), 0 6px 24px rgba(42,127,200,0.25); }
-  }
-  @keyframes shimmerSweep {
-    0% { left: -80px; }
-    100% { left: calc(100% + 80px); }
-  }
-
-  .task-worker-icon {
-    width: 32px; height: 32px; border-radius: 9px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; margin-bottom: 10px; flex-shrink: 0;
-  }
-  .task-title {
-    font-size: 13px; font-weight: 600;
-    color: var(--text-primary); margin-bottom: 4px;
-    line-height: 1.3;
-  }
-  .task-desc {
-    font-size: 11.5px; color: var(--text-tertiary);
-    line-height: 1.4; overflow: hidden;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  }
-  .task-footer {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-top: 10px; gap: 6px;
-  }
-
-  /* ── Console ── */
-  .atlas-console {
-    background: #0d0c1a;
-    border: 1px solid rgba(134,134,172,0.18);
-    border-radius: 14px;
-    padding: 14px;
-    font-family: "SF Mono", "JetBrains Mono", monospace;
-    font-size: 12px;
-    max-height: 280px;
-    overflow-y: auto;
-    margin-bottom: 14px;
-  }
-  .dark .atlas-console { background: #080715; }
-  .console-line {
-    display: flex; gap: 10px;
-    padding: 1.5px 0;
-    animation: slideInConsole 0.2s ease-out;
-  }
-  @keyframes slideInConsole {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .console-ts { color: rgba(134,134,172,0.5); flex-shrink: 0; }
-  .console-msg-info { color: #7ec8e3; }
-  .console-msg-success { color: #5dd87d; }
-  .console-msg-error { color: #e06060; }
-  .console-msg-warning { color: #d4a542; }
-  .console-msg-default { color: #c5c4dd; }
-
-  /* Debug terminal */
-  .debug-console {
-    background: #0a0f0a;
-    border: 1px solid rgba(80,200,80,0.2);
-    border-radius: 14px;
-    padding: 14px;
-    font-family: "SF Mono", "JetBrains Mono", monospace;
-    font-size: 11px;
-    max-height: 220px;
-    overflow-y: auto;
-    margin-bottom: 14px;
-  }
-  .debug-line { color: #4cce6a; padding: 1px 0; }
-  .debug-ts { color: rgba(76,206,106,0.45); margin-right: 8px; }
-
-  /* ── Tabs ── */
-  .atlas-tabs {
-    display: flex; gap: 4px;
-    margin-bottom: 16px;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 4px;
-  }
-  .atlas-tab {
-    flex: 1; padding: 7px 12px;
-    border-radius: 9px;
-    font-size: 12px; font-weight: 500;
-    color: var(--text-tertiary);
-    cursor: pointer; transition: all 0.15s;
-    text-align: center;
-    background: none; border: none;
-  }
-  .atlas-tab.active {
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    box-shadow: var(--shadow-sm);
-  }
-  .atlas-tab:hover:not(.active) { color: var(--text-secondary); }
-
-  /* ── File row ── */
-  .file-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 12px;
-    border-radius: 10px;
-    transition: background 0.15s;
-  }
-  .file-row:hover { background: var(--bg-surface-hover); }
-  .file-icon { width: 30px; text-align: center; font-size: 16px; flex-shrink: 0; }
-  .file-name { flex: 1; font-size: 13px; color: var(--text-primary); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .file-size { font-size: 11px; color: var(--text-quaternary); flex-shrink: 0; }
-  .file-dl { color: var(--accent); font-size: 12px; flex-shrink: 0; text-decoration: none; }
-  .file-dl:hover { text-decoration: underline; }
-
-  /* ── Nautilus File Explorer ── */
-  .nautilus-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 16px;
-    gap: 12px;
-  }
-  .nautilus-breadcrumbs {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex: 1;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .nautilus-breadcrumbs::-webkit-scrollbar {
-    display: none;
-  }
-  .breadcrumb-pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .breadcrumb-pill:hover {
-    background: var(--bg-surface-hover);
-    color: var(--text-primary);
-  }
-  .breadcrumb-pill.active {
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-  .breadcrumb-divider {
-    font-size: 11px;
-    color: var(--text-quaternary);
-    user-select: none;
-  }
-  
-  .nautilus-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 16px;
-    padding: 8px 4px;
-  }
-  .nautilus-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 14px;
-    border-radius: 14px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    text-align: center;
-    user-select: none;
-    aspect-ratio: 1;
-  }
-  .nautilus-item:hover {
-    background: var(--bg-surface-hover);
-    border-color: var(--border);
-  }
-  .nautilus-item-icon {
-    font-size: 40px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 48px;
-  }
-  .nautilus-item-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-primary);
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.3;
-  }
-  .nautilus-item-size {
-    font-size: 10px;
-    color: var(--text-quaternary);
-    margin-top: 2px;
-  }
-
-  /* ── Templates grid ── */
-  .template-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 16px;
-    transition: all 0.2s ease;
-  }
-  .template-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .tool-badge {
-    display: inline-flex; align-items: center;
-    padding: 2px 8px;
-    background: var(--accent-subtle);
-    color: var(--accent);
-    border-radius: 20px;
-    font-size: 10px; font-weight: 500;
-    margin: 2px;
-  }
-
-  /* ── Suggestion cards ── */
-  .suggestion-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 16px 18px;
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    display: flex; align-items: flex-start; gap: 12px;
-  }
-  .suggestion-card:hover {
-    background: var(--bg-surface-hover);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--border-focus);
-  }
-  .suggestion-card:active { transform: scale(0.98); }
-
-  /* ── Modal ── */
-  .modal-backdrop {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.45);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 9999; padding: 20px;
-  }
-  .modal-box {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 24px;
-    max-width: 640px; width: 100%;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: var(--shadow-lg);
-    position: relative;
-  }
-  .modal-close {
-    position: absolute; top: 16px; right: 16px;
-    background: var(--bg-surface); border: 1px solid var(--border);
-    border-radius: 8px; width: 28px; height: 28px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: var(--text-tertiary);
-    font-size: 12px; transition: all 0.15s;
-  }
-  .modal-close:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
-  .json-block {
-    background: #0d0c1a;
-    border-radius: 10px; padding: 14px;
-    font-family: "SF Mono", monospace; font-size: 11px;
-    color: #c5c4dd; overflow-x: auto; max-height: 240px; overflow-y: auto;
-    white-space: pre-wrap; word-break: break-all;
-  }
-
-  /* ── Empty state ── */
-  .empty-hero {
-    text-align: center;
-    padding: 48px 24px 24px;
-    max-width: 560px;
-    margin: 0 auto;
-  }
-  .empty-hero-icon {
-    width: 72px; height: 72px;
-    background: var(--accent-subtle);
-    border-radius: 22px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 30px; color: var(--accent);
-    margin: 0 auto 20px;
-  }
-
-  /* ── Section header ── */
-  .section-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 10px;
-  }
-  .section-title {
-    font-size: 12px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.08em; color: var(--text-tertiary);
-    display: flex; align-items: center; gap: 6px;
-  }
-
-  /* ── Small action button ── */
-  .action-btn-sm {
-    background: var(--bg-input); border: 1px solid var(--border);
-    border-radius: 8px; padding: 5px 10px;
-    font-size: 11px; font-weight: 500; color: var(--text-secondary);
-    cursor: pointer; transition: all 0.15s;
-    display: inline-flex; align-items: center; gap: 5px;
-  }
-  .action-btn-sm:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
-  .action-btn-sm.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
-  .action-btn-sm.primary:hover { background: var(--accent-hover); }
-  .action-btn-sm.danger { color: #e05555; }
-  .action-btn-sm.danger:hover { background: rgba(220,60,60,0.1); border-color: rgba(220,60,60,0.2); }
-
-  /* ── Goal card ── */
-  .goal-card {
-    background: linear-gradient(135deg, var(--accent-subtle) 0%, var(--bg-surface) 100%);
-    border: 1px solid var(--border-focus);
-    border-radius: 16px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
-    display: flex; gap: 14px; align-items: flex-start;
-  }
-  .goal-icon {
-    width: 38px; height: 38px; border-radius: 12px;
-    background: var(--accent); color: var(--accent-text);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; flex-shrink: 0;
-  }
-
-  /* ── Artifacts ── */
-  .artifact-chip {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 7px 14px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 12px; font-weight: 500;
-    color: var(--text-secondary);
-    text-decoration: none;
-    transition: all 0.15s;
-    margin: 4px;
-  }
-  .artifact-chip:hover { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent); }
-
-  /* ── Spinner ── */
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner { animation: spin 0.7s linear infinite; display: inline-block; }
-  .spinner-sm { animation: spin 0.7s linear infinite; display: inline-block; font-size: 11px; }
-
-  /* ── AI generate loading ── */
-  .ai-gen-loading {
-    display: inline-flex; align-items: center; gap: 6px;
-    color: var(--text-tertiary); font-size: 12px;
-  }
-
-  /* Fade in for view switch */
-  .atlas-view-enter {
-    animation: fadeIn 0.25s ease-out;
-  }
-
-  /* Checkbox styled */
-  .tool-checkbox { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
-
-  /* ── Live Smartwatch Timer Badge ── */
-  .timer-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 700;
-    font-family: 'SF Pro Mono', 'SF Mono', monospace;
-    color: var(--text-tertiary);
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1.5px 5px;
-    flex-shrink: 0;
-    margin-left: 8px;
-  }
-  .timer-running {
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.08);
-    border-color: rgba(239, 68, 68, 0.25);
-    animation: pulse-timer 1.5s infinite alternate;
-  }
-  @keyframes pulse-timer {
-    0% { opacity: 0.85; }
-    100% { opacity: 1; box-shadow: 0 0 4px rgba(239, 68, 68, 0.1); }
-  }
-  @keyframes simple-ping {
-    0% { transform: scale(1); opacity: 1; }
-    70% { transform: scale(2.2); opacity: 0; }
-    100% { transform: scale(2.2); opacity: 0; }
-  }
-
-  /* ── Graph View Layout ── */
-  .graph-container {
-    position: relative;
-    width: 100%;
-    height: 520px;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: auto;
-    margin-bottom: 20px;
-    padding: 20px;
-    cursor: grab;
-  }
-  .graph-canvas {
-    width: 100%;
-    min-width: 900px;
-    height: 100%;
-    min-height: 460px;
-    position: relative;
-  }
-  .graph-node {
-    position: absolute;
-    width: 160px;
-    height: 50px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-canvas);
-    display: flex;
-    align-items: center;
-    padding: 6px 10px;
-    cursor: grab;
-    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, left 0.35s cubic-bezier(0.4, 0, 0.2, 1), top 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-    user-select: none;
-    z-index: 10;
-  }
-  .graph-node.dragging {
-    transition: none !important;
-    z-index: 1000;
-    box-shadow: 0 16px 32px rgba(0,0,0,0.4) !important;
-    transform: scale(1.05) !important;
-    cursor: grabbing;
-  }
-  .graph-node:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent);
-    box-shadow: 0 4px 12px rgba(80, 80, 129, 0.15);
-  }
-  .graph-node.node-pending {
-    border-color: rgba(80, 80, 129, 0.4);
-    background: rgba(15, 14, 71, 0.4);
-    opacity: 0.85;
-  }
-  .graph-node.node-waiting {
-    border-color: rgba(134, 134, 172, 0.3);
-    border-style: dashed;
-    background: rgba(15, 14, 71, 0.2);
-    opacity: 0.65;
-  }
-  .graph-node.node-working {
-    border-color: var(--accent);
-    background: rgba(39, 39, 87, 0.6);
-    box-shadow: 0 0 15px rgba(80, 80, 129, 0.4);
-    animation: node-pulse-accent 1.5s infinite alternate;
-  }
-  .graph-node.node-completed {
-    border-color: #22c55e;
-    background: rgba(34, 197, 94, 0.05);
-    box-shadow: 0 0 10px rgba(34, 197, 94, 0.1);
-  }
-  .graph-node.node-failed {
-    border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.05);
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
-  }
-  @keyframes node-pulse-accent {
-    0% { border-color: rgba(80, 80, 129, 0.4); box-shadow: 0 0 5px rgba(80, 80, 129, 0.2); }
-    100% { border-color: var(--accent); box-shadow: 0 0 15px rgba(80, 80, 129, 0.6); }
-  }
-  .graph-node-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 8px;
-    color: white;
-    font-size: 11px;
-    flex-shrink: 0;
-  }
-  .graph-node-title {
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-  }
-
-  /* ── Cyber Intel Loader Styles ── */
-  .cyber-loader-box {
-    position: relative;
-    width: 100%;
-    max-width: 440px;
-    background: rgba(15, 14, 71, 0.75); /* Obsidian Blue Glassmorphism */
-    border: 1px solid rgba(80, 80, 129, 0.4);
-    border-radius: 20px;
-    backdrop-filter: blur(15px);
-    overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(80, 80, 129, 0.15);
-  }
-  
-  .cyber-glow-border {
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, var(--accent), #8686AC, transparent);
-    animation: border-laser 3s linear infinite;
-  }
-  @keyframes border-laser {
-    0% { left: -100%; }
-    100% { left: 100%; }
-  }
-
-  .cyber-body {
-    padding: 40px 30px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .holo-core-container {
-    position: relative;
-    width: 90px;
-    height: 90px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .holo-brain {
-    font-size: 34px;
-    color: var(--accent);
-    z-index: 10;
-    text-shadow: 0 0 15px var(--accent);
-    animation: brain-float 2s ease-in-out infinite alternate;
-  }
-  @keyframes brain-float {
-    0% { transform: translateY(0); }
-    100% { transform: translateY(-6px); }
-  }
-
-  .holo-radar-ring {
-    position: absolute;
-    border-radius: 50%;
-    border: 1px solid rgba(134, 134, 172, 0.15);
-    animation: radar-pulse 3s infinite linear;
-  }
-  .holo-radar-ring.ring-1 { width: 50px; height: 50px; animation-delay: 0s; }
-  .holo-radar-ring.ring-2 { width: 75px; height: 75px; animation-delay: 1s; }
-  .holo-radar-ring.ring-3 { width: 100px; height: 100px; animation-delay: 2s; }
-  
-  @keyframes radar-pulse {
-    0% { transform: scale(0.6); opacity: 0; }
-    50% { opacity: 0.6; border-color: var(--accent); }
-    100% { transform: scale(1.3); opacity: 0; }
-  }
-
-  .cyber-header-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #8686AC; /* Dusty Lavender */
-    letter-spacing: 0.12em;
-    padding: 6px 14px;
-    background: rgba(39, 39, 87, 0.6); /* Deep Midnight */
-    border: 1px solid rgba(80, 80, 129, 0.3);
-    border-radius: 20px;
-    margin-bottom: 16px;
-  }
-  .cyber-pulse-dot {
-    width: 6px;
-    height: 6px;
-    background: var(--accent);
-    border-radius: 50%;
-    box-shadow: 0 0 8px var(--accent);
-    animation: dot-pulse 1s infinite alternate;
-  }
-  @keyframes dot-pulse {
-    0% { transform: scale(0.8); opacity: 0.5; }
-    100% { transform: scale(1.2); opacity: 1; }
-  }
-
-  .cyber-step-text {
-    font-size: 12.5px;
-    font-family: monospace;
-    color: white;
-    text-align: center;
-    background: rgba(15, 14, 71, 0.4);
-    padding: 10px 18px;
-    border-radius: 10px;
-    border: 1px solid rgba(80, 80, 129, 0.2);
-    width: 100%;
-    min-height: 52px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* ── Zoom Controls Style ── */
-  .zoom-controls {
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(39, 39, 87, 0.85); /* Deep Midnight */
-    border: 1px solid rgba(134, 134, 172, 0.3);
-    border-radius: 12px;
-    padding: 6px 10px;
-    backdrop-filter: blur(10px);
-    z-index: 50;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-  }
-  .zoom-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: rgba(80, 80, 129, 0.3);
-    border: 1px solid rgba(134, 134, 172, 0.25);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-  }
-  .zoom-btn:hover {
-    background: rgba(80, 80, 129, 0.6);
-    transform: scale(1.05);
-  }
-  .zoom-btn:active {
-    transform: scale(0.95);
-  }
-  .zoom-text {
-    font-size: 11px;
-    font-weight: 700;
-    color: #8686AC;
-    min-width: 36px;
-    text-align: center;
-    font-family: monospace;
-  }
-
-  /* ── Active Worker Badge Styles ── */
-  .active-worker-badge {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #0F0E47; /* Obsidian Blue */
-    border: 2px solid var(--accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent);
-    font-size: 9px;
-    box-shadow: 0 0 10px rgba(80,80,129,0.6);
-    z-index: 30;
-    animation: badge-pulse-accent 1s infinite alternate;
-  }
-  .active-worker-badge.waiting-badge {
-    color: #8686AC; /* Dusty Lavender */
-    border-color: #505081;
-    box-shadow: none;
-    animation: none;
-  }
-  @keyframes badge-pulse-accent {
-    0% { box-shadow: 0 0 5px rgba(80,80,129,0.4); }
-    100% { box-shadow: 0 0 15px rgba(80,80,129,0.8); }
-  }
-
-  /* ── Node Artifacts Styles ── */
-  .node-artifacts-container {
-    position: absolute;
-    top: 50px;
-    left: 0;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    pointer-events: auto; /* Allow clicking the links */
-    z-index: 20;
-  }
-  .artifact-arrow {
-    height: 14px;
-    color: var(--text-tertiary);
-    font-size: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 2px;
-  }
-  .node-artifact-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(39, 39, 87, 0.95); /* Deep Midnight */
-    border: 1px solid rgba(80, 80, 129, 0.5); /* Muted Indigo */
-    border-radius: 8px;
-    padding: 4px 8px;
-    color: var(--text-primary);
-    font-size: 9.5px;
-    font-weight: 600;
-    max-width: 150px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-    text-decoration: none;
-    transition: transform 0.15s, border-color 0.15s, background 0.15s;
-  }
-  .node-artifact-pill:hover {
-    transform: translateY(1px) scale(1.02);
-    border-color: var(--accent);
-    background: rgba(80, 80, 129, 0.4);
-    color: white;
-  }
-</style>
+<link rel="stylesheet" href="/static/css/atlas.css">
 {% endblock %}
 
 {% block body %}
 <div id="atlas-root" x-data="atlasApp()" x-init="init()">
 
-  <!-- ═══════════════ SIDEBAR ═══════════════ -->
-  <aside id="atlas-sidebar">
+  <aside id="atlas-sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <!-- Brand -->
-    <div class="sidebar-brand">
-      <a href="/" class="sidebar-brand-icon" style="text-decoration:none;">
-        <i class="fa fa-terminal"></i>
-      </a>
-      <div>
-        <div class="sidebar-brand-title">Atlas</div>
+    <div class="sidebar-brand" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <a href="/" class="sidebar-brand-icon" style="text-decoration:none;">
+          <i class="fa fa-terminal"></i>
+        </a>
+        <div>
+          <div class="sidebar-brand-title">Atlas</div>
+        </div>
       </div>
+      <button @click="sidebarCollapsed = true"
+              title="Collapse Sidebar"
+              style="background: transparent; border: none; color: var(--text-tertiary); cursor: pointer; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-left: auto;"
+              x-on:mouseover="$el.style.background='rgba(134,134,172,0.15)'; $el.style.color='var(--text-primary)'"
+              x-on:mouseout="$el.style.background='transparent'; $el.style.color='var(--text-tertiary)'">
+        <i class="fa-solid fa-chevron-left" style="font-size: 13px;"></i>
+      </button>
     </div>
 
     <div class="sidebar-scroll">
@@ -1113,7 +65,7 @@
       <button class="hub-item" :class="{ active: currentView === 'templates' }" @click="currentView = 'templates'; activeRunId = null" style="width:100%; text-align:left;">
         <i class="fa fa-robot"></i> Agent Templates
       </button>
-      <a href="/settings" class="hub-item">
+      <a href="/settings?atlas#general" class="hub-item">
         <i class="fa fa-sliders"></i> Settings
       </a>
     </div>
@@ -1125,7 +77,7 @@
         <div class="admin-name">Admin</div>
         <div class="admin-role">Operator</div>
       </div>
-      <a href="/settings" class="gear-btn"><i class="fa fa-gear"></i></a>
+      <a href="/settings?atlas#general" class="gear-btn"><i class="fa fa-gear"></i></a>
     </div>
   </aside>
 
@@ -1133,21 +85,20 @@
   <main id="atlas-main">
 
     <!-- Topbar -->
-    <div id="atlas-topbar">
+    <div id="atlas-topbar" style="display: flex; align-items: center; gap: 14px;">
+      <!-- Collapsed Sidebar Menu Trigger -->
+      <button @click="sidebarCollapsed = !sidebarCollapsed" 
+              class="sidebar-toggle-btn"
+              title="Toggle Sidebar"
+              style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+              x-on:mouseover="$el.style.background='rgba(134,134,172,0.15)'"
+              x-on:mouseout="$el.style.background='transparent'">
+        <i class="fa-solid fa-bars" style="font-size: 15px;"></i>
+      </button>
+
       <div class="topbar-title" x-text="topbarTitle()"></div>
 
-      <!-- Model selector -->
-      <div class="model-select-wrap">
-        <select class="model-select" x-model="selectedModel" @change="updateModel()">
-          <template x-if="models.length === 0">
-            <option :value="selectedModel" x-text="selectedModel" selected></option>
-          </template>
-          <template x-for="m in models" :key="m.id">
-            <option :value="m.id" x-text="m.name || m.id" :selected="m.id === selectedModel"
-                    style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-          </template>
-        </select>
-      </div>
+
 
       <!-- Status badge -->
       <template x-if="activeWorkflow">
@@ -1181,21 +132,25 @@
       <!-- Tab: overview / graph / files -->
       <template x-if="activeRunId">
         <div style="display:flex; gap:4px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; padding:3px; align-items:center;">
-          <button class="topbar-btn" :class="{ active: activeTab === 'overview' }" @click="activeTab='overview'" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
+          <button class="topbar-btn" :class="{ active: activeTab === 'overview' }" @click="selectWorkflow(activeRunId, 'overview')" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
             <i class="fa fa-grip"></i> List
           </button>
-          <button class="topbar-btn" :class="{ active: activeTab === 'graph' }" @click="activeTab='graph'" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
+          <button class="topbar-btn" :class="{ active: activeTab === 'graph' }" @click="selectWorkflow(activeRunId, 'graph')" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
             <i class="fa-solid fa-circle-nodes"></i> Graph
           </button>
-          <button class="topbar-btn" :class="{ active: activeTab === 'files' }" @click="activeTab='files'; loadFiles()" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
+          <button class="topbar-btn" :class="{ active: activeTab === 'files' }" @click="selectWorkflow(activeRunId, 'files'); loadFiles()" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
             <i class="fa fa-folder"></i> Files
+          </button>
+          <button class="topbar-btn" :class="{ active: activeTab === 'chat' }" @click="selectWorkflow(activeRunId, 'chat')" style="border:none; border-radius:6px; font-size:12px; padding:6px 12px; height:28px;">
+            <i class="fa-solid fa-comments"></i> Chat
           </button>
         </div>
       </template>
     </div>
 
     <!-- Content -->
-    <div id="atlas-content">
+    <div id="atlas-content" :style="activeRunId && activeTab === 'chat' ? 'padding: 0; display: flex; flex-direction: column; overflow: hidden; flex: 1;' : ''">
+
 
       <!-- ── EMPTY STATE ── -->
       <template x-if="!activeRunId && !submitting && currentView === 'home'">
@@ -1417,7 +372,7 @@
 
       <!-- ── GRAPH VIEW ── -->
       <template x-if="activeRunId && currentView === 'home' && activeTab === 'graph'">
-        <div class="atlas-view-enter">
+        <div class="atlas-view-enter" :class="{ 'fullscreen-ancestor': isFullscreen }">
           <!-- Goal card -->
           <template x-if="activeWorkflow && activeWorkflow.plan">
             <div class="goal-card" style="margin-bottom: 16px;">
@@ -1429,7 +384,7 @@
             </div>
           </template>
 
-          <div class="graph-container" style="position: relative;" @mousedown="startPan($event)">
+          <div class="graph-viewport-wrapper" :class="{ 'fullscreen-viewport': isFullscreen }">
             <!-- Floating Apple-style Duration Pill Overlay -->
             <template x-if="activeWorkflow && (activeWorkflow.started_at || activeWorkflow.created_at)">
               <div style="position: absolute; top: 16px; right: 16px; z-index: 20; display: flex; align-items: center; gap: 8px; background: rgba(39,39,87,0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(134,134,172,0.25); border-radius: 99px; padding: 6px 14px; box-shadow: 0 8px 32px rgba(15,14,71,0.35); pointer-events: auto; transition: all 0.3s ease;">
@@ -1471,7 +426,9 @@
               </div>
             </template>
 
-            <div class="graph-canvas" :style="'transform: scale(' + zoomLevel + '); transform-origin: top left;'">
+            <div class="graph-container" @mousedown="startPan($event)">
+              <div class="graph-canvas" :style="'transform: scale(' + zoomLevel + '); transform-origin: top left;'">
+
               <!-- SVG connector paths -->
               <svg style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;">
                 <defs>
@@ -1537,13 +494,167 @@
               </template>
             </div>
 
-            <!-- Dynamic Floating Zoom Controls (Static to graph container) -->
+            </div>
+            
+            <!-- Dynamic Floating Zoom & Arrange Controls -->
             <div class="zoom-controls">
+              <!-- Arrange Layout Button -->
+              <button class="zoom-btn" @click="arrangeLayout()" title="Auto-Arrange Layout">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+              </button>
+              
+              <div style="width: 1px; height: 16px; background: rgba(134, 134, 172, 0.3); margin: 0 4px;"></div>
+              
+              <!-- Zoom Operations -->
               <button class="zoom-btn" @click="zoomOut()" title="Zoom Out"><i class="fa fa-minus"></i></button>
               <span class="zoom-text" x-text="Math.round(zoomLevel * 100) + '%'"></span>
               <button class="zoom-btn" @click="zoomIn()" title="Zoom In"><i class="fa fa-plus"></i></button>
-              <button class="zoom-btn" @click="resetZoom()" title="Reset Zoom"><i class="fa-solid fa-compress"></i></button>
+              <button class="zoom-btn" @click="resetZoom()" title="Reset Zoom"><i class="fa-solid fa-arrows-to-dot"></i></button>
+              
+              <div style="width: 1px; height: 16px; background: rgba(134, 134, 172, 0.3); margin: 0 4px;"></div>
+              
+              <!-- Fullscreen Button -->
+              <button class="zoom-btn" @click="toggleFullscreen()" :title="isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'">
+                <i :class="isFullscreen ? 'fa-solid fa-compress' : 'fa-solid fa-expand'"></i>
+              </button>
             </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- ── COLLABORATIVE CHAT VIEW ── -->
+      <template x-if="activeRunId && activeTab === 'chat'">
+        <div class="atlas-view-enter" style="display: flex; flex-direction: column; flex: 1; height: 100%; overflow: hidden; background: var(--bg-canvas);">
+          
+
+          <!-- Message Viewport -->
+          <div id="collaborative-chat-messages" style="flex: 1; overflow-y: auto; background: var(--bg-canvas);" x-init="$nextTick(() => { $el.scrollTop = $el.scrollHeight })" x-effect="if(activeTab === 'chat' && activeWorkflow) { scrollChatToBottom(false) }">
+            
+            <template x-if="activeWorkflow">
+              <div style="display: flex; flex-direction: column; width: 100%;">
+                <div class="mx-6 mt-4 p-4 rounded-[16px] border border-themed/15 material shadow-sm" 
+                     style="background: rgba(39, 39, 87, 0.12); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);">
+                  <div class="max-w-[720px] mx-auto flex items-start gap-3">
+                    <div class="w-[32px] h-[32px] rounded-[10px] flex items-center justify-center shrink-0 shadow-sm" style="background: linear-gradient(135deg, #505081, #272757); border: 1px solid rgba(134,134,172,0.2);">
+                      <i class="fa-solid fa-compass text-[13px] text-accent"></i>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold text-3 uppercase tracking-widest">Supervisor Goal</p>
+                      <p class="text-[13px] text-1 font-semibold mt-1 leading-relaxed" x-text="activeWorkflow.plan?.goal || 'Running workflow...'"></p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Chat history rounds -->
+                <template x-for="round in getCombinedChatMessages()" :key="round.id">
+                  <div class="w-full">
+                    
+                    <!-- 1. User Message (if present) -->
+                    <div x-show="round.userMsg" class="px-6 py-3.5 t-apple group message-container">
+                      <div class="max-w-[720px] mx-auto flex gap-4">
+                        <div class="shrink-0 pt-0.5">
+                          <div class="flex items-center justify-center">
+                            <template x-if="prefs.user_avatar">
+                              <img :src="prefs.user_avatar" class="w-[28px] h-[28px] rounded-full object-cover shadow-t-sm" />
+                            </template>
+                            <template x-if="!prefs.user_avatar">
+                              <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center text-accent-t" style="background: var(--accent);">
+                                <i class="fa-solid fa-user text-[11px]"></i>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                        <div class="flex-grow min-w-0">
+                          <div class="flex items-center gap-2 mb-1.5">
+                            <p class="font-semibold text-[13px] text-1 tracking-[-0.01em]" x-text="prefs.user_name || 'You'"></p>
+                            <span class="text-[10px] text-4 font-normal ml-auto" x-text="round.userMsg ? round.userMsg.timestamp : ''"></span>
+                          </div>
+                          <div class="chat-prose text-2" x-html="round.userMsg ? renderMarkdown(round.userMsg.message) : ''"></div>
+                        </div>
+                      </div>
+                    </div>
+
+
+                    <!-- 3. Supervisor Message & Tasks (if present) -->
+                    <div x-show="round.assistantMsg || (round.systemLogs && round.systemLogs.length > 0)" class="px-6 py-3.5 t-apple group message-container" style="background: var(--msg-ai-bg)">
+                      <div class="max-w-[720px] mx-auto flex gap-4">
+                        <div class="shrink-0 pt-0.5">
+                          <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center text-white" 
+                               style="background: linear-gradient(135deg, #505081, #272757); border: 1px solid rgba(134,134,172,0.25);">
+                            <i class="fa-solid fa-user-shield text-[11px] text-accent"></i>
+                          </div>
+                        </div>
+                        <div class="flex-grow min-w-0">
+                          <div class="flex items-center gap-2 mb-1.5">
+                            <p class="font-semibold text-[13px] text-1 tracking-[-0.01em]" x-text="round.assistantMsg ? (round.assistantMsg.sender || 'Supervisor') : 'Supervisor'"></p>
+                            
+                            <!-- Streaming/Thinking indicator -->
+                            <div x-show="round.assistantMsg && round.assistantMsg.streaming" class="flex items-center gap-1.5 ml-1">
+                              <div class="flex gap-[2px] items-center">
+                                <div class="w-[3px] h-[3px] rounded-full bg-accent typing-dot"></div>
+                                <div class="w-[3px] h-[3px] rounded-full bg-accent typing-dot"></div>
+                                <div class="w-[3px] h-[3px] rounded-full bg-accent typing-dot"></div>
+                              </div>
+                              <span class="text-[10px] font-medium text-accent italic animate-pulse">Thinking...</span>
+                            </div>
+                            
+                            <span class="text-[10px] text-4 font-normal ml-auto" x-text="round.assistantMsg ? round.assistantMsg.timestamp : ''"></span>
+                          </div>
+                          
+                          <!-- Tasks / Execution logs inside the Supervisor card -->
+                          <div x-show="round.systemLogs && round.systemLogs.length > 0" 
+                               class="py-2.5 flex flex-col gap-2 mb-3 border border-themed/10 rounded-[12px]"
+                               style="background: rgba(80, 80, 129, 0.05);">
+                            <template x-for="(log, lIdx) in round.systemLogs" :key="lIdx">
+                              <div class="px-4 py-1 flex items-center gap-2.5 text-[11.5px] font-semibold text-4">
+                                <span class="inline-block w-1.5 h-1.5 rounded-full shrink-0" 
+                                      :class="log.message.includes('completed') || log.message.includes('finished') || log.message.includes('✓') ? 'bg-emerald-500' : (log.message.includes('failed') || log.message.includes('error') || log.message.includes('✗') ? 'bg-rose-500' : 'bg-accent')"></span>
+                                <span x-text="log.message" class="opacity-80"></span>
+                              </div>
+                            </template>
+                          </div>
+
+                          <!-- Supervisor Text Message -->
+                          <div x-show="round.assistantMsg" class="chat-prose text-2" x-html="round.assistantMsg ? renderMarkdown(round.assistantMsg.message || 'Thinking...') : ''"></div>
+                          
+                          <!-- Premium dynamic generated artifact download section -->
+                          <template x-if="activeWorkflow && activeWorkflow.status === 'completed' && activeWorkflow.artifacts && activeWorkflow.artifacts.length && round.assistantMsg && !round.assistantMsg.streaming">
+                            <div class="mt-4 pt-3 border-t border-themed/10 flex flex-col gap-2">
+                              <p class="text-[10px] font-bold text-3 uppercase tracking-wider mb-1"><i class="fa-solid fa-paperclip text-[10px] mr-1"></i> Generated Artifacts</p>
+                              <div class="flex flex-wrap gap-2.5">
+                                <template x-for="(art, idx) in activeWorkflow.artifacts" :key="idx">
+                                  <a :href="getArtifactDownloadUrl(art)" download 
+                                     class="flex items-center gap-2 px-3 py-1.5 rounded-[10px] bg-themed/5 hover:bg-accent/10 text-2 hover:text-accent-t text-[11.5px] font-semibold border border-themed/15 hover:border-accent/30 shadow-sm transition-all active:scale-[0.98]">
+                                    <i :class="'fa ' + getArtifactIcon(art) + ' text-[12px] opacity-75'"></i>
+                                    <span x-text="artFilename ? artFilename(art) : art.split('/').pop()"></span>
+                                    <i class="fa-solid fa-download text-[9px] opacity-50 ml-1"></i>
+                                  </a>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </template>
+                
+              </div>
+            </template>
+            
+            <!-- Empty state when no chat is parsed -->
+            <template x-if="!activeWorkflow || getCombinedChatMessages().length === 0">
+              <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; text-align: center;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(80, 80, 129, 0.15); border: 1px solid rgba(134, 134, 172, 0.25); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; color: var(--text-tertiary); box-shadow: inset 0 2px 8px rgba(0,0,0,0.2);">
+                  <i class="fa-solid fa-comments" style="font-size: 28px;"></i>
+                </div>
+                <div style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; letter-spacing: -0.01em;">No Conversation Yet</div>
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); max-width: 360px; line-height: 1.6;">
+                  Ask the Top-Level Supervisor questions or direct it to append dynamic new tasks using the instruction bar below.
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </template>
@@ -1816,20 +927,7 @@
     </div><!-- /atlas-content -->
 
     <!-- ── Input bar ── -->
-    <div id="atlas-inputbar">
-      <!-- Supervisor Indicator Pill -->
-      <template x-if="activeRunId && activeWorkflow">
-        <div style="display:flex; justify-content:center; margin-bottom:8px;" x-transition>
-          <div style="display:inline-flex; align-items:center; gap:6px; background:var(--accent-subtle); color:var(--accent); font-size:11px; font-weight:600; padding:4px 10px; border-radius:20px; border:1px solid rgba(80,80,129,0.15);">
-            <i class="fa-solid fa-comments"></i>
-            <span>Chatting with <span x-text="activeWorkflow.run_title || activeWorkflow.run_id" style="font-weight:700;"></span> Supervisor</span>
-            <button @click="clearActive()" style="background:none; border:none; color:var(--accent); opacity:0.6; cursor:pointer; margin-left:4px; padding:0; display:inline-flex; align-items:center;" title="Exit chat">
-              <i class="fa fa-xmark" style="font-size:10px;"></i>
-            </button>
-          </div>
-        </div>
-      </template>
-
+    <div id="atlas-inputbar" x-show="!activeRunId || activeTab === 'chat'" x-transition style="transition: all 0.3s ease;">
       <div class="input-wrap">
         <button class="input-action-btn" @click="$refs.attachInput.click()" title="Attach file">
           <i class="fa fa-paperclip"></i>
@@ -1839,8 +937,7 @@
           :placeholder="activeRunId ? 'Send a message/instruction to the workflow supervisor…' : 'Describe a workflow to run, or ask Atlas anything…'"
           x-model="inputText"
           x-ref="mainInput"
-          @keydown.enter.exact.prevent="submitWorkflow()"
-          @keydown.enter.shift.exact="null"
+          @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); submitWorkflow(); }"
           @input="autoResize($refs.mainInput)"
           rows="1"></textarea>
         <button class="submit-btn" @click="submitWorkflow()" :disabled="!inputText.trim() || submitting" title="Send message">
@@ -1851,7 +948,7 @@
         </button>
       </div>
       <div style="text-align:center; font-size:10px; color:var(--text-quaternary); margin-top:6px;">
-        Atlas · Multi-Agent Execution · <span x-text="selectedModel"></span>
+        Atlas · Multi-Agent Execution · <span x-text="resolvedAtlasModel()"></span>
       </div>
     </div>
 
@@ -1990,1021 +1087,6 @@
 
 </div><!-- /atlas-root -->
 
-<script>
-function atlasApp() {
-  return {
-    // State
-    workflows: {},
-    lastWorkflowStates: {},
-    workflowList: [],
-    activeRunId: null,
-    activeWorkflow: null,
-    currentView: 'home',
-    activeTab: 'overview',
-    zoomLevel: 1.0,
-    planningStep: 0,
-    planningInterval: null,
-    wsList: null,
-    wsDetail: null,
-    selectedTask: null,
-    debugMode: false,
-    inputText: '',
-    submitting: false,
-    selectedModel: 'gpt-4o',
-    models: [],
-    workflowFiles: [],
-    filesLoading: false,
-    fileViewMode: 'grid',
-    currentDirPath: '',
-    templates: {},
-    templatesLoading: false,
-    showTemplateForm: false,
-    tplIsEdit: false,
-    tplForm: { id: '', name: '', purpose: '', system_prompt_template: '', allowed_tools: [], timeout: 300, retry_limit: 3 },
-    tplGenDesc: '',
-    tplGenerating: false,
-    pollingTimer: null,
-    detailPollingTimer: null,
-    availableTools: [],
-    
-    // Drag/Drop Graph Nodes
-    nodeOffsets: {},
-    draggingNode: null,
-    dragStartX: 0,
-    dragStartY: 0,
-    dragInitialOffsetX: 0,
-    dragInitialOffsetY: 0,
-    currentTime: Date.now(),
-
-    suggestions: [
-      { title: 'Research & PDF', desc: 'Research 8086 Microcomputer, compile to PDF, email me', text: 'Research 8086 Microcomputer architecture, compile findings to a detailed PDF, and email me the report', icon: 'fa-microchip' },
-      { title: 'Style Guide', desc: 'Analyze Python best practices and write a style guide', text: 'Analyze Python best practices and community standards, then write a comprehensive style guide document', icon: 'fa-book-open' },
-      { title: 'Quantum Summary', desc: 'Research quantum computing breakthroughs 2025', text: 'Research quantum computing breakthroughs in 2025 and create a detailed summary report', icon: 'fa-atom' },
-      { title: 'FastAPI Cheatsheet', desc: 'Crawl FastAPI docs and create a cheatsheet PDF', text: 'Crawl the FastAPI documentation, extract key concepts, and create a concise cheatsheet PDF', icon: 'fa-bolt' },
-    ],
-
-    async init() {
-      await this.loadPrefs();
-      await this.loadModels();
-      await this.loadWorkflows();
-      this.startPolling();
-      // Load templates & dynamic available tools in background
-      this.loadTemplates();
-      this.loadAvailableTools();
-      // Live stopwatch clock
-      setInterval(() => { this.currentTime = Date.now(); }, 1000);
-      
-      // Request browser notification permission
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-    },
-
-    async loadModels() {
-      try {
-        this.models = await this.api('GET', '/api/models');
-      } catch(e) { console.warn('Failed to load models', e); }
-    },
-
-    // ── API helpers ──
-    async api(method, url, body) {
-      const opts = { method, headers: { 'Content-Type': 'application/json' } };
-      if (body) opts.body = JSON.stringify(body);
-      const r = await fetch(url, opts);
-      if (!r.ok) throw new Error(`API ${r.status}: ${url}`);
-      return r.json();
-    },
-
-    // ── Prefs ──
-    async loadPrefs() {
-      try {
-        const p = await this.api('GET', '/api/prefs');
-        if (p.model_name) this.selectedModel = p.model_name;
-      } catch(e) { console.warn('Prefs load failed', e); }
-    },
-    async updateModel() {
-      try { await this.api('POST', '/api/prefs', { model_name: this.selectedModel }); }
-      catch(e) { console.warn('Prefs update failed', e); }
-    },
-
-    // ── Workflows ──
-    async loadWorkflows() {
-      try {
-        const data = await this.api('GET', '/api/workflows');
-        this.workflows = data;
-        this.workflowList = Object.values(data).sort((a, b) =>
-          new Date(b.created_at || 0) - new Date(a.created_at || 0)
-        );
-        if (this.activeRunId && data[this.activeRunId]) {
-          this.activeWorkflow = data[this.activeRunId];
-          this.$nextTick(() => this.scrollConsoleToBottom());
-        }
-      } catch(e) { console.warn('Workflow load failed', e); }
-    },
-
-    async loadWorkflowDetail() {
-      if (!this.activeRunId) return;
-      try {
-        const wf = await this.api('GET', `/api/workflows/${this.activeRunId}`);
-        this.activeWorkflow = wf;
-        // update in list
-        const idx = this.workflowList.findIndex(w => w.run_id === this.activeRunId);
-        if (idx >= 0) this.workflowList[idx] = wf;
-        this.$nextTick(() => this.scrollConsoleToBottom());
-      } catch(e) {}
-    },
-
-    selectWorkflow(runId) {
-      this.activeRunId = runId;
-      this.activeWorkflow = this.workflows[runId] || null;
-      this.currentView = 'home';
-      this.activeTab = 'overview';
-      this.debugMode = false;
-      this.restartDetailPolling();
-    },
-
-    clearActive() {
-      this.activeRunId = null;
-      this.activeWorkflow = null;
-      this.currentView = 'home';
-      this.activeTab = 'overview';
-      this.inputText = '';
-    },
-
-    async submitWorkflow() {
-      if (!this.inputText.trim() || this.submitting) return;
-      this.submitting = true;
-      const msg = this.inputText.trim();
-      this.inputText = '';
-      this.$nextTick(() => {
-        if (this.$refs.mainInput) {
-          this.$refs.mainInput.style.height = '24px';
-        }
-      });
-
-      // Start planning subtitle interval if starting a brand new workflow
-      if (!this.activeRunId) {
-        this.planningStep = 0;
-        this.planningInterval = setInterval(() => {
-          this.planningStep = (this.planningStep + 1) % 5;
-        }, 1500);
-      }
-
-      try {
-        if (this.activeRunId) {
-          // Send collaborative message to existing supervisor
-          await this.api('POST', `/api/workflows/${this.activeRunId}/chat`, { message: msg });
-          await this.loadWorkflowDetail();
-          this.restartDetailPolling();
-        } else {
-          // Start a new workflow
-          const resp = await this.api('POST', '/api/workflows', { message: msg });
-          await this.loadWorkflows();
-          if (resp.run_id) {
-            this.activeTab = 'graph';
-            this.selectWorkflow(resp.run_id);
-          }
-        }
-      } catch(e) {
-        alert('Failed to send instruction: ' + e.message);
-      } finally {
-        this.submitting = false;
-        if (this.planningInterval) {
-          clearInterval(this.planningInterval);
-          this.planningInterval = null;
-        }
-      }
-    },
-
-    fillAndSubmit(text) {
-      this.inputText = text;
-      this.currentView = 'home';
-      this.$nextTick(() => this.submitWorkflow());
-    },
-
-    async restartTaskNode(taskId) {
-      if (!this.activeRunId) return;
-      try {
-        const resp = await this.api('POST', `/api/workflows/${this.activeRunId}/restart-node`, { task_id: taskId });
-        if (resp.ok) {
-          this.selectedTask = null;
-          await this.loadWorkflowDetail();
-          await this.loadWorkflows();
-          this.restartDetailPolling();
-        }
-      } catch(e) {
-        alert('Failed to restart task node: ' + e.message);
-      }
-    },
-
-    zoomIn() {
-      this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
-    },
-    zoomOut() {
-      this.zoomLevel = Math.max(this.zoomLevel - 0.1, 0.5);
-    },
-    resetZoom() {
-      this.zoomLevel = 1.0;
-    },
-
-    planningSubtitle() {
-      const steps = [
-        "Initializing Top-Level Workflow Supervisor...",
-        "Analyzing project constraints & dependency requirements...",
-        "Spawning custom Multi-Agent LangGraph layout...",
-        "Structuring recursive research & compiler nodes...",
-        "Saving workflow blueprint to disk..."
-      ];
-      return steps[this.planningStep || 0];
-    },
-
-    getTaskDisplayStatus(task) {
-      if (!task) return 'pending';
-      if (task.status === 'completed') return 'completed';
-      if (task.status === 'failed') return 'failed';
-      if (task.status === 'running') return 'working';
-      
-      if (task.depends_on && task.depends_on.length) {
-        const tasks = this.activeWorkflow?.tasks || [];
-        const unmet = task.depends_on.some(depId => {
-          const depTask = tasks.find(tk => tk.task_id === depId);
-          return !depTask || depTask.status !== 'completed';
-        });
-        if (unmet) return 'waiting';
-      }
-      return 'pending';
-    },
-
-    getFilename(path) {
-      if (!path) return '';
-      return path.split('/').pop().split('\\').pop();
-    },
-    truncateFilename(name, len = 16) {
-      if (!name) return '';
-      if (name.length <= len) return name;
-      const ext = name.split('.').pop();
-      const base = name.substring(0, name.lastIndexOf('.'));
-      if (base.length > len - 4) {
-        return base.substring(0, len - 5 - ext.length) + '...' + ext;
-      }
-      return name;
-    },
-    getArtifactIcon(path) {
-      if (!path) return 'fa-file';
-      const ext = path.split('.').pop().toLowerCase();
-      if (ext === 'pdf') return 'fa-file-pdf text-red-500';
-      if (ext === 'pptx' || ext === 'ppt') return 'fa-file-powerpoint text-orange-500';
-      if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') return 'fa-file-excel text-green-500';
-      if (ext === 'docx' || ext === 'doc') return 'fa-file-word text-blue-500';
-      if (ext === 'md') return 'fa-file-code text-indigo-400';
-      return 'fa-file';
-    },
-    getArtifactDownloadUrl(filepath) {
-      if (!this.activeRunId) return '#';
-      return `/api/workflows/${this.activeRunId}/download?filepath=${encodeURIComponent(filepath)}`;
-    },
-
-    async confirmDeleteWorkflow(runId) {
-      const wf = this.workflows[runId];
-      const title = wf?.run_title || runId;
-      if (!confirm(`Delete workflow "${title}"? This cannot be undone.`)) return;
-      try {
-        await this.api('DELETE', `/api/workflows/${runId}`);
-        if (this.activeRunId === runId) this.clearActive();
-        await this.loadWorkflows();
-      } catch(e) { alert('Delete failed: ' + e.message); }
-    },
-
-    getWorkflowDurationText(wf, tick) {
-      if (!wf) return '';
-      
-      const startStr = wf.started_at || wf.created_at;
-      if (!startStr) return '';
-      
-      const start = new Date(startStr).getTime();
-      let end = tick || Date.now();
-      
-      if (wf.status === 'completed' || wf.status === 'failed') {
-        if (wf.completed_at) {
-          end = new Date(wf.completed_at).getTime();
-        }
-      }
-      
-      const diffMs = Math.max(0, end - start);
-      const totalSec = Math.floor(diffMs / 1000);
-      
-      const mins = Math.floor(totalSec / 60);
-      const secs = totalSec % 60;
-      
-      if (mins > 0) {
-        return `${mins}m ${secs}s`;
-      }
-      return `${secs}s`;
-    },
-
-    playNotificationSound(isSuccess = true) {
-      try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const now = ctx.currentTime;
-        
-        if (isSuccess) {
-          // Success chime: gentle high notes (E6 -> G6 -> C7)
-          const notes = [1318.51, 1567.98, 2093.00];
-          notes.forEach((freq, idx) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(freq, now + idx * 0.12);
-            gain.gain.setValueAtTime(0.08, now + idx * 0.12);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.12 + 0.5);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now + idx * 0.12);
-            osc.stop(now + idx * 0.12 + 0.55);
-          });
-        } else {
-          // Failure chime: flat gentle warning notes (A4 -> Ab4)
-          const notes = [440.00, 415.30];
-          notes.forEach((freq, idx) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, now + idx * 0.18);
-            gain.gain.setValueAtTime(0.12, now + idx * 0.18);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.18 + 0.7);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now + idx * 0.18);
-            osc.stop(now + idx * 0.18 + 0.75);
-          });
-        }
-      } catch(e) {
-        console.warn('Failed to play audio chime:', e);
-      }
-    },
-
-    triggerBrowserNotification(w) {
-      this.playNotificationSound(w.status === 'completed');
-      
-      if ('Notification' in window) {
-        if (Notification.permission === 'granted') {
-          const title = w.status === 'completed' ? 'Workflow Completed ✓' : 'Workflow Failed ✗';
-          const body = `"${w.run_title}" is now ${w.status}.`;
-          try {
-            new Notification(title, {
-              body: body,
-              tag: w.run_id,
-              requireInteraction: false
-            });
-          } catch(err) {
-            console.error('Notification creation failed:', err);
-          }
-        }
-      }
-    },
-
-    // ── WebSockets / Real-time ──
-    startPolling() {
-      const loc = window.location;
-      const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProto}//${loc.host}/api/ws/workflows`;
-      
-      if (this.wsList) {
-        try { this.wsList.close(); } catch(e) {}
-      }
-      
-      this.wsList = new WebSocket(wsUrl);
-      this.wsList.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'workflows_list') {
-          this.workflowList = data.workflows;
-          data.workflows.forEach(w => {
-            const oldStatus = this.lastWorkflowStates[w.run_id] || w.status;
-            
-            if (!this.workflows[w.run_id]) {
-              this.workflows[w.run_id] = w;
-            } else {
-              this.workflows[w.run_id].status = w.status;
-              this.workflows[w.run_id].run_title = w.run_title;
-            }
-            
-            if (oldStatus === 'running' && (w.status === 'completed' || w.status === 'failed')) {
-              this.triggerBrowserNotification(w);
-            }
-            this.lastWorkflowStates[w.run_id] = w.status;
-          });
-        }
-      };
-      
-      this.wsList.onclose = () => {
-        setTimeout(() => this.startPolling(), 3000);
-      };
-    },
-
-    restartDetailPolling() {
-      if (!this.activeRunId) {
-        if (this.wsDetail) {
-          try { this.wsDetail.close(); } catch(e) {}
-          this.wsDetail = null;
-        }
-        return;
-      }
-      
-      const loc = window.location;
-      const wsProto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProto}//${loc.host}/api/ws/workflows/${this.activeRunId}`;
-      
-      if (this.wsDetail) {
-        try { this.wsDetail.close(); } catch(e) {}
-      }
-      
-      this.wsDetail = new WebSocket(wsUrl);
-      this.wsDetail.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'workflow_detail' && data.run_id === this.activeRunId) {
-          const oldStatus = this.lastWorkflowStates[this.activeRunId] || data.workflow.status;
-          
-          this.activeWorkflow = data.workflow;
-          this.workflows[this.activeRunId] = data.workflow;
-          
-          if (oldStatus === 'running' && (data.workflow.status === 'completed' || data.workflow.status === 'failed')) {
-            this.triggerBrowserNotification(data.workflow);
-          }
-          this.lastWorkflowStates[this.activeRunId] = data.workflow.status;
-          
-          this.$nextTick(() => {
-            if (this.$refs.consoleEl) {
-              this.$refs.consoleEl.scrollTop = this.$refs.consoleEl.scrollHeight;
-            }
-            if (this.$refs.debugConsole) {
-              this.$refs.debugConsole.scrollTop = this.$refs.debugConsole.scrollHeight;
-            }
-          });
-        }
-      };
-      
-      this.wsDetail.onclose = () => {
-        if (this.activeRunId) {
-          setTimeout(() => this.restartDetailPolling(), 3000);
-        }
-      };
-    },
-
-    startPan(e) {
-      if (e.target.closest('.graph-node') || e.target.closest('.zoom-controls') || e.target.closest('.node-artifact-pill')) return;
-      
-      this.isPanning = true;
-      const container = e.currentTarget;
-      this.startX = e.pageX - container.offsetLeft;
-      this.startY = e.pageY - container.offsetTop;
-      this.scrollLeft = container.scrollLeft;
-      this.scrollTop = container.scrollTop;
-      
-      container.style.cursor = 'grabbing';
-      container.style.userSelect = 'none';
-      
-      const onMouseMove = (moveEvt) => {
-        if (!this.isPanning) return;
-        const x = moveEvt.pageX - container.offsetLeft;
-        const y = moveEvt.pageY - container.offsetTop;
-        const walkX = (x - this.startX) * 1.3;
-        const walkY = (y - this.startY) * 1.3;
-        container.scrollLeft = this.scrollLeft - walkX;
-        container.scrollTop = this.scrollTop - walkY;
-      };
-      
-      const onMouseUp = () => {
-        this.isPanning = false;
-        container.style.cursor = 'grab';
-        container.style.userSelect = 'auto';
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      };
-      
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    },
-
-    // ── Files ──
-    async loadFiles() {
-      if (!this.activeRunId) return;
-      this.filesLoading = true;
-      try {
-        const pathParam = encodeURIComponent(this.currentDirPath);
-        this.workflowFiles = await this.api('GET', `/api/workflows/${this.activeRunId}/files?path=${pathParam}`);
-      } catch(e) { 
-        this.workflowFiles = []; 
-      }
-      this.filesLoading = false;
-    },
-
-    downloadZip() {
-      if (!this.activeRunId) return;
-      window.open(`/api/workflows/${this.activeRunId}/download_zip`, '_blank');
-    },
-
-    async stopWorkflow() {
-      if (!this.activeRunId) return;
-      if (!confirm("Are you sure you want to stop this workflow run?")) return;
-      try {
-        await this.api('POST', `/api/workflows/${this.activeRunId}/stop`);
-        // Refresh details
-        await this.loadWorkflowDetail();
-      } catch (e) {
-        alert("Failed to stop workflow: " + e.message);
-      }
-    },
-
-    async restartWorkflow() {
-      if (!this.activeRunId) return;
-      if (!confirm("Are you sure you want to restart failed/incomplete tasks in this workflow?")) return;
-      try {
-        await this.api('POST', `/api/workflows/${this.activeRunId}/restart`);
-        // Refresh details
-        await this.loadWorkflowDetail();
-      } catch (e) {
-        alert("Failed to restart workflow: " + e.message);
-      }
-    },
-
-    async uploadFile(event) {
-      const file = event.target.files?.[0];
-      if (!file || !this.activeRunId) return;
-      const fd = new FormData();
-      fd.append('file', file);
-      try {
-        const pathParam = encodeURIComponent(this.currentDirPath);
-        const r = await fetch(`/api/workflows/${this.activeRunId}/upload?path=${pathParam}`, { method: 'POST', body: fd });
-        if (r.ok) await this.loadFiles();
-      } catch(e) { 
-        alert('Upload failed'); 
-      }
-      event.target.value = '';
-    },
-
-    async makeFolder() {
-      const name = prompt("Enter new folder name:");
-      if (!name) return;
-      try {
-        const res = await this.api('POST', `/api/workflows/${this.activeRunId}/mkdir`, {
-          path: this.currentDirPath,
-          name: name
-        });
-        if (res.status === "success") {
-          await this.loadFiles();
-        }
-      } catch(e) {
-        alert("Failed to create folder: " + e.message);
-      }
-    },
-
-    async makeFile() {
-      const name = prompt("Enter new filename:");
-      if (!name) return;
-      try {
-        const res = await this.api('POST', `/api/workflows/${this.activeRunId}/touch`, {
-          path: this.currentDirPath,
-          name: name
-        });
-        if (res.status === "success") {
-          await this.loadFiles();
-        }
-      } catch(e) {
-        alert("Failed to create file: " + e.message);
-      }
-    },
-
-    navigateToFolder(folderName) {
-      if (this.currentDirPath === "") {
-        this.currentDirPath = folderName;
-      } else {
-        this.currentDirPath = this.currentDirPath + "/" + folderName;
-      }
-      this.loadFiles();
-    },
-
-    navigateToPath(fullPath) {
-      this.currentDirPath = fullPath;
-      this.loadFiles();
-    },
-
-    getBreadcrumbs() {
-      if (this.currentDirPath === "") return [{ name: "Home", path: "" }];
-      const parts = this.currentDirPath.split("/");
-      const crumbs = [{ name: "Home", path: "" }];
-      let current = "";
-      parts.forEach(p => {
-        if (p) {
-          current = current ? current + "/" + p : p;
-          crumbs.push({ name: p, path: current });
-        }
-      });
-      return crumbs;
-    },
-
-    getFileUrl(filename) {
-      const filepath = this.currentDirPath ? this.currentDirPath + "/" + filename : filename;
-      return `/api/workflows/${this.activeRunId}/download?filepath=${encodeURIComponent(filepath)}`;
-    },
-
-    handleAttach(event) {
-      // For now just show file name in input
-      const f = event.target.files?.[0];
-      if (f) this.inputText = (this.inputText ? this.inputText + ' ' : '') + `[Attached: ${f.name}]`;
-      event.target.value = '';
-    },
-    async loadAvailableTools() {
-      try {
-        const tools = await this.api('GET', '/api/workflow/tools');
-        if (Array.isArray(tools)) {
-          this.availableTools = tools;
-        }
-      } catch(e) { console.warn('Failed to load available tools dynamically', e); }
-    },
-    taskDuration(task) {
-      if (!task || !task.timestamps || !task.timestamps.start) return '';
-      const start = new Date(task.timestamps.start).getTime();
-      let end;
-      if (task.status === 'running') {
-        end = this.currentTime;
-      } else if (task.timestamps.end) {
-        end = new Date(task.timestamps.end).getTime();
-      } else {
-        return '';
-      }
-      
-      const diffMs = end - start;
-      if (diffMs < 0) return '0s';
-      
-      const diffSec = Math.floor(diffMs / 1000);
-      if (task.status === 'running') {
-        const m = Math.floor(diffSec / 60).toString().padStart(2, '0');
-        const s = (diffSec % 60).toString().padStart(2, '0');
-        return `${m}:${s}`;
-      } else {
-        if (diffSec < 60) return `${diffSec}s`;
-        const m = Math.floor(diffSec / 60);
-        const s = diffSec % 60;
-        return s > 0 ? `${m}m ${s}s` : `${m}m`;
-      }
-    },
-    
-    startDragNode(event, nodeId) {
-      if (event.button !== 0) return; // Only left click
-      event.stopPropagation();
-      this.dragStartX = event.clientX;
-      this.dragStartY = event.clientY;
-      let hasMoved = false;
-      
-      if (!this.nodeOffsets[nodeId]) {
-        this.nodeOffsets[nodeId] = { x: 0, y: 0 };
-      }
-      this.dragInitialOffsetX = this.nodeOffsets[nodeId].x;
-      this.dragInitialOffsetY = this.nodeOffsets[nodeId].y;
-      
-      const moveHandler = (e) => {
-        if (!hasMoved) {
-          // Only start dragging if moved > 5 pixels
-          if (Math.abs(e.clientX - this.dragStartX) > 5 || Math.abs(e.clientY - this.dragStartY) > 5) {
-            hasMoved = true;
-            this.draggingNode = nodeId;
-          } else {
-            return;
-          }
-        }
-        const dx = (e.clientX - this.dragStartX) / this.zoomLevel;
-        const dy = (e.clientY - this.dragStartY) / this.zoomLevel;
-        this.nodeOffsets[this.draggingNode].x = this.dragInitialOffsetX + dx;
-        this.nodeOffsets[this.draggingNode].y = this.dragInitialOffsetY + dy;
-      };
-      
-      const upHandler = () => {
-        window.removeEventListener('mousemove', moveHandler);
-        window.removeEventListener('mouseup', upHandler);
-        if (hasMoved) {
-          setTimeout(() => { this.draggingNode = null; }, 100);
-        }
-      };
-      
-      window.addEventListener('mousemove', moveHandler);
-      window.addEventListener('mouseup', upHandler);
-    },
-    
-    getGraphLayout() {
-      if (!this.activeWorkflow || !this.activeWorkflow.tasks) return { nodes: [], edges: [] };
-      const tasks = this.activeWorkflow.tasks;
-      const nodes = [];
-      const edges = [];
-      
-      const taskMap = {};
-      tasks.forEach(t => { taskMap[t.task_id] = t; });
-      
-      const layers = {};
-      let changed = true;
-      for (let pass = 0; pass < 10 && changed; pass++) {
-        changed = false;
-        tasks.forEach(t => {
-          const deps = t.depends_on || [];
-          let maxDepLayer = -1;
-          let allDepsResolved = true;
-          deps.forEach(d => {
-            if (layers[d] !== undefined) {
-              maxDepLayer = Math.max(maxDepLayer, layers[d]);
-            } else {
-              allDepsResolved = false;
-            }
-          });
-          
-          let newLayer = 0;
-          if (deps.length > 0) {
-            if (allDepsResolved) {
-              newLayer = maxDepLayer + 1;
-            } else {
-              newLayer = maxDepLayer + 1;
-            }
-          }
-          
-          if (layers[t.task_id] !== newLayer) {
-            layers[t.task_id] = newLayer;
-            changed = true;
-          }
-        });
-      }
-      
-      const layerGroups = {};
-      tasks.forEach(t => {
-        const l = layers[t.task_id] || 0;
-        if (!layerGroups[l]) layerGroups[l] = [];
-        layerGroups[l].push(t);
-      });
-      
-      const H_SPACING = 240;
-      const V_SPACING = 90;
-      const X_OFFSET = 60;
-      const Y_OFFSET = 50;
-      
-      const nodeCoords = {};
-      
-      Object.keys(layerGroups).forEach(lStr => {
-        const l = parseInt(lStr);
-        const group = layerGroups[l];
-        group.forEach((t, idx) => {
-          const baseX = X_OFFSET + l * H_SPACING;
-          const baseY = Y_OFFSET + idx * V_SPACING + (3 - group.length) * 30; 
-          
-          const ox = this.nodeOffsets[t.task_id] ? this.nodeOffsets[t.task_id].x : 0;
-          const oy = this.nodeOffsets[t.task_id] ? this.nodeOffsets[t.task_id].y : 0;
-          
-          const x = baseX + ox;
-          const y = baseY + oy;
-          nodeCoords[t.task_id] = { x, y };
-          
-          nodes.push({
-            id: t.task_id,
-            task: t,
-            x,
-            y
-          });
-        });
-      });
-      
-      tasks.forEach(t => {
-        const deps = t.depends_on || [];
-        deps.forEach(d => {
-          if (nodeCoords[d] && nodeCoords[t.task_id]) {
-            const from = nodeCoords[d];
-            const to = nodeCoords[t.task_id];
-            edges.push({
-              fromId: d,
-              toId: t.task_id,
-              fromX: from.x + 160,
-              fromY: from.y + 25,
-              toX: to.x,
-              toY: to.y + 25,
-              status: t.status
-            });
-          }
-        });
-      });
-      
-      return { nodes, edges };
-    },
-
-    renderSvgEdges() {
-      const layout = this.getGraphLayout();
-      let html = '';
-      layout.edges.forEach(e => {
-        const stroke = e.status === 'running' ? '#ef4444' : (e.status === 'completed' ? '#22c55e' : 'rgba(134,134,172,0.35)');
-        const dash = e.status === 'pending' ? 'stroke-dasharray="4"' : '';
-        const width = e.status === 'running' ? '2.5' : '1.5';
-        const marker = `url(#arrow-${e.status || 'pending'})`;
-        
-        html += `<path d="M ${e.fromX} ${e.fromY} C ${e.fromX + 40} ${e.fromY}, ${e.toX - 40} ${e.toY}, ${e.toX} ${e.toY}" 
-                       stroke="${stroke}" 
-                       ${dash} 
-                       stroke-width="${width}" 
-                       fill="none" 
-                       marker-end="${marker}"></path>`;
-      });
-      return html;
-    },
-
-    // ── Templates ──
-    async loadTemplates() {
-      this.templatesLoading = true;
-      try {
-        this.templates = await this.api('GET', '/api/workflow/templates');
-      } catch(e) { this.templates = {}; }
-      this.templatesLoading = false;
-    },
-
-    async saveTemplate() {
-      const t = this.tplForm;
-      if (!t.id || !t.name) { alert('ID and Name are required.'); return; }
-      try {
-        await this.api('POST', '/api/workflow/templates', {
-          id: t.id, name: t.name, purpose: t.purpose,
-          system_prompt_template: t.system_prompt_template,
-          allowed_tools: t.allowed_tools,
-          timeout: +t.timeout || 300,
-          retry_limit: +t.retry_limit || 3,
-        });
-        await this.loadTemplates();
-        this.showTemplateForm = false;
-        this.tplForm = { id:'', name:'', purpose:'', system_prompt_template:'', allowed_tools:[], timeout:300, retry_limit:3 };
-        this.tplIsEdit = false;
-      } catch(e) { alert('Save failed: ' + e.message); }
-    },
-
-    toggleTemplateForm() {
-      if (this.showTemplateForm) {
-        this.showTemplateForm = false;
-        this.tplForm = { id:'', name:'', purpose:'', system_prompt_template:'', allowed_tools:[], timeout:300, retry_limit:3 };
-        this.tplIsEdit = false;
-      } else {
-        this.tplForm = { id:'', name:'', purpose:'', system_prompt_template:'', allowed_tools:[], timeout:300, retry_limit:3 };
-        this.tplIsEdit = false;
-        this.showTemplateForm = true;
-      }
-    },
-
-    editTemplate(id, tpl) {
-      this.tplIsEdit = true;
-      this.tplForm = {
-        id: id,
-        name: tpl.name || '',
-        purpose: tpl.purpose || '',
-        system_prompt_template: tpl.system_prompt_template || '',
-        allowed_tools: [...(tpl.allowed_tools || [])],
-        timeout: tpl.timeout || 300,
-        retry_limit: tpl.retry_limit || 3
-      };
-      this.showTemplateForm = true;
-    },
-
-    async deleteTemplate(id) {
-      if (!confirm(`Delete template "${id}"?`)) return;
-      try {
-        await this.api('DELETE', `/api/workflow/templates/${id}`);
-        await this.loadTemplates();
-      } catch(e) { alert('Delete failed: ' + e.message); }
-    },
-
-    async generateTemplate() {
-      if (!this.tplGenDesc.trim()) return;
-      this.tplGenerating = true;
-      try {
-        const result = await this.api('POST', '/api/workflow/templates/generate', { description: this.tplGenDesc });
-        // auto-fill form
-        this.tplForm = {
-          id: result.id || '',
-          name: result.name || '',
-          purpose: result.purpose || '',
-          system_prompt_template: result.system_prompt_template || '',
-          allowed_tools: result.allowed_tools || [],
-          timeout: result.timeout || 300,
-          retry_limit: result.retry_limit || 3,
-        };
-        this.showTemplateForm = true;
-      } catch(e) { alert('Generation failed: ' + e.message); }
-      this.tplGenerating = false;
-    },
-
-    toggleTool(tool) {
-      const idx = this.tplForm.allowed_tools.indexOf(tool);
-      if (idx >= 0) this.tplForm.allowed_tools.splice(idx, 1);
-      else this.tplForm.allowed_tools.push(tool);
-    },
-
-    // ── Task modal ──
-    openTaskModal(task) { this.selectedTask = task; },
-
-    // ── UI helpers ──
-    topbarTitle() {
-      if (this.currentView === 'templates') return 'Agent Templates';
-      if (this.activeWorkflow) return this.activeWorkflow.run_title || this.activeRunId;
-      return 'Atlas Terminal';
-    },
-
-    wfIconStyle(status) {
-      const map = {
-        running:   { background: 'rgba(42,127,200,0.15)', color: '#2a7fc8' },
-        completed: { background: 'rgba(40,168,96,0.13)', color: '#28a860' },
-        failed:    { background: 'rgba(208,58,58,0.12)', color: '#d03a3a' },
-        pending:   { background: 'rgba(180,140,40,0.12)', color: '#b8922a' },
-      };
-      const s = map[status] || map.pending;
-      return `background:${s.background}; color:${s.color};`;
-    },
-
-    taskCardClass(status) {
-      if (status === 'running') return 'status-running-card';
-      if (status === 'completed') return 'status-completed-card';
-      if (status === 'failed') return 'status-failed-card';
-      return '';
-    },
-
-    workerIcon(type) {
-      const map = { researcher: 'fa-magnifying-glass', writer: 'fa-pen-nib', pdf_worker: 'fa-file-pdf', email_worker: 'fa-envelope', browser: 'fa-globe', code_worker: 'fa-code' };
-      return map[type] || 'fa-robot';
-    },
-
-    workerIconStyle(type) {
-      const map = {
-        researcher: { bg: 'rgba(80,120,200,0.15)', color: '#5080c8' },
-        writer:     { bg: 'rgba(160,80,200,0.15)', color: '#a050c8' },
-        pdf_worker: { bg: 'rgba(220,80,80,0.15)',  color: '#dc5050' },
-        email_worker:{ bg: 'rgba(80,180,120,0.15)', color: '#50b478' },
-        browser:    { bg: 'rgba(40,160,200,0.15)', color: '#28a0c8' },
-        code_worker:{ bg: 'rgba(200,160,40,0.15)', color: '#c8a028' },
-      };
-      const s = map[type] || { bg: 'rgba(134,134,172,0.12)', color: 'var(--accent)' };
-      return `background:${s.bg}; color:${s.color};`;
-    },
-
-    consoleClass(text) {
-      const t = (typeof text === 'string' ? text : '').toLowerCase();
-      if (t.includes('fail') || t.includes('error') || t.includes('✗')) return 'console-msg-error';
-      if (t.includes('completed') || t.includes('success') || t.includes('✓') || t.includes('finished')) return 'console-msg-success';
-      if (t.includes('started') || t.includes('execution')) return 'console-msg-info';
-      return 'console-msg-default';
-    },
-
-    fileIcon(name) {
-      const ext = (name || '').split('.').pop().toLowerCase();
-      const map = { pdf: 'fa-file-pdf', py: 'fa-file-code', js: 'fa-file-code', ts: 'fa-file-code', json: 'fa-file-code', md: 'fa-file-lines', txt: 'fa-file-lines', png: 'fa-file-image', jpg: 'fa-file-image', jpeg: 'fa-file-image', zip: 'fa-file-zipper', csv: 'fa-file-csv', doc: 'fa-file-word', docx: 'fa-file-word', html: 'fa-file-code' };
-      return map[ext] || 'fa-file';
-    },
-
-    artFilename(path) {
-      return (path || '').split('/').pop().split('\\').pop() || path;
-    },
-
-    formatBytes(bytes) {
-      if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
-      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / 1048576).toFixed(1) + ' MB';
-    },
-
-    formatRelTime(ts) {
-      if (!ts) return '';
-      const d = new Date(ts);
-      const now = Date.now();
-      const diff = now - d.getTime();
-      if (isNaN(diff)) return '';
-      if (diff < 60000) return 'just now';
-      if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
-      if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
-      return d.toLocaleDateString();
-    },
-
-    formatLogTs(ts) {
-      if (!ts) return '';
-      const d = new Date(ts);
-      if (isNaN(d)) return ts;
-      return d.toLocaleTimeString('en-US', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    },
-
-    renderMd(text) {
-      if (!text) return '';
-      try { return marked.parse(text); } catch(e) { return text; }
-    },
-
-    scrollConsoleToBottom() {
-      const el = this.$refs.consoleEl;
-      if (el) el.scrollTop = el.scrollHeight;
-      const dl = this.$refs.debugConsole;
-      if (dl) dl.scrollTop = dl.scrollHeight;
-    },
-
-    autoResize(el) {
-      if (!el) return;
-      el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-    },
-  };
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="/static/js/atlas.js"></script>
 {% endblock %}
