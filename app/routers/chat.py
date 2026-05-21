@@ -1321,7 +1321,8 @@ async def create_workflow_run(payload: dict):
 @router.post("/workflows/{run_id}/chat")
 async def chat_with_workflow_supervisor(run_id: str, payload: dict):
     """Send a collaborative instruction/message directly to the active workflow's supervisor."""
-    from app.workflow import load_workflows, save_workflows, get_llm, load_prefs, MultiAgentWorkflowEngine
+    from app.workflow import load_workflows, save_workflows, load_prefs, MultiAgentWorkflowEngine
+    from app.llm import get_atlas_llm
     from langchain_core.messages import SystemMessage, HumanMessage
     import json
     
@@ -1338,10 +1339,33 @@ async def chat_with_workflow_supervisor(run_id: str, payload: dict):
     # Record user message
     state["notifications"].append(f"💬 User: {query}")
     state["debug_logs"].append(f"Received interactive instruction: {query}")
+    state.setdefault("collaborative_chat", []).append({
+        "role": "user",
+        "sender": "User",
+        "message": query,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    
+    # Auto-start execution if the user request is a start/resume command
+    query_lower = query.lower().strip(" .!?,")
+    start_keywords = ["start", "run", "execute", "go", "launch", "kick off", "begin", "resume", "play", "start it"]
+    if any(k in query_lower for k in start_keywords) and state.get("status") not in ["running"]:
+        state["status"] = "pending"
+        state["notifications"].append("🤖 Supervisor: Starting/Resuming workflow execution as requested.")
+        state.setdefault("collaborative_chat", []).append({
+            "role": "assistant",
+            "sender": "Supervisor",
+            "message": "Understood! I am launching the workflow execution engine now.",
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        db[run_id] = state
+        save_workflows(db)
+        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+        return {"status": "started", "response": "Launching workflow execution engine."}
     
     # Load LLM
     prefs = load_prefs()
-    llm = get_llm(prefs, streaming=False)
+    llm = get_atlas_llm(prefs, streaming=False)
     
     # Context summary
     tasks_summary = []
@@ -1410,6 +1434,12 @@ async def chat_with_workflow_supervisor(run_id: str, payload: dict):
         if res.get("response_type") == "conversation":
             text = res.get("conversation_text", "")
             state["notifications"].append(f"🤖 Supervisor: {text}")
+            state.setdefault("collaborative_chat", []).append({
+                "role": "assistant",
+                "sender": "Supervisor",
+                "message": text,
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             if state.get("final_result"):
                 state["final_result"] = state["final_result"] + "\n\n---\n\n" + text
             else:
@@ -1428,6 +1458,13 @@ async def chat_with_workflow_supervisor(run_id: str, payload: dict):
                 nt["artifacts"] = []
                 state["tasks"].append(nt)
                 state["notifications"].append(f"➕ Supervisor added new task: '{nt['title']}' ({nt['worker_type']})")
+            
+            state.setdefault("collaborative_chat", []).append({
+                "role": "assistant",
+                "sender": "Supervisor",
+                "message": f"Successfully planned and appended {len(new_tasks)} new specialized execution tasks to the pipeline.",
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
             
             # Reset workflow status to pending to execute new tasks!
             state["status"] = "pending"
@@ -1484,7 +1521,6 @@ async def restart_workflow(run_id: str):
         state["final_result"] = None
         state.setdefault("debug_logs", []).append(f"[{datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}] 🔄 Workflow restarted")
         _sw(db)
-        import asyncio
         asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
     return {"status": "restarted"}
 
@@ -1854,7 +1890,9 @@ async def ws_workflow_detail(websocket: WebSocket, run_id: str):
                 "artifacts": wf.get("artifacts", []),
                 "final_result": wf.get("final_result", ""),
                 "notifications": wf.get("notifications", []),
+                "collaborative_chat": wf.get("collaborative_chat", []),
                 "debug_logs": wf.get("debug_logs", []),
+
                 "run_icon": wf.get("run_icon", ""),
                 "created_at": wf.get("created_at", None),
                 "started_at": wf.get("started_at", None),
