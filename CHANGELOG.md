@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.1.1] - 2026-05-21
+
+### Added
+
+- **Premium Apple-Style Collapsible Sidebar**: Implemented a highly responsive, animated collapsible sidebar (`transition: all 0.3s`) for the Atlas terminal. Added a slick collapse trigger (`fa-chevron-left`) on the sidebar brand header and a persistent toggle hamburger (`fa-bars`) in the macOS-inspired topbar.
+- **Unified Supervisor Collaboration Interface**: Merged the raw task execution logs directly inside the Supervisor's message box container under a styled sub-container, streamlining conversation threads and removing cluttered, floating log bars.
+- **Containing-Block Breaking Fullscreen Canvas**: Bind the `fullscreen-ancestor` CSS class dynamically when zooming the workflow graph to full screen, disabling relative containing-block transform animations and restoring pixel-perfect viewport geometry for drawing connector nodes.
+- **Proactive Auto-Start Chat Routing**: Added high-performance keyword analysis matching standard workflow start triggers (`start`, `go`, `run`, `kick off`) inside the interactive supervisor agent chat backend, immediately bootstrapping workflow run execution without requiring manual JSON tasks schema generation.
+- **Module-Scoped Variable Protection**: Eradicated shadow-scoped, nested local `asyncio` imports from `app/routers/chat.py` endpoints, eliminating potential bytecode compile-time scoping exceptions (`UnboundLocalError`).
+
 ## [v3.0.1] - 2026-05-19
 
 ### Added
