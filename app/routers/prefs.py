@@ -104,3 +104,30 @@ async def upload_user_avatar(avatar: UploadFile = File(...)):
     prefs["user_avatar"] = f"/avatars/{fname}"
     save_prefs(prefs)
     return {"avatar": prefs["user_avatar"]}
+
+
+@router.post("/ai/generate")
+async def ai_generate(body: dict):
+    """Stateless single-shot LLM call. Nothing is saved to conversation history.
+    Used for AI-assisted features like the character generator.
+    Body: { "prompt": str, "system": str (optional) }
+    Returns: { "text": str }
+    """
+    from app.llm import get_llm
+    from app.storage import load_prefs
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    prompt = body.get("prompt", "").strip()
+    system = body.get("system", "You are a helpful assistant.").strip()
+
+    if not prompt:
+        return {"text": "", "error": "No prompt provided"}
+
+    prefs = load_prefs()
+    try:
+        llm = get_llm(prefs)
+        messages = [SystemMessage(content=system), HumanMessage(content=prompt)]
+        result = await llm.ainvoke(messages)
+        return {"text": result.content}
+    except Exception as e:
+        return {"text": "", "error": str(e)}

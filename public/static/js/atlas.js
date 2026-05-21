@@ -119,6 +119,48 @@ function atlasApp() {
       if (provider === 'nvidia') return this.prefs.atlas_nvidia_model || 'NVIDIA NIM';
       return this.prefs.atlas_model_name || 'qwen-2.5-32b';
     },
+    getAtlasModelName() {
+      if (!this.prefs) return 'Loading...';
+      const provider = this.prefs.atlas_llm_provider || 'groq';
+      let rawName = 'qwen-2.5-32b';
+      if (provider === 'local') rawName = this.prefs.atlas_local_model || 'Local Model';
+      else if (provider === 'nvidia') rawName = this.prefs.atlas_nvidia_model || 'NVIDIA NIM';
+      else rawName = this.prefs.atlas_model_name || 'qwen-2.5-32b';
+      
+      if (rawName.includes('/')) {
+        return rawName.split('/').slice(1).join('/');
+      }
+      return rawName;
+    },
+    getAtlasModelIcon() {
+      if (!this.prefs) return 'fa-solid fa-circle-notch fa-spin';
+      const provider = this.prefs.atlas_llm_provider || 'groq';
+      let rawName = '';
+      if (provider === 'local') rawName = this.prefs.atlas_local_model || 'local';
+      else if (provider === 'nvidia') rawName = this.prefs.atlas_nvidia_model || 'nvidia';
+      else rawName = this.prefs.atlas_model_name || 'groq';
+      
+      rawName = rawName.toLowerCase();
+      
+      if (rawName.includes('openai') || rawName.includes('gpt-')) {
+        return 'fa-brands fa-openai';
+      }
+      if (rawName.includes('google') || rawName.includes('gemini')) {
+        return 'fa-brands fa-google';
+      }
+      if (rawName.includes('meta') || rawName.includes('llama')) {
+        return 'fa-solid fa-circle-dot';
+      }
+      if (rawName.includes('deepseek')) {
+        return 'fa-solid fa-circle-dot';
+      }
+      
+      if (provider === 'groq') return 'fa-solid fa-bolt';
+      if (provider === 'google') return 'fa-brands fa-google';
+      if (provider === 'nvidia') return 'fa-solid fa-network-wired';
+      if (provider === 'local') return 'fa-solid fa-desktop';
+      return 'fa-solid fa-brain';
+    },
 
     // ── Workflows ──
     async loadWorkflows() {

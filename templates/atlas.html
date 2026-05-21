@@ -947,8 +947,15 @@
           </template>
         </button>
       </div>
-      <div style="text-align:center; font-size:10px; color:var(--text-quaternary); margin-top:6px;">
-        Atlas · Multi-Agent Execution · <span x-text="resolvedAtlasModel()"></span>
+      <div style="text-align:center; font-size:10px; color:var(--text-quaternary); margin-top:6px; display:flex; align-items:center; justify-content:center; gap:4.5px;">
+        <span>Atlas</span>
+        <span>·</span>
+        <span>Multi-Agent Execution</span>
+        <span>·</span>
+        <span style="display:inline-flex; align-items:center; gap:4px; font-weight:600; color:var(--text-tertiary);">
+          <i :class="getAtlasModelIcon()" style="font-size:10px; opacity:0.8;"></i>
+          <span x-text="getAtlasModelName()"></span>
+        </span>
       </div>
     </div>
 
