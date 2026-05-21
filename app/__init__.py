@@ -75,6 +75,9 @@ async def auth_middleware(request: Request, call_next):
             return RedirectResponse(url="/auth/login")
 
     response = await call_next(request)
+    # Inject static content caching headers for all static files, images, and icons
+    if path.startswith("/static/") or path.startswith("/images/") or path == "/favicon.ico":
+        response.headers["Cache-Control"] = "public, max-age=604800, must-revalidate"
     return response
 
 @app.get("/health")

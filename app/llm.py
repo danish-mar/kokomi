@@ -293,6 +293,26 @@ def get_llm(
         )
 
 
+def get_atlas_llm(
+    prefs: dict,
+    streaming: bool = False,
+    model_override: Optional[str] = None,
+):
+    """Return the Atlas-specific LLM using remapped key overrides."""
+    atlas_prefs = prefs.copy()
+    if "atlas_llm_provider" in prefs:
+        atlas_prefs["llm_provider"] = prefs["atlas_llm_provider"]
+    if "atlas_model_name" in prefs:
+        atlas_prefs["model_name"] = prefs["atlas_model_name"]
+    if "atlas_nvidia_model" in prefs:
+        atlas_prefs["nvidia_model"] = prefs["atlas_nvidia_model"]
+    if "atlas_local_url" in prefs:
+        atlas_prefs["local_url"] = prefs["atlas_local_url"]
+    if "atlas_local_model" in prefs:
+        atlas_prefs["local_model"] = prefs["atlas_local_model"]
+    return get_llm(atlas_prefs, streaming=streaming, model_override=model_override)
+
+
 # ── Title generation helper ───────────────────────────────────────────
 
 async def generate_title(user_msg: str, ai_msg: str) -> str:

@@ -20,7 +20,7 @@ from langgraph.graph import StateGraph, END
 # App imports
 from app.config import DATA_DIR, GROQ_API_KEY, GOOGLE_API_KEY
 from app.storage import _load, _save, load_prefs
-from app.llm import get_llm
+from app.llm import get_llm, get_atlas_llm
 from app.memory import search_memories
 
 # PDF creation library
@@ -34,16 +34,31 @@ import re as _re
 # ── Storage File for Workflows ───────────────────────────────────────
 WORKFLOWS_FILE = os.path.join(DATA_DIR, "multi_agent_workflows.json")
 
+_WORKFLOWS_CACHE: dict = {}
+
 def load_workflows() -> dict:
-    if not os.path.exists(WORKFLOWS_FILE):
-        return {}
-    data = _load(WORKFLOWS_FILE)
-    if not isinstance(data, dict):
-        return {}
-    return data
+    global _WORKFLOWS_CACHE
+    if not _WORKFLOWS_CACHE:
+        if not os.path.exists(WORKFLOWS_FILE):
+            _WORKFLOWS_CACHE = {}
+        else:
+            data = _load(WORKFLOWS_FILE)
+            if isinstance(data, dict):
+                _WORKFLOWS_CACHE = data
+            else:
+                _WORKFLOWS_CACHE = {}
+    return _WORKFLOWS_CACHE
 
 def save_workflows(data: dict) -> None:
-    _save(WORKFLOWS_FILE, data)
+    global _WORKFLOWS_CACHE
+    _WORKFLOWS_CACHE = data
+    try:
+        loop = asyncio.get_running_loop()
+        # Persist to disk asynchronously in a background thread to prevent blocking the event loop
+        loop.create_task(asyncio.to_thread(_save, WORKFLOWS_FILE, data))
+    except RuntimeError:
+        # Fallback to synchronous save if not running inside an event loop
+        _save(WORKFLOWS_FILE, data)
 
 def clean_markdown_if_json(content: str) -> str:
     if not isinstance(content, str):
@@ -1310,7 +1325,7 @@ def validate_plan(plan: dict) -> bool:
 async def run_supervisor_planner(user_request: str) -> dict:
     """Invokes supervisor model to create high-fidelity task dependencies plan."""
     prefs = load_prefs()
-    llm = get_llm(prefs, streaming=False)
+    llm = get_atlas_llm(prefs, streaming=False)
     
     templates = load_templates()
     workers_desc = ""
@@ -1355,8 +1370,7 @@ async def run_supervisor_planner(user_request: str) -> dict:
         f"- Each writing task writes its output to a file (ch1.md, ch2.md, etc.) using 'file_write'.\n"
         f"- Plan a final '{best_pdf_worker}' task to compile all files into a PDF.\n\n"
         "--- NOTIFICATIONS ---\n"
-        f"If the user wants to be notified on completion (email, WhatsApp, Slack, etc.): add a final '{best_email_worker}' task "
-        "that depends on all preceding tasks, using any available MCP messaging tools.\n\n"
+        f"CRITICAL: ONLY add a final notifications / '{best_email_worker}' task if the user explicitly requested email or notifications in their request. DO NOT add any email, WhatsApp, or Slack notifications if the user did not explicitly request them.\n\n"
         f"User Request: {user_request}\n\n"
         "IMPORTANT: In 'allowed_tools', include any MCP tool names that are relevant (e.g. remote shell tools, messaging tools). "
         "The system will automatically route them to connected MCP servers.\n\n"
@@ -1408,7 +1422,73 @@ async def run_supervisor_planner(user_request: str) -> dict:
             return s.strip()
 
         cleaned_text = repair_json_string(raw_text)
-        parsed_plan = json.loads(cleaned_text)
+        try:
+            parsed_plan = json.loads(cleaned_text)
+        except Exception as e_json:
+            print(f"Standard JSON parse failed, trying advanced recovery: {e_json}")
+            try:
+                # Level 2 recovery: normalize key quotes and delimiters
+                temp = cleaned_text
+                temp = re.sub(r"(?<=[\{\[,:])\s*'", '"', temp)
+                temp = re.sub(r"'\s*(?=[\}\],:])", '"', temp)
+                temp = re.sub(r"(?<=[\{\,])\s*([a-zA-Z0-9_]+)\s*:", r'"\1":', temp)
+                parsed_plan = json.loads(temp)
+            except Exception as e_rec:
+                print(f"Advanced recovery failed: {e_rec}. Using regex task block extractor.")
+                # Level 3 recovery: Regex parser fallback
+                def attempt_regex_plan_extraction(raw_text: str, user_request: str) -> dict:
+                    run_title = "Workflow Plan"
+                    m_title = re.search(r'"run_title"\s*:\s*"([^"]+)"', raw_text)
+                    if m_title:
+                        run_title = m_title.group(1)
+                    goal = user_request
+                    m_goal = re.search(r'"goal"\s*:\s*"([^"]+)"', raw_text)
+                    if m_goal:
+                        goal = m_goal.group(1)
+                    
+                    tasks = []
+                    # Matches task objects by picking task_id and trailing items up to matching block patterns
+                    task_blocks = re.findall(r'\{\s*"task_id".*?\}', raw_text, re.DOTALL)
+                    for block in task_blocks:
+                        try:
+                            tid = re.search(r'"task_id"\s*:\s*"([^"]+)"', block).group(1)
+                            title = re.search(r'"title"\s*:\s*"([^"]+)"', block).group(1)
+                            desc = re.search(r'"description"\s*:\s*"([^"]+)"', block).group(1)
+                            wtype = re.search(r'"worker_type"\s*:\s*"([^"]+)"', block).group(1)
+                            
+                            dep_match = re.search(r'"depends_on"\s*:\s*\[(.*?)\]', block)
+                            depends_on = []
+                            if dep_match:
+                                depends_on = [x.strip().replace('"', '').replace("'", "") for x in dep_match.group(1).split(",") if x.strip()]
+                                
+                            tools_match = re.search(r'"allowed_tools"\s*:\s*\[(.*?)\]', block)
+                            allowed_tools = []
+                            if tools_match:
+                                allowed_tools = [x.strip().replace('"', '').replace("'", "") for x in tools_match.group(1).split(",") if x.strip()]
+                                
+                            success_criteria = "Complete task successfully"
+                            sc_match = re.search(r'"success_criteria"\s*:\s*"([^"]+)"', block)
+                            if sc_match:
+                                success_criteria = sc_match.group(1)
+                                
+                            tasks.append({
+                                "task_id": tid,
+                                "title": title,
+                                "description": desc,
+                                "worker_type": wtype,
+                                "depends_on": depends_on,
+                                "allowed_tools": allowed_tools,
+                                "success_criteria": success_criteria
+                            })
+                        except Exception:
+                            continue
+                    
+                    if not tasks:
+                        raise ValueError("Failed to extract any structured tasks from LLM response")
+                    return {"run_title": run_title, "goal": goal, "tasks": tasks}
+
+                parsed_plan = attempt_regex_plan_extraction(raw_text, user_request)
+
         if validate_plan(parsed_plan):
             return parsed_plan
         else:
@@ -1439,7 +1519,7 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
         return task
         
     prefs = load_prefs()
-    llm = get_llm(prefs, streaming=False)
+    llm = get_atlas_llm(prefs, streaming=False)
     
     # Tool mapping
     tool_map = {
@@ -2069,7 +2149,7 @@ class MultiAgentWorkflowEngine:
     @staticmethod
     async def run_supervisor_recovery(state: WorkflowState, failed_task: TaskDict) -> TaskDict:
         prefs = load_prefs()
-        llm = get_llm(prefs, streaming=False)
+        llm = get_atlas_llm(prefs, streaming=False)
         
         # Circuit Breaker Logic
         current_error = failed_task.get('error', 'Unknown')
@@ -2206,7 +2286,13 @@ Respond in JSON exactly matching this schema:
             "completed_tasks": [],
             "failed_tasks": [],
             "artifacts": [],
-            "notifications": [],
+            "notifications": [f"💬 User: {user_request}"],
+            "collaborative_chat": [{
+                "role": "user",
+                "sender": "User",
+                "message": user_request,
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }],
             "debug_logs": [],
             "final_result": None,
             "status": "pending",
@@ -2410,10 +2496,81 @@ Respond in JSON exactly matching this schema:
             state["status"] = "failed"
             state["final_result"] = f"Workflow failed. Errored tasks: {', '.join(state['failed_tasks'])}."
             _dbg(state, f"🔴 Workflow FAILED — {len(state['failed_tasks'])} task(s) errored")
+            
+            # Let's generate a failures final response
+            try:
+                prefs = load_prefs()
+                llm = get_atlas_llm(prefs, streaming=False)
+                prompt = (
+                    "You are the Top-Level Workflow Supervisor. The workflow execution has encountered terminal errors and stopped.\n"
+                    f"Objective/Goal: {state['user_request']}\n"
+                    f"Failed Tasks: {', '.join(state['failed_tasks'])}\n\n"
+                    "Please write a professional, polite response to the user. "
+                    "Explain that the workflow encountered an error and could not complete all tasks. "
+                    "List the errored tasks and express that they can ask you to adjust parameters or retry."
+                )
+                response = await llm.ainvoke([HumanMessage(content=prompt)])
+                final_text = response.content.strip()
+                
+                state["notifications"].append(f"🤖 Supervisor: {final_text}")
+                state.setdefault("collaborative_chat", []).append({
+                    "role": "assistant",
+                    "sender": "Supervisor",
+                    "message": final_text,
+                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                state["final_result"] = final_text
+            except Exception as e_sup:
+                print(f"Error generating supervisor failure response: {e_sup}")
         else:
             state["status"] = "completed"
             state["final_result"] = "All tasks completed successfully. Artifacts ready for download."
             _dbg(state, f"🟢 Workflow COMPLETED — {len(state['completed_tasks'])} task(s) succeeded")
+            
+            # Let's call the supervisor to generate a final completed message summarizing everything and presenting the artifacts!
+            try:
+                import os
+                # Look for artifacts and files in state
+                storage_dir = state.get("storage_dir", "")
+                generated_files = []
+                if storage_dir and os.path.exists(storage_dir):
+                    for f in os.listdir(storage_dir):
+                        if os.path.isfile(os.path.join(storage_dir, f)) and not f.startswith("."):
+                            generated_files.append(f)
+                            
+                # Populate artifacts list so the frontend can find them
+                state["artifacts"] = generated_files
+                
+                tasks_summary = ""
+                for t in state.get("tasks", []):
+                    tasks_summary += f"- {t['title']}: {t.get('status', 'pending')}\n"
+                    
+                prefs = load_prefs()
+                llm = get_atlas_llm(prefs, streaming=False)
+                prompt = (
+                    "You are the Top-Level Workflow Supervisor. The workflow execution has finished successfully!\n"
+                    f"Objective/Goal: {state['user_request']}\n"
+                    f"Tasks Executed:\n{tasks_summary}\n"
+                    f"Generated Files: {', '.join(generated_files) if generated_files else 'None'}\n\n"
+                    "Please write a highly polished, professional, final response. "
+                    "Confirm the completion of the objective. "
+                    "Provide a concise, high-value summary of what was accomplished and the key findings. "
+                    "Be polite, expert, and premium."
+                )
+                response = await llm.ainvoke([HumanMessage(content=prompt)])
+                final_text = response.content.strip()
+                
+                # Append to collaborative chat and notifications
+                state["notifications"].append(f"🤖 Supervisor: {final_text}")
+                state.setdefault("collaborative_chat", []).append({
+                    "role": "assistant",
+                    "sender": "Supervisor",
+                    "message": final_text,
+                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                state["final_result"] = final_text
+            except Exception as e_sup:
+                print(f"Error generating supervisor final summary: {e_sup}")
             
         state["notifications"].append(f"Workflow '{state['run_title']}' finished: {state['status'].upper()}")
         db[run_id] = state

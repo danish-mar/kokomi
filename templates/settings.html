@@ -466,6 +466,14 @@
             </div>
 
             <div class="tahoe-sidebar-section">
+                <p class="tahoe-sidebar-label">Atlas</p>
+                <button @click="tab = 'atlas'" class="tahoe-nav-item" :class="tab === 'atlas' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-compass" style="font-size:10px;"></i></span>
+                    General Settings
+                </button>
+            </div>
+
+            <div class="tahoe-sidebar-section">
                 <p class="tahoe-sidebar-label">Info</p>
                 <button @click="tab = 'telemetry'" class="tahoe-nav-item" :class="tab === 'telemetry' ? 'active' : ''">
                     <span class="nav-icon"><i class="fa-solid fa-chart-line" style="font-size:10px;"></i></span>
@@ -807,6 +815,93 @@
 
                 <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
                     <div class="saved-toast"><i class="fa-solid fa-circle-notch fa-spin"></i> Saved</div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: ATLAS ═══ -->
+            <div x-show="tab === 'atlas'" x-transition class="tab-panel">
+                <h2 class="section-title">Atlas Settings</h2>
+                <p class="section-subtitle">Configure specialized models and runtime preferences for the Atlas multi-agent supervisor.</p>
+
+                <!-- Model Provider Selection -->
+                <div class="glass-card">
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:10px;">Atlas Intelligence Provider</label>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
+                            <button @click="prefs.atlas_llm_provider = 'groq'; savePrefs()"
+                                :class="prefs.atlas_llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-cloud" style="font-size:9px;"></i> Groq
+                            </button>
+                            <button @click="prefs.atlas_llm_provider = 'google'; savePrefs()"
+                                :class="prefs.atlas_llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-wand-sparkles" style="font-size:9px;"></i> Gemini
+                            </button>
+                            <button @click="prefs.atlas_llm_provider = 'nvidia'; savePrefs()"
+                                :class="prefs.atlas_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-microchip" style="font-size:9px;"></i> NVIDIA NIM
+                            </button>
+                            <button @click="prefs.atlas_llm_provider = 'local'; savePrefs()"
+                                :class="prefs.atlas_llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
+                            </button>
+                        </div>
+
+                        <!-- Cloud model (Groq / Google) -->
+                        <div x-show="prefs.atlas_llm_provider === 'groq' || prefs.atlas_llm_provider === 'google'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
+                                x-text="prefs.atlas_llm_provider === 'groq' ? 'Groq Model' : 'Gemini Model'"></label>
+                            <div style="position:relative;">
+                                <select x-model="prefs.atlas_model_name" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                    <template x-for="m in models.filter(x => x.provider === prefs.atlas_llm_provider)" :key="m.id">
+                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.atlas_model_name"
+                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                    </template>
+                                </select>
+                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NVIDIA NIM -->
+                        <div x-show="prefs.atlas_llm_provider === 'nvidia'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
+                                <div style="position:relative;">
+                                    <select x-model="prefs.atlas_nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                        <template x-for="m in models.filter(x => x.provider === 'nvidia')" :key="m.id">
+                                            <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.atlas_nvidia_model"
+                                                style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                        </template>
+                                    </select>
+                                    <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>.</p>
+                            </div>
+                        </div>
+
+                        <!-- Local -->
+                        <div x-show="prefs.atlas_llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">llama.cpp Server URL</label>
+                                <input type="text" x-model="prefs.atlas_local_url" @blur="savePrefs()" placeholder="http://localhost:8080/v1" class="apple-field">
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Full OpenAI-compatible endpoint.</p>
+                            </div>
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model Identifier</label>
+                                <input type="text" x-model="prefs.atlas_local_model" @blur="savePrefs()" placeholder="local-model" class="apple-field">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved indicator -->
+                <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
+                    <div class="saved-toast">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
+                    </div>
                 </div>
             </div>
 
@@ -1468,7 +1563,12 @@ function settingsApp() {
             user_name: 'User',
             user_avatar: null,
             debug_mode: false,
-            insights: true
+            insights: true,
+            atlas_llm_provider: 'google',
+            atlas_model_name: 'gemini-2.5-flash',
+            atlas_nvidia_model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+            atlas_local_url: 'http://localhost:8080/v1',
+            atlas_local_model: 'local-model'
         },
 
         cropModal: false,
@@ -1556,6 +1656,21 @@ function settingsApp() {
 
         async init() {
             await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels()]);
+            
+            const handleHash = () => {
+                const hash = window.location.hash;
+                const search = window.location.search;
+                if (hash === '#atlas' || search.includes('atlas')) {
+                    this.tab = 'atlas';
+                } else if (hash) {
+                    const clean = hash.replace('#', '');
+                    if (['general', 'appearance', 'characters', 'memory', 'mcp', 'integrations', 'telemetry', 'about'].includes(clean)) {
+                        this.tab = clean;
+                    }
+                }
+            };
+            handleHash();
+            window.addEventListener('hashchange', handleHash);
         },
 
         async fetchPrefs() {

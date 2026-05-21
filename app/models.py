@@ -61,3 +61,10 @@ class PrefsUpdate(BaseModel):
     insights: bool = True
     artifacts: bool = True
     memory_enabled: bool = True
+    
+    # Atlas-specific LLM settings
+    atlas_llm_provider: Optional[str] = "google"
+    atlas_model_name: Optional[str] = "gemini-2.5-flash"
+    atlas_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
+    atlas_local_url: Optional[str] = "http://localhost:8080/v1"
+    atlas_local_model: Optional[str] = "local-model"
