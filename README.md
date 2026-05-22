@@ -126,6 +126,8 @@ kokomi/
 ```bash
 docker compose up --build -d
 ```
+> [!NOTE]
+> The default `docker-compose.yml` mounts the host Docker socket (`/var/run/docker.sock:/var/run/docker.sock`) into the application container. This socket access is strictly used to spin up sandboxed, isolated ephemeral containers for the code execution worker task, preventing any malicious or runaway scripts from affecting your host system.
 
 ### Option 2: Local Development
 1. **Install uv**: `curl -LsSf https://astral.sh/uv/install.sh | sh`

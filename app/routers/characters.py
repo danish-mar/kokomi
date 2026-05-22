@@ -204,10 +204,14 @@ async def list_character_memories(cid: str):
                 memories.append({
                     "id": point.id,
                     "text": point.payload.get("text"),
-                    "timestamp": point.payload.get("timestamp")
+                    "importance": point.payload.get("importance", 3.0),
+                    "access_count": point.payload.get("access_count", 0),
+                    "last_accessed": point.payload.get("last_accessed"),
+                    "source": point.payload.get("source", "auto"),
+                    "timestamp": point.payload.get("created_at", point.payload.get("timestamp"))
                 })
-        # Sort by timestamp descending
-        memories.sort(key=lambda x: x.get("timestamp") or 0, reverse=True)
+        # Sort by importance descending, then by timestamp
+        memories.sort(key=lambda x: (x.get("importance", 0), x.get("timestamp") or 0), reverse=True)
         return memories
     except Exception as e:
         print(f"Error listing memories: {e}")
@@ -241,7 +245,7 @@ async def add_character_memory(cid: str, req: ManualMemoryRequest):
     if not req.text.strip():
         raise HTTPException(400, "Memory text cannot be empty")
     try:
-        save_memory(cid, req.text.strip(), {"source": "manual_entry"})
+        save_memory(cid, req.text.strip(), metadata={"source": "manual_entry"}, importance=4.5)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, f"Failed to add memory: {e}")
@@ -250,14 +254,39 @@ async def add_character_memory(cid: str, req: ManualMemoryRequest):
 @router.delete("/{cid}/memories")
 async def clear_character_memories(cid: str):
     from app.rag import qdrant
+    from app.memory import invalidate_cache
     from qdrant_client.models import Filter, FieldCondition, MatchValue
     try:
         qdrant.delete(
             collection_name="user_memories",
-            filter=Filter(
+            points_selector=Filter(
                 must=[FieldCondition(key="user_id", match=MatchValue(value=cid))]
             )
         )
+        invalidate_cache(cid)
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, f"Failed to clear memories: {e}")
+
+
+@router.get("/{cid}/profile")
+async def get_character_profile_endpoint(cid: str):
+    """Get the AI-synthesized relationship profile for a character."""
+    from app.memory import get_character_profile
+    chars = load_chars()
+    if cid not in chars:
+        raise HTTPException(404, "Character not found")
+    profile = get_character_profile(cid)
+    return {"character_id": cid, "profile": profile}
+
+
+@router.post("/{cid}/memories/decay")
+async def trigger_decay(cid: str):
+    """Manually trigger memory decay sweep for a character."""
+    from app.memory import run_decay_sweep
+    chars = load_chars()
+    if cid not in chars:
+        raise HTTPException(404, "Character not found")
+    run_decay_sweep(cid)
+    return {"ok": True, "message": f"Decay sweep completed for {cid}"}
+

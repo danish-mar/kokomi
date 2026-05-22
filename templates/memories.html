@@ -238,6 +238,9 @@
         <div style="flex-grow:1;"></div>
         
         <div style="display:flex; align-items:center; gap:8px;">
+            <button @click="triggerDecay()" class="apple-btn" style="padding: 6px 12px; font-size:12px; background:rgba(134,134,172,0.25);" :disabled="!activeChar || memories.length === 0" title="Run memory decay sweep">
+                <i class="fa-solid fa-hourglass-half"></i> Decay
+            </button>
             <button @click="openAddModal()" class="apple-btn" style="padding: 6px 12px; font-size:12px;">
                 <i class="fa-solid fa-plus"></i> Manual Atom
             </button>
@@ -268,12 +271,39 @@
             
             <div style="flex-grow:1;"></div>
             
-            <div class="tahoe-sidebar-section" style="padding: 0 4px;">
-                <div class="glass-card" style="padding:16px; background:rgba(39, 39, 87, 0.25);">
-                    <p style="font-size:11px; color:var(--dusty-lavender); font-weight:600; text-transform:uppercase; margin-bottom:4px;">Stats</p>
-                    <p style="font-size:24px; font-weight:700; color:#FFFFFF;" x-text="memories.length"></p>
-                    <p style="font-size:10px; color:var(--dusty-lavender);">Persistent Facts loaded</p>
+            <div class="tahoe-sidebar-section" style="padding: 0 4px; display:flex; flex-direction:column; gap:10px;">
+                <div class="glass-card" style="padding:14px; background:rgba(39, 39, 87, 0.25);">
+                    <p style="font-size:10px; color:var(--dusty-lavender); font-weight:600; text-transform:uppercase; margin-bottom:6px;">Memory Stats</p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <div>
+                            <p style="font-size:20px; font-weight:700; color:#FFFFFF;" x-text="memories.length"></p>
+                            <p style="font-size:9px; color:var(--dusty-lavender);">Total Atoms</p>
+                        </div>
+                        <div>
+                            <p style="font-size:20px; font-weight:700; color:#4ADE80;" x-text="memories.filter(m => m.importance >= 4.0).length"></p>
+                            <p style="font-size:9px; color:var(--dusty-lavender);">High Priority</p>
+                        </div>
+                        <div>
+                            <p style="font-size:20px; font-weight:700; color:#FBBF24;" x-text="memories.filter(m => m.importance >= 2.0 && m.importance < 4.0).length"></p>
+                            <p style="font-size:9px; color:var(--dusty-lavender);">Medium</p>
+                        </div>
+                        <div>
+                            <p style="font-size:20px; font-weight:700; color:#F87171;" x-text="memories.filter(m => m.importance < 2.0).length"></p>
+                            <p style="font-size:9px; color:var(--dusty-lavender);">Fading</p>
+                        </div>
+                    </div>
                 </div>
+                
+                <!-- AI Profile Card -->
+                <template x-if="profileText">
+                    <div class="glass-card" style="padding:14px; background:rgba(80,80,129,0.2); border-color:rgba(134,134,172,0.25);">
+                        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+                            <i class="fa-solid fa-dna" style="font-size:10px; color:#A78BFA;"></i>
+                            <p style="font-size:10px; color:#A78BFA; font-weight:700; text-transform:uppercase;">AI Profile</p>
+                        </div>
+                        <p style="font-size:11px; color:rgba(255,255,255,0.8); line-height:1.6;" x-text="profileText"></p>
+                    </div>
+                </template>
             </div>
         </aside>
 
@@ -314,21 +344,47 @@
 
                 <!-- Cards Grid -->
                 <template x-if="!loading && filteredMemories.length > 0">
-                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px; padding: 4px 2px;">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; padding: 4px 2px 24px 2px;">
                         <template x-for="mem in filteredMemories" :key="mem.id">
-                            <div class="glass-card" style="padding:16px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; min-height:120px;">
-                                <div style="display:flex; flex-direction:column; gap:8px; flex:1;">
-                                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
-                                        <p style="font-size:13.5px; color:#FFFFFF; font-weight:500; line-height:1.6; word-break:break-word;" x-text="mem.text"></p>
-                                        <button @click="deleteMemory(mem.id)" class="icon-btn" style="background:rgba(248,113,113,0.15); color:#f87171; width:26px; height:26px; border-radius:6px; flex-shrink:0;">
-                                            <i class="fa-solid fa-trash-can" style="font-size:10px;"></i>
-                                        </button>
-                                    </div>
+                            <div class="glass-card" style="padding:20px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; min-height:140px;" :style="mem.importance >= 4.0 ? 'border-color:rgba(74,222,128,0.3); background:rgba(74,222,128,0.03)' : mem.importance < 2.0 ? 'border-color:rgba(248,113,113,0.2); opacity:0.65' : ''">
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex:1;">
+                                    <p style="font-size:14px; color:#FFFFFF; font-weight:500; line-height:1.6; word-break:break-word; margin:0;" x-text="mem.text"></p>
+                                    <button @click="deleteMemory(mem.id)" class="icon-btn" style="background:rgba(248,113,113,0.1); color:#f87171; width:28px; height:28px; border-radius:8px; flex-shrink:0; opacity:0; transition:opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" x-init="$el.parentElement.parentElement.addEventListener('mouseover', () => $el.style.opacity='1'); $el.parentElement.parentElement.addEventListener('mouseout', () => $el.style.opacity='0')">
+                                        <i class="fa-solid fa-trash-can" style="font-size:12px;"></i>
+                                    </button>
                                 </div>
-                                <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid rgba(134, 134, 172, 0.1); padding-top:10px;">
-                                    <div style="display:flex; align-items:center; gap:6px;">
-                                        <i class="fa-solid fa-clock" style="font-size:10px; color:var(--dusty-lavender);"></i>
-                                        <span style="font-size:10px; color:var(--dusty-lavender);" x-text="formatDate(mem.timestamp)"></span>
+                                
+                                <!-- Importance + Metadata Bar -->
+                                <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid rgba(134, 134, 172, 0.15); padding-top:12px; margin-top:4px;">
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <!-- Importance Stars -->
+                                        <div style="display:flex; align-items:center; gap:4px;" :title="'Importance: ' + mem.importance.toFixed(1)">
+                                            <template x-for="s in 5">
+                                                <i class="fa-solid fa-star" style="font-size:10px;" :style="s <= Math.round(mem.importance || 3) ? 'color:#FBBF24' : 'color:rgba(134,134,172,0.2)'"></i>
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Divider -->
+                                        <div style="width:4px; height:4px; border-radius:50%; background:rgba(134,134,172,0.3);"></div>
+                                        
+                                        <!-- Source Badge -->
+                                        <span style="font-size:9px; padding:3px 8px; border-radius:6px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;" 
+                                              :style="mem.source === 'manual_entry' ? 'background:rgba(167,139,250,0.15); color:#A78BFA' : mem.source === 'tool' ? 'background:rgba(45,212,191,0.15); color:#2DD4BF' : 'background:rgba(134,134,172,0.15); color:var(--dusty-lavender)'"
+                                              x-text="mem.source === 'manual_entry' ? 'MANUAL' : mem.source === 'tool' ? 'TOOL' : 'AUTO'"></span>
+                                    </div>
+                                    
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <!-- Access Count -->
+                                        <div style="display:flex; align-items:center; gap:4px;" title="Times accessed">
+                                            <i class="fa-solid fa-eye" style="font-size:10px; color:var(--dusty-lavender);"></i>
+                                            <span style="font-size:10px; font-weight:600; color:var(--dusty-lavender);" x-text="mem.access_count || 0"></span>
+                                        </div>
+                                        
+                                        <!-- Timestamp -->
+                                        <div style="display:flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-clock" style="font-size:10px; color:rgba(134,134,172,0.5);"></i>
+                                            <span style="font-size:10px; color:rgba(134,134,172,0.7);" x-text="formatDate(mem.timestamp)"></span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -370,6 +426,7 @@
             characters: [],
             activeChar: null,
             memories: [],
+            profileText: null,
             loading: false,
             searchQuery: '',
             
@@ -416,10 +473,17 @@
             async fetchMemories() {
                 if (!this.activeChar) return;
                 this.loading = true;
+                this.profileText = null;
                 try {
                     const r = await fetch(`/api/characters/${this.activeChar.id}/memories`);
                     if (r.ok) {
                         this.memories = await r.json();
+                    }
+                    // Fetch AI profile
+                    const pr = await fetch(`/api/characters/${this.activeChar.id}/profile`);
+                    if (pr.ok) {
+                        const pd = await pr.json();
+                        this.profileText = pd.profile || null;
                     }
                 } catch(e) {
                     console.error("Failed to fetch memories:", e);
@@ -459,6 +523,17 @@
                     }
                 } catch(e) {
                     console.error("Failed to clear memories:", e);
+                }
+            },
+
+            async triggerDecay() {
+                if (!this.activeChar) return;
+                if (!confirm(`Run memory decay sweep for ${this.activeChar.name}? Low-importance stale atoms will be weakened or pruned.`)) return;
+                try {
+                    await fetch(`/api/characters/${this.activeChar.id}/memories/decay`, { method: 'POST' });
+                    await this.fetchMemories();
+                } catch(e) {
+                    console.error("Decay failed:", e);
                 }
             },
 

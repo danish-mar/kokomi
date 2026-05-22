@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.5.5] - 2026-05-23
+
+### Added
+
+- **Living Long-Term Memory Engine (v2)**: 
+  - Overhauled unstructured Qdrant memory storage into a self-cleaning, importance-weighted memory system.
+  - Implemented **Dedup-on-Write** using cosine similarity (`DEDUP_THRESHOLD = 0.85`) to dynamically merge redundant context into single high-fidelity memory atoms.
+  - Introduced **Importance-Weighted Decay** (1.0 to 5.0 scale) and periodic background decay sweeps to automatically weaken and prune stale/trivial atoms.
+  - Integrated **AI-Synthesized Character Profiles** which consolidate highly relevant long-term memory points into structured relationships per-character, automatically injected into LLM system prompts.
+  - Added an in-memory LRU cache to reduce redundant vector search overhead during real-time multi-agent chats.
+- **Mac-Style Memory Explorer Overhaul**:
+  - Overhauled `/memories` UI displaying premium star ratings (★) for importance, access count tracking (👁️), and custom source badges (MANUAL, TOOL, AUTO).
+  - Added a direct **AI-Synthesized Relationship Profile Card** to the sidebar navigation pane.
+  - Added a manual **Decay Sweep** button to trigger instant pruning of fading context points.
+  - Added hover-only visibility actions to keep card grids exceptionally clean and aesthetically native.
+- **Docker Socket Host Configuration**:
+  - Fully documented host Docker socket mounting requirements in `README.md` to safely spin up isolated task sandboxes.
+
+### Fixed
+
+- **Bulk Memory Deletion**: Fixed an issue where clearing character memory threw `500 Internal Server Error` due to incorrect argument mapping in the Qdrant delete method. Corrected `filter` to `points_selector`.
+
 ## [v3.2.5] - 2026-05-23
 
 ### Added

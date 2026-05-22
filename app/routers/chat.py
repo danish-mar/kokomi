@@ -286,6 +286,14 @@ async def chat(req: ChatRequest):
     persona = char.get("persona", "You are a helpful AI assistant.")
     if user_p:
         persona += f"\n\nInformation about the user (User Persona):\n{user_p}"
+    # Inject AI-synthesized relationship profile
+    try:
+        from app.memory import get_character_profile
+        synth_profile = get_character_profile(char_id)
+        if synth_profile:
+            persona += f"\n\n[Relationship Context — AI Synthesized]:\n{synth_profile}"
+    except Exception:
+        pass
     if prefs.get("inject_time"):
         persona += f"\n\nCurrent System Date and Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     persona += (
@@ -695,6 +703,15 @@ async def chat_stream(req: ChatRequest):
 
                     if user_p:
                         p_persona += f"\n\nUser Profile:\n{user_p}"
+
+                    # Inject AI-synthesized relationship profile
+                    try:
+                        from app.memory import get_character_profile
+                        synth_profile = get_character_profile(pid)
+                        if synth_profile:
+                            p_persona += f"\n\n[Relationship Context — AI Synthesized]:\n{synth_profile}"
+                    except Exception:
+                        pass
 
                     if len(pids) > 1:
                         other_names = [all_chars.get(x, {}).get("name", x) for x in pids if x != pid]
@@ -1208,8 +1225,11 @@ async def chat_stream(req: ChatRequest):
                         if p_char.get("memory_enabled", True) and prefs.get("memory_enabled", True):
                             async def background_memory_task(msgs, char_id, p_copy):
                                 facts = await summarize_conversation(msgs, p_copy)
-                                for f in facts:
-                                    save_memory(char_id, f)
+                                for item in facts:
+                                    if isinstance(item, dict):
+                                        save_memory(char_id, item["fact"], importance=item.get("importance", 3.0))
+                                    else:
+                                        save_memory(char_id, str(item))
                             
                             # Summarize the last few turns to extract new facts
                             asyncio.create_task(background_memory_task(history[-4:], pid, prefs))

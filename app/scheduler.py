@@ -142,6 +142,9 @@ async def execute_scheduled_workflow(schedule_id: str, sched: dict):
 
 async def start_scheduler_loop():
     print("⏰ Starting Atlas Workflow background scheduler loop...")
+    _last_decay_sweep = 0
+    DECAY_INTERVAL = 86400  # Run decay sweep once every 24 hours
+    
     while True:
         try:
             schedules = load_schedules()
@@ -170,6 +173,16 @@ async def start_scheduler_loop():
             
             if updated:
                 save_schedules(schedules)
+            
+            # ── Memory Decay Sweep (daily) ───────────────────────
+            if now - _last_decay_sweep > DECAY_INTERVAL:
+                try:
+                    from app.memory import run_decay_sweep
+                    run_decay_sweep()
+                    _last_decay_sweep = now
+                    print("🧠 Daily memory decay sweep completed")
+                except Exception as decay_err:
+                    print(f"Memory decay sweep error: {decay_err}")
                 
         except Exception as e:
             print(f"Error in scheduler background loop: {str(e)}")
