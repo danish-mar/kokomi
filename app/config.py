@@ -64,6 +64,10 @@ DEFAULT_PREFS: dict = {
     "debug_mode": False,
     "insights": True,
     "artifacts": True,
-    "memory_enabled": True
+    "memory_enabled": True,
+    "execution_engine": "docker",
+    "docker_connection": "local",
+    "docker_remote_url": "tcp://192.168.1.100:2375",
+    "docker_image": "kokomi-agent-base"
 }
 

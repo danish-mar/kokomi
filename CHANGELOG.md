@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.2.4] - 2026-05-23
+
+### Added
+
+- **Execution Engine Agnostic Paths**: Fully standardized directory resolution across file/artifact reading and writing tools (`file_read`, `file_write`, `artifact_read`). Paths containing `/workspace` are dynamically translated to the real host workflow storage directory when in Docker sandbox mode, or mapped appropriately when running directly on the host, preventing broken operations in both run environments.
+- **Dynamic Local vs Sandbox Prompts**: System prompts for the code execution worker now dynamically adjust based on the user's active Settings configuration. When set to `local`, the prompt guides the agent to execute safely on the host's filesystem; when set to `docker`, it informs them they are inside the isolated container sandbox.
+- **Robust Execution Timeout Guardrails**: Every command run within the Docker sandbox now gets automatically wrapped in a `timeout` utility wrapper, preventing runaway execution hangs (e.g. blocking SSH sessions) from freezing the central application thread.
+
 ## [v3.1.4] - 2026-05-21
 
 ### Added

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 # Storage context for active workflow
 active_storage_dir = contextvars.ContextVar("active_storage_dir", default="")
 active_workflow_title = contextvars.ContextVar("active_workflow_title", default="")
+active_run_id = contextvars.ContextVar("active_run_id", default="")
 
 # LangChain / LangGraph imports
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
@@ -164,6 +165,10 @@ DEFAULT_WORKER_TEMPLATES = {
             "You are the Master Technical Writer producing exhaustive, structured markdown documents.\n"
             "Read any available artifacts first, then write the full content to disk using file_write.\n"
             "Do NOT produce a brief summary. Write a comprehensive, multi-section document.\n"
+            "CRITICAL WRITING RULES:\n"
+            "1. ALWAYS start the document with a large `# Title` at the very top.\n"
+            "2. Ensure the tone is highly professional and client-facing. NEVER mention internal backend mechanics, script names, or temporary files (e.g., do NOT say 'data sourced from data.json' or 'extracted from the dataset'). Present the facts authoritatively.\n"
+            "3. If embedding images or charts produced by other nodes, ALWAYS use proper markdown syntax exactly: `![Image Description](filename.png)`. NEVER omit the parenthesis!\n"
             "Task-specific context: {task_description}\n"
             "When the file is written, confirm with your final output."
         ),
@@ -233,6 +238,7 @@ DEFAULT_WORKER_TEMPLATES = {
             "Handle errors gracefully — if a command fails, diagnose and retry with a corrected command.\n"
             "You can run: bash commands, docker, docker-compose, pip, npm, ssh, curl, systemctl, etc.\n"
             "For long-running commands, use shell_exec with an appropriate timeout parameter.\n"
+            "CRITICAL: You are executing inside an isolated Alpine Docker Sandbox! The working directory is ALWAYS `/workspace` which is mapped to the current task. Do NOT reference host paths (e.g., `/home/...`). Just use `./` or `/workspace/` directly.\n"
             "Task-specific context: {task_description}\n"
             "Work iteratively until the task is fully complete, then report results."
         ),
@@ -453,6 +459,13 @@ def artifact_read(filepath: str) -> str:
     """Read a text or markdown file from the active storage workspace or data directory."""
     try:
         sdir = active_storage_dir.get()
+        
+        # Translate /workspace paths to the real storage_dir (Docker sandbox mapping)
+        if filepath.startswith("/workspace"):
+            if sdir:
+                rel = filepath[len("/workspace"):].lstrip("/")
+                filepath = rel if rel else "."
+        
         if sdir:
             target = os.path.abspath(os.path.join(sdir, filepath.lstrip("/")))
             if target.startswith(os.path.abspath(sdir)) and os.path.exists(target):
@@ -474,6 +487,13 @@ def file_read(filepath: str) -> str:
     try:
         import os
         
+        # Translate /workspace paths to the real storage_dir (Docker sandbox mapping)
+        if filepath.startswith("/workspace"):
+            sdir = active_storage_dir.get()
+            if sdir:
+                rel = filepath[len("/workspace"):].lstrip("/")
+                filepath = os.path.join(sdir, rel) if rel else sdir
+        
         if not os.path.isabs(filepath):
             sdir = active_storage_dir.get() or os.getcwd()
             filepath = os.path.join(sdir, filepath)
@@ -493,6 +513,12 @@ def file_write(filepath: str, content: str) -> str:
         sdir = active_storage_dir.get()
         if not sdir:
             sdir = DATA_DIR
+        
+        # Translate /workspace paths to the real storage_dir (Docker sandbox mapping)
+        if filepath.startswith("/workspace"):
+            rel = filepath[len("/workspace"):].lstrip("/")
+            filepath = rel if rel else "output.txt"
+            
         target = os.path.abspath(os.path.join(sdir, filepath.lstrip("/")))
         if not target.startswith(os.path.abspath(sdir)):
             # fallback to base name if path traversal detected
@@ -600,7 +626,7 @@ def pdf_export(markdown_content: str, filename: str) -> str:
             t = _re.sub(r'`(.+?)`', _sub_code, t)
             
             # 3. Process links, bold+italic combos, then bold, then italics
-            t = _re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'<font color="#505081"><u>\1</u></font>', t)
+            t = _re.sub(r'(?<!\!)\[([^\]]+)\]\([^\)]+\)', r'<font color="#505081"><u>\1</u></font>', t)
             # Bold+italic combo (***text*** or ___text___) — must come BEFORE bold/italic
             t = _re.sub(r'\*\*\*(.+?)\*\*\*', r'<b><i>\1</i></b>', t)
             t = _re.sub(r'___(.+?)___', r'<b><i>\1</i></b>', t)
@@ -677,8 +703,6 @@ def pdf_export(markdown_content: str, filename: str) -> str:
                     return Paragraph("(Content could not be rendered)", style)
 
         story = []
-        story.append(Paragraph("KOKOMI STRATEGIST OS — INTELLIGENCE REPORT", s_title))
-        story.append(Spacer(1, 8))
 
         lines = markdown_content.split("\n")
         i = 0
@@ -761,6 +785,19 @@ def pdf_export(markdown_content: str, filename: str) -> str:
                                 f.write(img_resp.content)
                             local_img = tmp_path
                             
+                    if not local_img.startswith("http"):
+                        # Resolve relative image paths from the workflow storage dir
+                        if not os.path.isabs(local_img):
+                            local_img = os.path.join(uploads_dir, local_img)
+                            
+                        # Fuzzy match just in case AI misspelled the filename slightly (e.g. omitted underscores)
+                        if not os.path.exists(local_img):
+                            base_name = os.path.basename(local_img).replace("_", "").lower()
+                            for f in os.listdir(uploads_dir):
+                                if f.replace("_", "").lower() == base_name:
+                                    local_img = os.path.join(uploads_dir, f)
+                                    break
+                            
                     if os.path.exists(local_img):
                         from reportlab.platypus import Image as RLImage
                         img = RLImage(local_img)
@@ -772,11 +809,18 @@ def pdf_export(markdown_content: str, filename: str) -> str:
                         story.append(Spacer(1, 10))
                         story.append(img)
                         story.append(Spacer(1, 10))
-                        i += 1
-                        continue
+                    else:
+                        story.append(Spacer(1, 10))
+                        story.append(Paragraph(f"<i>[Image missing or unresolvable: {img_url}]</i>", s_quote))
+                        story.append(Spacer(1, 10))
+                    
+                    i += 1
+                    continue
                 except Exception as e:
                     print(f"Failed to embed image {img_url}: {e}")
-                    # If it fails, fallback to rendering the raw alt-text below
+                    story.append(Paragraph(f"<i>[Error embedding image: {img_url}]</i>", s_quote))
+                    i += 1
+                    continue
 
             # Multi-line code block detection
             if stripped.startswith('```'):
@@ -1231,16 +1275,29 @@ def send_email(to_email: str, subject: str, body: str, attachment_path: Optional
         return f"Email transmission failed: {str(e)}"
 
 @tool
-def browser_automation(action: str, target: str) -> str:
-    """Execute browser navigation or action simulation."""
-    return f"Simulated browser automation task '{action}' on {target} completed successfully."
-
-@tool
 def shell_exec(command: str, timeout: int = 60) -> str:
-    """Execute a shell command on the local system. Returns stdout+stderr combined. Use for running scripts, docker, ssh, pip installs, system operations. timeout is max seconds to wait (default 60, max 300)."""
+    """Execute a shell command inside the dedicated workflow Docker container sandbox (or local system fallback). Returns stdout+stderr combined."""
     import subprocess
-    from app.workflow import active_storage_dir
+    from app.workflow import active_storage_dir, active_run_id
+    from app.container import SandboxManager
+    
     timeout = min(max(timeout, 5), 300)
+    run_id = active_run_id.get()
+    
+    from app.storage import load_prefs
+    prefs = load_prefs()
+    engine = prefs.get("execution_engine", "docker")
+    
+    if run_id and engine == "docker":
+        try:
+            exit_code, output = SandboxManager.execute_in_container(run_id, command, timeout=timeout)
+            if exit_code != -1:  # -1 indicates connection error or disabled daemon
+                if not output.strip():
+                    output = f"Command exited with code {exit_code} (no output)."
+                return output[:8000]
+        except Exception as se:
+            print(f"⚠️ Sandbox execution failed, falling back to local: {se}")
+
     try:
         sdir = active_storage_dir.get()
         if not sdir or not os.path.exists(sdir):
@@ -1266,6 +1323,11 @@ def shell_exec(command: str, timeout: int = 60) -> str:
         return f"Command timed out after {timeout}s."
     except Exception as e:
         return f"shell_exec error: {e}"
+
+@tool
+def browser_automation(action: str, target: str) -> str:
+    """Execute browser navigation or action simulation."""
+    return f"Simulated browser automation task '{action}' on {target} completed successfully."
 
 
 # ── Multi-Agent Routing Classifier ───────────────────────────────────
@@ -1577,7 +1639,18 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                 except Exception:
                     pass
         
-    system_prompt = template["system_prompt_template"].format(
+    sys_tpl = template["system_prompt_template"]
+    if worker_type == "code_worker":
+        from app.storage import load_prefs
+        prefs = load_prefs()
+        engine = prefs.get("execution_engine", "docker")
+        if engine == "local":
+            sys_tpl = sys_tpl.replace(
+                "CRITICAL: You are executing inside an isolated Alpine Docker Sandbox! The working directory is ALWAYS `/workspace` which is mapped to the current task. Do NOT reference host paths (e.g., `/home/...`). Just use `./` or `/workspace/` directly.",
+                "CRITICAL: You are executing directly on the user's local host system! The working directory is ALWAYS the active task folder. Do NOT use Docker `/workspace` paths. Just use `./` or relative paths directly."
+            )
+            
+    system_prompt = sys_tpl.format(
         task_description=f"{task['description']}\n\nDependency Outputs:\n{dep_outputs}"
     )
     
@@ -2314,9 +2387,15 @@ Respond in JSON exactly matching this schema:
             await MultiAgentWorkflowEngine._execute_run_internal(run_id)
         finally:
             MultiAgentWorkflowEngine.active_tasks.pop(run_id, None)
+            try:
+                from app.container import SandboxManager
+                await asyncio.to_thread(SandboxManager.stop_container, run_id)
+            except Exception:
+                pass
 
     @staticmethod
     async def _execute_run_internal(run_id: str):
+        import os
         db = load_workflows()
         if run_id not in db:
             return
@@ -2330,6 +2409,19 @@ Respond in JSON exactly matching this schema:
         state["started_at"] = datetime.datetime.now().isoformat()
         active_workflow_title.set(state.get("run_title", ""))
         active_storage_dir.set(state.get("storage_dir", ""))
+        active_run_id.set(run_id)
+        
+        # Initialize Docker Sandbox Container for high-performance dependency isolation
+        from app.storage import load_prefs
+        prefs = load_prefs()
+        engine = prefs.get("execution_engine", "docker")
+        
+        from app.container import SandboxManager
+        sdir = state.get("storage_dir")
+        if sdir and engine == "docker":
+            _dbg(state, f"🐳 Spinning up Docker sandbox container 'kokomi-sandbox-{run_id}'...")
+            await asyncio.to_thread(SandboxManager.start_container, run_id, sdir)
+            
         _dbg(state, f"🚀 Workflow '{state['run_title']}' execution started")
         _dbg(state, f"📋 Plan contains {len(state['tasks'])} task nodes")
         state["notifications"].append(f"Execution started for '{state['run_title']}'")
