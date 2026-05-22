@@ -25,7 +25,7 @@ async def log_generation(metadata: Dict[str, Any]):
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, log_generation_sync, metadata)
 
-def get_insights_data(view: str = "daily") -> Dict[str, Any]:
+def get_insights_data(view: str = "daily", source: str = "all") -> Dict[str, Any]:
     """
     Aggregate telemetry data for charts and tables.
     view: "daily" (rolling 30 days) or "monthly" (rolling 12 months)
@@ -50,6 +50,12 @@ def get_insights_data(view: str = "daily") -> Dict[str, Any]:
         for line in f:
             try:
                 data = json.loads(line)
+                
+                # Filter by source (default is "chat")
+                data_source = data.get("source", "chat")
+                if source != "all" and data_source != source:
+                    continue
+                    
                 ts = datetime.datetime.fromisoformat(data["timestamp"])
                 
                 # Filter by age

@@ -1672,6 +1672,11 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
     # we hit max_iterations.
     max_iterations = template.get("max_iterations", 20)
     
+    task_prompt_tokens = 0
+    task_completion_tokens = 0
+    task_total_tokens = 0
+    task_duration_ms = 0
+    
     retries = 0
     limit = template["retry_limit"]
     
@@ -1703,7 +1708,17 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
             
             # ── Main ReAct Iteration Loop ──────────────────────────────
             for iteration in range(max_iterations):
+                import time
+                start_time = time.time()
                 resp = await llm_with_tools.ainvoke(messages)
+                task_duration_ms += int((time.time() - start_time) * 1000)
+                
+                # Trace token usage telemetry
+                usage = getattr(resp, "response_metadata", {}).get("token_usage", {}) or {}
+                task_prompt_tokens += usage.get("prompt_tokens", 0)
+                task_completion_tokens += usage.get("completion_tokens", 0)
+                task_total_tokens += usage.get("total_tokens", 0)
+                
                 tool_calls = getattr(resp, "tool_calls", []) or []
                 
                 if not tool_calls:
@@ -1805,9 +1820,19 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                     ))
             else:
                 # Exhausted iterations — force a final answer
+                import time
+                start_time = time.time()
                 resp = await llm.ainvoke(messages + [
                     HumanMessage(content="Produce your final structured output based on everything done so far.")
                 ])
+                task_duration_ms += int((time.time() - start_time) * 1000)
+                
+                # Trace token usage telemetry
+                usage = getattr(resp, "response_metadata", {}).get("token_usage", {}) or {}
+                task_prompt_tokens += usage.get("prompt_tokens", 0)
+                task_completion_tokens += usage.get("completion_tokens", 0)
+                task_total_tokens += usage.get("total_tokens", 0)
+                
                 raw_output = (resp.content or "").strip()
                 _append_step("final", raw_output)
                 
@@ -2177,12 +2202,74 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                 print(f"[Validation Layer] Rejecting task '{task['title']}' output. Error: {validation_error}")
                 raise ValueError(f"Task output failed substance validation: {validation_error}")
 
+            task["telemetry"] = {
+                "prompt_tokens": task_prompt_tokens,
+                "completion_tokens": task_completion_tokens,
+                "total_tokens": task_total_tokens,
+                "duration_ms": task_duration_ms
+            }
+            
+            # Non-blocking insights logging
+            if prefs.get("insights", True) and task_total_tokens > 0:
+                try:
+                    from app.insights import log_generation
+                    display_model = prefs.get("atlas_model", "model")
+                    if "/" in display_model:
+                        display_model = display_model.split("/")[-1]
+                    tps = None
+                    if task_duration_ms > 0 and task_completion_tokens > 0:
+                        tps = round(task_completion_tokens / (task_duration_ms / 1000.0), 2)
+                    await log_generation({
+                        "model": display_model,
+                        "tps": tps,
+                        "ttft": None,
+                        "context_used": task_prompt_tokens,
+                        "source": "workflow",
+                        "timestamp": datetime.datetime.utcnow().isoformat()
+                    })
+                except Exception:
+                    pass
+                    
             return task
         except Exception as e:
+            task["telemetry"] = {
+                "prompt_tokens": task_prompt_tokens,
+                "completion_tokens": task_completion_tokens,
+                "total_tokens": task_total_tokens,
+                "duration_ms": task_duration_ms
+            }
             retries += 1
             task["retries"] = retries
             task["error"] = str(e)
             await asyncio.sleep(2 ** retries) # Exponential Backoff
+            
+    task["telemetry"] = {
+        "prompt_tokens": task_prompt_tokens,
+        "completion_tokens": task_completion_tokens,
+        "total_tokens": task_total_tokens,
+        "duration_ms": task_duration_ms
+    }
+    
+    # Non-blocking insights logging
+    if prefs.get("insights", True) and task_total_tokens > 0:
+        try:
+            from app.insights import log_generation
+            display_model = prefs.get("atlas_model", "model")
+            if "/" in display_model:
+                display_model = display_model.split("/")[-1]
+            tps = None
+            if task_duration_ms > 0 and task_completion_tokens > 0:
+                tps = round(task_completion_tokens / (task_duration_ms / 1000.0), 2)
+            await log_generation({
+                "model": display_model,
+                "tps": tps,
+                "ttft": None,
+                "context_used": task_prompt_tokens,
+                "source": "workflow",
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            })
+        except Exception:
+            pass
             
     task["status"] = "failed"
     return task

@@ -87,9 +87,17 @@
 
     <main class="content-container">
         <div class="controls-wrapper">
-            <div class="view-picker">
-                <button @click="setView('daily')" :class="view === 'daily' ? 'active' : ''" class="view-btn">Daily</button>
-                <button @click="setView('monthly')" :class="view === 'monthly' ? 'active' : ''" class="view-btn">Monthly</button>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <div class="view-picker">
+                    <button @click="setView('daily')" :class="view === 'daily' ? 'active' : ''" class="view-btn">Daily</button>
+                    <button @click="setView('monthly')" :class="view === 'monthly' ? 'active' : ''" class="view-btn">Monthly</button>
+                </div>
+                
+                <div class="view-picker">
+                    <button @click="setSource('all')" :class="source === 'all' ? 'active' : ''" class="view-btn">All Sources</button>
+                    <button @click="setSource('chat')" :class="source === 'chat' ? 'active' : ''" class="view-btn">Chat Only</button>
+                    <button @click="setSource('workflow')" :class="source === 'workflow' ? 'active' : ''" class="view-btn">Workflow Only</button>
+                </div>
             </div>
 
             <div class="model-selector">
@@ -188,6 +196,7 @@
 function insightsApp() {
     return {
         view: 'daily',
+        source: 'all',
         loading: true,
         selectedModel: 'all',
         data: { summary: [], charts: {} },
@@ -211,10 +220,15 @@ function insightsApp() {
             await this.fetchData();
         },
 
+        async setSource(s) {
+            this.source = s;
+            await this.fetchData();
+        },
+
         async fetchData() {
             this.loading = true;
             try {
-                const r = await fetch(`/api/insights?view=${this.view}`);
+                const r = await fetch(`/api/insights?view=${this.view}&source=${this.source}`);
                 this.data = await r.json();
                 this.renderCharts();
             } catch(e) {

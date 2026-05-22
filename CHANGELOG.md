@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.2.5] - 2026-05-23
+
+### Added
+
+- **Unified Insights Telemetry**: Fully integrated the asynchronous workflow execution engine with the shared, non-blocking telemetry database, allowing all workflow agent actions to record tokens, latency, and duration metrics.
+- **Apple-Style Insights Source Filter**: Introduced an interactive segmented control filter (**All Sources** / **Chat Only** / **Workflow Only**) on the global `/insights` page. Enables real-time, isolated ApexCharts visualization and model-by-model metrics breakdown of interactive vs. background task performance.
+
 ## [v3.2.4] - 2026-05-23
 
 ### Added
