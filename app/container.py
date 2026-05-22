@@ -58,7 +58,9 @@ RUN apk update && apk add --no-cache \\
     openssl-dev \\
     build-base \\
     openssh-client \\
-    sshpass
+    sshpass \\
+    docker-cli \\
+    docker-compose
 
 WORKDIR /workspace
 """
@@ -99,12 +101,26 @@ WORKDIR /workspace
         os.makedirs(abs_sdir, exist_ok=True)
         
         try:
+            volumes = {abs_sdir: {"bind": "/workspace", "mode": "rw"}}
+            
+            # Mount host Docker socket if available to allow Docker commands inside the container
+            if os.path.exists("/var/run/docker.sock"):
+                volumes["/var/run/docker.sock"] = {"bind": "/var/run/docker.sock", "mode": "rw"}
+                
+            # Mount host SSH Agent Socket if available
+            environment = {}
+            ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
+            if ssh_auth_sock and os.path.exists(ssh_auth_sock):
+                volumes[ssh_auth_sock] = {"bind": "/ssh-agent", "mode": "rw"}
+                environment["SSH_AUTH_SOCK"] = "/ssh-agent"
+                
             # Start container in detached mode, mount sdir to /workspace, and tail /dev/null
             container = client.containers.run(
                 cls.get_image_name(),
                 command="tail -f /dev/null",
                 name=container_name,
-                volumes={abs_sdir: {"bind": "/workspace", "mode": "rw"}},
+                volumes=volumes,
+                environment=environment,
                 working_dir="/workspace",
                 detach=True,
                 remove=False
