@@ -39,6 +39,21 @@ function atlasApp() {
     isStreamingChat: false,
     prefs: {},
     
+    // Scheduling & Sidebar filtering
+    schedules: [],
+    showScheduleModal: false,
+    schedRepeatMode: 're_execute',
+    schedInterval: 'daily',
+    schedCron: '',
+    alarmHour: '08',
+    alarmMinute: '00',
+    alarmAmpm: 'AM',
+    schedSaving: false,
+    schedError: '',
+    sidebarSearch: '',
+    historyCollapsed: false,
+    showRestartDropdown: false,
+    
     // Drag/Drop Graph Nodes
     nodeOffsets: {},
     draggingNode: null,
@@ -59,6 +74,7 @@ function atlasApp() {
       await this.loadPrefs();
       await this.loadModels();
       await this.loadWorkflows();
+      await this.loadSchedules();
 
       // Deep linking parser for direct deep workflow URLs on load
       const params = new URLSearchParams(window.location.search);
@@ -157,9 +173,135 @@ function atlasApp() {
       
       if (provider === 'groq') return 'fa-solid fa-bolt';
       if (provider === 'google') return 'fa-brands fa-google';
-      if (provider === 'nvidia') return 'fa-solid fa-network-wired';
       if (provider === 'local') return 'fa-solid fa-desktop';
       return 'fa-solid fa-brain';
+    },
+
+    // ── Scheduling & Sidebar decluttering ──
+    async loadSchedules() {
+      try {
+        this.schedules = await this.api('GET', '/api/workflows/schedules');
+      } catch(e) { console.warn('Failed to load schedules', e); }
+    },
+    async saveSchedule() {
+      if (!this.activeRunId) return;
+      this.schedSaving = true;
+      this.schedError = '';
+      try {
+        let cronVal = '';
+        if (this.schedInterval === 'custom') {
+          let hrVal = parseInt(this.alarmHour, 10);
+          const minVal = parseInt(this.alarmMinute, 10);
+          if (this.alarmAmpm === 'PM' && hrVal !== 12) {
+            hrVal += 12;
+          } else if (this.alarmAmpm === 'AM' && hrVal === 12) {
+            hrVal = 0;
+          }
+          cronVal = `${minVal} ${hrVal} * * *`;
+        }
+        const payload = {
+          repeat_mode: this.schedRepeatMode,
+          interval: this.schedInterval,
+          cron: cronVal
+        };
+        // Check if schedule already exists for this workflow
+        const existing = this.schedules.find(s => s.source_run_id === this.activeRunId);
+        if (existing) {
+          await this.api('PUT', `/api/workflows/schedules/${existing.id}`, payload);
+        } else {
+          await this.api('POST', `/api/workflows/${this.activeRunId}/schedule`, payload);
+        }
+        await this.loadSchedules();
+        this.showScheduleModal = false;
+      } catch(e) {
+        this.schedError = 'Failed to save schedule settings.';
+      } finally {
+        this.schedSaving = false;
+      }
+    },
+    async toggleScheduleActive(sched) {
+      try {
+        await this.api('PUT', `/api/workflows/schedules/${sched.id}`, { active: !sched.active });
+        await this.loadSchedules();
+      } catch(e) { console.warn('Failed to toggle schedule active', e); }
+    },
+    async deleteSchedule(schedId) {
+      try {
+        await this.api('DELETE', `/api/workflows/schedules/${schedId}`);
+        await this.loadSchedules();
+      } catch(e) { console.warn('Failed to delete schedule', e); }
+    },
+    openScheduleModal() {
+      if (!this.activeRunId) return;
+      const existing = this.schedules.find(s => s.source_run_id === this.activeRunId);
+      if (existing) {
+        this.schedRepeatMode = existing.repeat_mode;
+        this.schedInterval = existing.interval;
+        this.schedCron = existing.cron || '';
+        
+        // Parse custom alarm settings from cron
+        if (existing.interval === 'custom' && existing.cron) {
+          const parts = existing.cron.split(' ');
+          if (parts.length >= 2) {
+            const minVal = parseInt(parts[0], 10);
+            let hrVal = parseInt(parts[1], 10);
+            
+            this.alarmAmpm = hrVal >= 12 ? 'PM' : 'AM';
+            let hr12 = hrVal % 12;
+            if (hr12 === 0) hr12 = 12;
+            
+            this.alarmHour = String(hr12).padStart(2, '0');
+            this.alarmMinute = String(minVal).padStart(2, '0');
+          } else {
+            this.alarmHour = '08';
+            this.alarmMinute = '00';
+            this.alarmAmpm = 'AM';
+          }
+        } else {
+          this.alarmHour = '08';
+          this.alarmMinute = '00';
+          this.alarmAmpm = 'AM';
+        }
+      } else {
+        this.schedRepeatMode = 're_execute';
+        this.schedInterval = 'daily';
+        this.schedCron = '';
+        this.alarmHour = '08';
+        this.alarmMinute = '00';
+        this.alarmAmpm = 'AM';
+      }
+      this.schedError = '';
+      this.showScheduleModal = true;
+    },
+    getScheduleForActive() {
+      if (!this.activeRunId) return null;
+      return this.schedules.find(s => s.source_run_id === this.activeRunId) || null;
+    },
+    formatTime(ts) {
+      if (!ts) return 'Never';
+      const d = new Date(ts * 1000);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString();
+    },
+    // Sidebar declutter helpers
+    filteredHistory() {
+      const q = (this.sidebarSearch || '').trim().toLowerCase();
+      const list = this.workflowList.filter(w => w.status === 'completed' || w.status === 'failed');
+      if (!q) return list;
+      return list.filter(w => 
+        (w.run_title || '').toLowerCase().includes(q) || 
+        (w.user_request || '').toLowerCase().includes(q) || 
+        w.run_id.toLowerCase().includes(q)
+      );
+    },
+    filteredActive() {
+      const q = (this.sidebarSearch || '').trim().toLowerCase();
+      const list = this.workflowList.filter(w => w.status === 'running' || w.status === 'pending');
+      if (!q) return list;
+      return list.filter(w => 
+        (w.run_title || '').toLowerCase().includes(q) || 
+        (w.user_request || '').toLowerCase().includes(q) || 
+        w.run_id.toLowerCase().includes(q)
+      );
     },
 
     // ── Workflows ──
@@ -705,6 +847,21 @@ function atlasApp() {
         await this.loadWorkflowDetail();
       } catch (e) {
         alert("Failed to restart workflow: " + e.message);
+      }
+    },
+    async recreateWorkflow() {
+      if (!this.activeRunId) return;
+      if (!confirm("Are you sure you want to recreate the workflow from the original prompt? This will generate a fresh new plan.")) return;
+      try {
+        const res = await this.api('POST', `/api/workflows/${this.activeRunId}/recreate`);
+        if (res.run_id) {
+          // Switch to new run
+          this.activeRunId = res.run_id;
+          await this.loadWorkflows();
+          await this.loadWorkflowDetail();
+        }
+      } catch (e) {
+        alert("Failed to recreate workflow: " + e.message);
       }
     },
 

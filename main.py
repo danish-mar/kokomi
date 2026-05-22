@@ -5,4 +5,4 @@ from app import app  # noqa: F401
 if __name__ == "__main__":
     print("🌊 Starting Kokomi Web Interface...")
     print("📍 Point your browser to http://0.0.0.0:8000")
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True, timeout_graceful_shutdown=2)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True, reload_excludes=["data/*", "data/**/*"], timeout_graceful_shutdown=2)

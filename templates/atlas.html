@@ -3,6 +3,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/atlas.css">
+<style>[x-cloak] { display: none !important; }</style>
 {% endblock %}
 
 {% block body %}
@@ -36,29 +37,113 @@
         </button>
       </div>
 
-      <!-- Workflows list -->
-      <div class="sidebar-section-label">Workflows</div>
-      <template x-if="workflowList.length === 0">
-        <div style="padding: 8px 18px; font-size: 12px; color: var(--text-quaternary);">No workflows yet</div>
-      </template>
-      <template x-for="wf in workflowList" :key="wf.run_id">
-        <div class="wf-item" :class="{ active: activeRunId === wf.run_id }" @click="selectWorkflow(wf.run_id)">
-          <!-- status icon -->
-          <div class="wf-item-icon" :style="wfIconStyle(wf.status)">
-            <template x-if="wf.status === 'running'"><i class="fa fa-circle-notch spinner-sm"></i></template>
-            <template x-if="wf.status === 'completed'"><i class="fa fa-check"></i></template>
-            <template x-if="wf.status === 'failed'"><i class="fa fa-triangle-exclamation"></i></template>
-            <template x-if="wf.status === 'pending'"><i class="fa fa-clock"></i></template>
-          </div>
-          <div style="flex:1; min-width:0;">
-            <div class="wf-item-title" x-text="wf.run_title || wf.run_id"></div>
-            <div class="wf-item-time" x-text="formatRelTime(wf.created_at)"></div>
-          </div>
-          <button class="wf-delete" @click.stop="confirmDeleteWorkflow(wf.run_id)" title="Delete">
-            <i class="fa fa-trash"></i>
+      <!-- Search Input -->
+      <div style="padding: 4px 10px 8px 10px; position: relative;">
+        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--text-tertiary);"></i>
+        <input type="text" x-model="sidebarSearch" placeholder="Search runs..." 
+               style="width: 100%; padding: 6px 8px 6px 26px; border-radius: 8px; border: 1px solid rgba(134,134,172,0.15); background: rgba(15,14,71,0.4); color: var(--text-primary); font-size: 11px; outline: none; box-sizing: border-box; transition: all 0.2s;"
+               x-on:focus="$el.style.borderColor='var(--accent)'"
+               x-on:blur="$el.style.borderColor='rgba(134,134,172,0.15)'">
+        <template x-if="sidebarSearch">
+          <button @click="sidebarSearch = ''" style="position: absolute; right: 18px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 10px; padding: 2px;">
+            <i class="fa-solid fa-xmark"></i>
           </button>
+        </template>
+      </div>
+
+      <!-- Section: Scheduled Workflows (Recurring Triggers) -->
+      <template x-if="schedules.length > 0">
+        <div>
+          <div class="sidebar-section-label" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+            <span>Schedules</span>
+            <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(167, 139, 250, 0.12); color: #c4b5fd;" x-text="schedules.length"></span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px; padding: 0 4px;">
+            <template x-for="sched in schedules" :key="sched.id">
+              <div class="wf-item" 
+                   :class="{ active: activeRunId === sched.source_run_id }" 
+                   @click="if (sched.source_run_id && workflows[sched.source_run_id]) selectWorkflow(sched.source_run_id); else openScheduleModal();"
+                   style="padding: 6px 8px; border-radius: 8px; margin-bottom: 2px; display:flex; align-items:center; gap:8px;">
+                <div class="wf-item-icon" :style="sched.active ? 'background:rgba(167,139,250,0.15); color:#c4b5fd;' : 'background:rgba(134,134,172,0.1); color:var(--text-tertiary);'" style="width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px;">
+                  <i class="fa-regular fa-clock"></i>
+                </div>
+                <div style="flex:1; min-width:0;">
+                  <div class="wf-item-title" x-text="sched.run_title"></div>
+                  <div class="wf-item-time" style="color:#c4b5fd;" x-text="sched.interval"></div>
+                </div>
+                <button class="wf-delete" @click.stop="deleteSchedule(sched.id)" title="Remove Schedule">
+                  <i class="fa-solid fa-clock-rotate-left"></i>
+                </button>
+              </div>
+            </template>
+          </div>
         </div>
       </template>
+
+      <!-- Section: Active / Running Workflows -->
+      <template x-if="filteredActive().length > 0">
+        <div>
+          <div class="sidebar-section-label" style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; margin-bottom:4px;">
+            <span>Running</span>
+            <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(111,207,151,0.15); color: #6fcf97;" x-text="filteredActive().length"></span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px; padding: 0 4px;">
+            <template x-for="wf in filteredActive()" :key="wf.run_id">
+              <div class="wf-item" :class="{ active: activeRunId === wf.run_id }" @click="selectWorkflow(wf.run_id)">
+                <!-- status icon -->
+                <div class="wf-item-icon" :style="wfIconStyle(wf.status)">
+                  <template x-if="wf.status === 'running'"><i class="fa fa-circle-notch spinner-sm"></i></template>
+                  <template x-if="wf.status === 'pending'"><i class="fa fa-clock"></i></template>
+                </div>
+                <div style="flex:1; min-width:0;">
+                  <div class="wf-item-title" x-text="wf.run_title || wf.run_id"></div>
+                  <div class="wf-item-time" x-text="formatRelTime(wf.created_at)"></div>
+                </div>
+                <button class="wf-delete" @click.stop="confirmDeleteWorkflow(wf.run_id)" title="Delete">
+                  <i class="fa fa-trash"></i>
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Section: Workflow History (Collapsible) -->
+      <div style="margin-top:10px;">
+        <div class="sidebar-section-label" 
+             @click="historyCollapsed = !historyCollapsed" 
+             style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; margin-bottom:4px; transition:color 0.2s;"
+             x-on:mouseover="$el.style.color='var(--text-primary)'"
+             x-on:mouseout="$el.style.color='var(--text-tertiary)'">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <i class="fa-solid" :class="historyCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'" style="font-size:9px; width:10px;"></i>
+            <span>History</span>
+          </div>
+          <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(134,134,172,0.12); color: var(--text-tertiary);" x-text="filteredHistory().length"></span>
+        </div>
+        
+        <div x-show="!historyCollapsed" x-collapse style="display:flex; flex-direction:column; gap:2px; padding: 0 4px;">
+          <template x-if="filteredHistory().length === 0">
+            <div style="padding: 8px 12px; font-size: 11px; color: var(--text-quaternary);">No completed runs</div>
+          </template>
+          <template x-for="wf in filteredHistory()" :key="wf.run_id">
+            <div class="wf-item" :class="{ active: activeRunId === wf.run_id }" @click="selectWorkflow(wf.run_id)">
+              <!-- status icon -->
+              <div class="wf-item-icon" :style="wfIconStyle(wf.status)">
+                <template x-if="wf.status === 'completed'"><i class="fa fa-check"></i></template>
+                <template x-if="wf.status === 'failed'"><i class="fa fa-triangle-exclamation"></i></template>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div class="wf-item-title" x-text="wf.run_title || wf.run_id"></div>
+                <div class="wf-item-time" x-text="formatRelTime(wf.created_at)"></div>
+              </div>
+              <button class="wf-delete" @click.stop="confirmDeleteWorkflow(wf.run_id)" title="Delete">
+                <i class="fa fa-trash"></i>
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
 
       <!-- Hub -->
       <div class="sidebar-section-label" style="margin-top:6px;">Hub</div>
@@ -85,7 +170,7 @@
   <main id="atlas-main">
 
     <!-- Topbar -->
-    <div id="atlas-topbar" style="display: flex; align-items: center; gap: 14px;">
+    <div id="atlas-topbar" style="display: flex; align-items: center; gap: 14px; position: relative; z-index: 99999;">
       <!-- Collapsed Sidebar Menu Trigger -->
       <button @click="sidebarCollapsed = !sidebarCollapsed" 
               class="sidebar-toggle-btn"
@@ -115,10 +200,49 @@
             </button>
           </template>
           <template x-if="activeWorkflow.status === 'failed' || activeWorkflow.status === 'completed'">
-            <button @click.stop="restartWorkflow()" title="Restart Workflow" style="background: rgba(111, 207, 151, 0.15); border: 1px solid rgba(111, 207, 151, 0.3); color: #6fcf97; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" x-on:mouseover="$el.style.background='rgba(111,207,151,0.25)'" x-on:mouseout="$el.style.background='rgba(111,207,151,0.15)'">
-              <i class="fa fa-rotate-right"></i> Restart
-            </button>
+            <div style="position: relative;" @click.outside="showRestartDropdown = false">
+              <button @click.stop="showRestartDropdown = !showRestartDropdown" 
+                      title="Restart Options" 
+                      style="background: rgba(111, 207, 151, 0.15); border: 1px solid rgba(111, 207, 151, 0.3); color: #6fcf97; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" 
+                      x-on:mouseover="$el.style.background='rgba(111,207,151,0.25)'" 
+                      x-on:mouseout="if(!showRestartDropdown) $el.style.background='rgba(111,207,151,0.15)'">
+                <i class="fa fa-rotate-right"></i> Restart <i class="fa-solid fa-chevron-down" style="font-size: 8px;"></i>
+              </button>
+              
+              <!-- Restart Dropdown Menu -->
+              <div x-show="showRestartDropdown" 
+                   x-transition
+                   x-cloak
+                   style="position: absolute; left: 0; top: 32px; z-index: 999999; min-width: 270px; background: #17173b; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 6px 0; box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column;">
+                
+                <button @click.stop="showRestartDropdown = false; restartWorkflow();"
+                        style="background: transparent; border: none; text-align: left; color: #ffffff; opacity: 1 !important; padding: 10px 16px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.2s; width: 100%; box-sizing: border-box;"
+                        x-on:mouseover="$el.style.background='rgba(255,255,255,0.08)'"
+                        x-on:mouseout="$el.style.background='transparent'">
+                  <i class="fa-solid fa-arrows-rotate" style="color: #6fcf97; width: 14px; font-size: 12px;"></i>
+                  <span style="color: #ffffff; opacity: 1 !important;">Restart current workflow + same prompt</span>
+                </button>
+                
+                <button @click.stop="showRestartDropdown = false; recreateWorkflow();"
+                        style="background: transparent; border: none; text-align: left; color: #ffffff; opacity: 1 !important; padding: 10px 16px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.2s; width: 100%; box-sizing: border-box;"
+                        x-on:mouseover="$el.style.background='rgba(255,255,255,0.08)'"
+                        x-on:mouseout="$el.style.background='transparent'">
+                  <i class="fa-solid fa-wand-magic-sparkles" style="color: #a78bfa; width: 14px; font-size: 12px;"></i>
+                  <span style="color: #ffffff; opacity: 1 !important;">Recreate workflow from same prompt</span>
+                </button>
+                
+              </div>
+            </div>
           </template>
+          
+          <!-- Schedule button -->
+          <button class="topbar-btn"
+                  :class="{ active: getScheduleForActive() }"
+                  @click="openScheduleModal()" 
+                  :title="getScheduleForActive() ? 'Modify Trigger Schedule' : 'Schedule Recurring Execution'">
+            <i class="fa-regular fa-clock"></i> 
+            <span x-text="getScheduleForActive() ? 'Scheduled' : 'Schedule'"></span>
+          </button>
         </div>
       </template>
 
@@ -1091,6 +1215,171 @@
       </div>
     </div>
   </template>
+
+  <!-- ── WORKFLOW SPECIFIC TRIGGER SCHEDULING MODAL (APPLE HIG STYLE) ── -->
+  <div x-show="showScheduleModal" 
+       x-cloak
+       x-transition
+       style="position: fixed; inset: 0; z-index: 99999; width: 100vw; height: 100vh; background: rgba(15, 14, 71, 0.45); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
+    
+    <div @click.outside="showScheduleModal = false"
+         style="width: 100%; max-width: 440px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(39, 39, 87, 0.9); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 24px; box-sizing: border-box; color: var(--text-primary); box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);">
+      
+      <!-- Close Button -->
+      <button @click="showScheduleModal = false" 
+              style="position: absolute; right: 16px; top: 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06); color: var(--text-secondary); cursor: pointer; font-size: 13px; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+              x-on:mouseover="$el.style.background='rgba(255,255,255,0.15)'; $el.style.color='var(--text-primary)'"
+              x-on:mouseout="$el.style.background='rgba(255,255,255,0.05)'; $el.style.color='var(--text-secondary)'">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <!-- Header -->
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(167, 139, 250, 0.12); border: 1px solid rgba(167,139,250,0.2); display: flex; align-items: center; justify-content: center; color: #c4b5fd; font-size: 16px;">
+          <i class="fa-regular fa-clock"></i>
+        </div>
+        <div>
+          <h3 style="font-size: 15px; font-weight: 700; margin: 0 0 2px 0; letter-spacing: -0.01em;">Repeat Schedule</h3>
+          <p style="font-size: 11px; color: var(--text-tertiary); margin: 0;">Automate periodic execution of this workflow.</p>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div x-show="schedError" style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #fca5a5; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span x-text="schedError"></span>
+      </div>
+
+      <!-- Active Status Indicator -->
+      <template x-if="getScheduleForActive()">
+        <div style="background: rgba(111, 207, 151, 0.06); border: 1px solid rgba(111, 207, 151, 0.15); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 1px;">
+            <span style="font-size: 10px; color: #6fcf97; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;">Schedule Active</span>
+            <span style="font-size: 10px; color: var(--text-tertiary);" x-text="'Next run: ' + formatTime(getScheduleForActive().next_run_ts)"></span>
+          </div>
+          <button @click="toggleScheduleActive(getScheduleForActive())"
+                  style="background: transparent; border: none; cursor: pointer; padding: 0; outline: none; display: flex; align-items: center;">
+            <i class="fa-solid" :class="getScheduleForActive().active ? 'fa-toggle-on' : 'fa-toggle-off'" :style="getScheduleForActive().active ? 'color: #6fcf97;' : 'color: var(--text-tertiary);'" style="font-size: 28px; transition: all 0.2s;"></i>
+          </button>
+        </div>
+      </template>
+
+      <!-- Recurrence Interval -->
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Recurrence</label>
+        <div style="position: relative;">
+          <select x-model="schedInterval" 
+                  style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,14,71,0.4); color: var(--text-primary); font-size: 13px; outline: none; cursor: pointer; appearance: none; box-sizing: border-box; transition: all 0.2s;"
+                  x-on:focus="$el.style.borderColor='rgba(167, 139, 250, 0.4)'"
+                  x-on:blur="$el.style.borderColor='rgba(255,255,255,0.08)'">
+            <option value="hourly">Every Hour</option>
+            <option value="half_day">Every 12 Hours</option>
+            <option value="daily">Every Day</option>
+            <option value="weekly">Every Week</option>
+            <option value="monthly">Every Month</option>
+            <option value="custom">Custom Time...</option>
+          </select>
+          <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 9px;">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Time Picker (under custom interval) -->
+      <div x-show="schedInterval === 'custom'" x-transition style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Select Run Time (Daily)</label>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <!-- Hour Select -->
+          <div style="flex: 1; position: relative;">
+            <select x-model="alarmHour" 
+                    style="width: 100%; padding: 10px 24px 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,14,71,0.4); color: var(--text-primary); font-size: 13px; outline: none; cursor: pointer; appearance: none; box-sizing: border-box; transition: all 0.2s;">
+              <template x-for="h in Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0'))">
+                <option :value="h" x-text="h" :selected="alarmHour === h"></option>
+              </template>
+            </select>
+            <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 8px;">
+              <i class="fa-solid fa-chevron-down"></i>
+            </div>
+          </div>
+          
+          <span style="color: var(--text-tertiary); font-weight: 700;">:</span>
+          
+          <!-- Minute Select -->
+          <div style="flex: 1; position: relative;">
+            <select x-model="alarmMinute" 
+                    style="width: 100%; padding: 10px 24px 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,14,71,0.4); color: var(--text-primary); font-size: 13px; outline: none; cursor: pointer; appearance: none; box-sizing: border-box; transition: all 0.2s;">
+              <template x-for="m in Array.from({length: 60}, (_, i) => String(i).padStart(2, '0'))">
+                <option :value="m" x-text="m" :selected="alarmMinute === m"></option>
+              </template>
+            </select>
+            <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 8px;">
+              <i class="fa-solid fa-chevron-down"></i>
+            </div>
+          </div>
+          
+          <!-- AM/PM Select -->
+          <div style="width: 75px; position: relative;">
+            <select x-model="alarmAmpm" 
+                    style="width: 100%; padding: 10px 24px 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,14,71,0.4); color: var(--text-primary); font-size: 13px; outline: none; cursor: pointer; appearance: none; box-sizing: border-box; transition: all 0.2s;">
+              <option value="AM" :selected="alarmAmpm === 'AM'">AM</option>
+              <option value="PM" :selected="alarmAmpm === 'PM'">PM</option>
+            </select>
+            <div style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 8px;">
+              <i class="fa-solid fa-chevron-down"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Execution Mode -->
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Execution Mode</label>
+        <div style="position: relative;">
+          <select x-model="schedRepeatMode" 
+                  style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,14,71,0.4); color: var(--text-primary); font-size: 13px; outline: none; cursor: pointer; appearance: none; box-sizing: border-box; transition: all 0.2s;"
+                  x-on:focus="$el.style.borderColor='rgba(167, 139, 250, 0.4)'"
+                  x-on:blur="$el.style.borderColor='rgba(255,255,255,0.08)'">
+            <option value="re_execute">Re-run current workflow tasks (DAG)</option>
+            <option value="re_generate">Re-generate fresh new plan (AI)</option>
+          </select>
+          <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-tertiary); font-size: 9px;">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
+        <template x-if="getScheduleForActive()">
+          <button @click="deleteSchedule(getScheduleForActive().id); showScheduleModal = false;" 
+                  type="button" 
+                  style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.18); color: #fca5a5; padding: 7px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; margin-right: auto; transition: all 0.2s;"
+                  x-on:mouseover="$el.style.background='rgba(239,68,68,0.18)'"
+                  x-on:mouseout="$el.style.background='rgba(239,68,68,0.1)'">
+            Delete
+          </button>
+        </template>
+        
+        <button @click="showScheduleModal = false" type="button" 
+                style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); padding: 7px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;"
+                x-on:mouseover="$el.style.background='rgba(255,255,255,0.04)'"
+                x-on:mouseout="$el.style.background='transparent'">
+          Cancel
+        </button>
+        
+        <button @click="saveSchedule()" :disabled="schedSaving" type="button" 
+                style="background: #a78bfa; border: none; color: #0F0E47; padding: 7px 16px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px;"
+                x-on:mouseover="$el.style.background='#c4b5fd'"
+                x-on:mouseout="$el.style.background='#a78bfa'">
+          <template x-if="schedSaving">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+          </template>
+          <span x-text="schedSaving ? 'Saving...' : 'Save'"></span>
+        </button>
+      </div>
+
+    </div>
+  </div>
 
 </div><!-- /atlas-root -->
 

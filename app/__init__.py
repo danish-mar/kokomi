@@ -31,8 +31,12 @@ from fastapi.templating import Jinja2Templates
 @asynccontextmanager
 async def lifespan(app):
     # Startup — pool will be lazily initialized on first request or splash
+    from app.scheduler import start_scheduler_loop
+    import asyncio
+    scheduler_task = asyncio.create_task(start_scheduler_loop())
     yield
     # Shutdown — tear down MCP sessions
+    scheduler_task.cancel()
     from app.mcp import teardown_pool
     await teardown_pool()
 

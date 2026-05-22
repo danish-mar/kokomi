@@ -471,6 +471,10 @@
                     <span class="nav-icon"><i class="fa-solid fa-compass" style="font-size:10px;"></i></span>
                     General Settings
                 </button>
+                <button @click="tab = 'computer'" class="tahoe-nav-item" :class="tab === 'computer' ? 'active' : ''">
+                    <span class="nav-icon"><i class="fa-solid fa-server" style="font-size:10px;"></i></span>
+                    Computer & Docker
+                </button>
             </div>
 
             <div class="tahoe-sidebar-section">
@@ -901,6 +905,62 @@
                 <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
                     <div class="saved-toast">
                         <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: COMPUTER & DOCKER ═══ -->
+            <div x-show="tab === 'computer'" x-transition class="tab-panel">
+                <h2 class="section-title">Computer & Docker</h2>
+                <p class="section-subtitle">Configure how workflows execute terminal commands and code.</p>
+
+                <div class="glass-card">
+                    <!-- Execution Engine Toggle -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:10px;">Execution Engine</label>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:400px;">
+                            <button @click="prefs.execution_engine = 'local'; savePrefs()"
+                                :class="prefs.execution_engine === 'local' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local System
+                            </button>
+                            <button @click="prefs.execution_engine = 'docker'; savePrefs()"
+                                :class="prefs.execution_engine === 'docker' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-brands fa-docker" style="font-size:9px;"></i> Docker Sandbox
+                            </button>
+                        </div>
+                        <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
+                            <span x-show="prefs.execution_engine === 'local'">Executes directly on your host machine. (Fast, but no isolation)</span>
+                            <span x-show="prefs.execution_engine === 'docker'">Executes in an isolated Docker container per workflow. (Secure & reproducible)</span>
+                        </p>
+                    </div>
+
+                    <!-- Docker Connection Options (Only show if docker selected) -->
+                    <div x-show="prefs.execution_engine === 'docker'" x-transition class="card-row" style="border-top: 1px solid var(--border); padding-top:16px;">
+                        <label class="apple-label" style="margin-bottom:10px;">Docker Connection Type</label>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:400px;">
+                            <button @click="prefs.docker_connection = 'local'; savePrefs()"
+                                :class="prefs.docker_connection === 'local' ? 'seg-active' : ''" class="seg-btn">
+                                Local Socket
+                            </button>
+                            <button @click="prefs.docker_connection = 'remote'; savePrefs()"
+                                :class="prefs.docker_connection === 'remote' ? 'seg-active' : ''" class="seg-btn">
+                                Remote Host
+                            </button>
+                        </div>
+                        
+                        <!-- Remote Host URL -->
+                        <div x-show="prefs.docker_connection === 'remote'" x-transition style="margin-bottom:16px;">
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Remote Docker Daemon URL</label>
+                            <input type="text" x-model="prefs.docker_remote_url" @blur="savePrefs()" placeholder="tcp://192.168.1.100:2375" class="apple-field">
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Ensure the remote docker daemon exposes its API securely.</p>
+                        </div>
+
+                        <!-- Custom Image -->
+                        <div>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Base Container Image</label>
+                            <input type="text" x-model="prefs.docker_image" @blur="savePrefs()" placeholder="kokomi-agent-base" class="apple-field">
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">The image used for workflow sandboxing. Recommended: <code>kokomi-agent-base</code>.</p>
+                        </div>
                     </div>
                 </div>
             </div>
