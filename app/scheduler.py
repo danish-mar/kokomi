@@ -5,10 +5,10 @@ import uuid
 import datetime
 import asyncio
 import traceback
-from app.config import DATA_DIR
+from app.config import JSON_DIR, DATA_DIR
 from app.storage import _load, _save
 
-SCHEDULES_FILE = os.path.join(DATA_DIR, "scheduled_workflows.json")
+SCHEDULES_FILE = os.path.join(JSON_DIR, "scheduled_workflows.json")
 _SCHEDULES_CACHE = {}
 
 def load_schedules() -> dict:

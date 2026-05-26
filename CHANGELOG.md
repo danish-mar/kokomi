@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.0.0] - 2026-05-27
+
+### Added
+
+- **Asynchronous SQLite Database Backend**:
+  - Overhauled the storage layer to replace blocking flat JSON files (`conversations.json`, `characters.json`, `mcp_servers.json`, `folders.json`, `spaces.json`, `agent_templates.json`, `multi_agent_workflows.json`, `insights.jsonl`) with a fast, high-performance SQLite database (`data/database/kokomi.db`).
+  - Configured the SQLite engine to run in **WAL (Write-Ahead Logging)** mode with synchronized NORMAL pragmas to allow parallel reads and concurrent writes.
+  - Implemented core indexed tables (`conversations`, `messages`, `workflows`, `agent_templates`, `insights`, `characters`, `mcp_servers`, `spaces`, `folders`) with explicit constraints and relational foreign keys.
+  - Integrated a threadsafe context shim (`_run_async`) to allow legacy synchronous routers to query the database asynchronously without causing thread blocking or 504 Gateway Timeouts under Nginx/OpenResty.
+- **Automated Lifecycle Migration & Ingestion**:
+  - Built an automated discovery and migration loop (`app/migration.py`) into the FastAPI lifespan startup.
+  - Automatically auto-detects historical JSON files in the `/data` root on first boot, migrates all records into SQLite, creates the restructured `data/json/` directory, and cleanly archives legacy files under `data/json/backups/` completely hands-off.
+- **Non-Blocking Background Workflow Saving**:
+  - Integrated collaborative multi-agent workflow runs into SQLite, scheduling updates as non-blocking background tasks (`loop.create_task`) directly on the event loop during live agent runs.
+- **Telescopic Telemetry Insights**:
+  - Overhauled high-frequency metric collection (`/insights`) from disk-blocking JSONL appends to atomic database row insertions.
+- **Restructured CLI & Directories**:
+  - Relocated developer bootstrapping and migration utilities into the `scripts/` directory and corrected relative imports.
+  - Relocated user preferences and scheduler configurations to `data/json/` to keep the data directory perfectly organized.
+
+## [v3.6.4] - 2026-05-27
+
+### Added
+
+- **Local CDN Asset Bundling & Server Self-Hosting**:
+  - Created a robust self-hosting resource manager (`app/cdn.py`) to automatically cache all remote external CDN libraries (Tailwind CSS JIT, jQuery, Alpine.js, KaTeX, FontAwesome, driver.js, and Outfit fonts) locally inside the FastAPI static folders.
+  - Automatically fetches all KaTeX `.woff2` font variant outlines and FontAwesome brand/regular/solid webfonts on first boot to prevent mathematical formula breakage or missing native system icons.
+  - Integrated the downloader task cleanly into the FastAPI lifespan startup in `app/__init__.py`.
+  - Rewrote and redirected asset mappings inside `templates/base.html` to point to `/static/vendor/` endpoints instead of third-party domains, providing connection-free loading times (0ms browser cache hits) and true offline application execution.
+  - Safely added `/public/static/vendor/` local static caches to `.gitignore`.
+
 ## [v3.6.3] - 2026-05-26
 
 ### Added

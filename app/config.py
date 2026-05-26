@@ -20,15 +20,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 
 
 # ── Data paths ───────────────────────────────────────────────────────
 DATA_DIR = "data"
-CONVOS_FILE = os.path.join(DATA_DIR, "conversations.json")
-CHARS_FILE = os.path.join(DATA_DIR, "characters.json")
-MCP_FILE = os.path.join(DATA_DIR, "mcp_servers.json")
-USER_PREFS_FILE = os.path.join(DATA_DIR, "user_prefs.json")
-FOLDERS_FILE = os.path.join(DATA_DIR, "folders.json")
-SPACES_FILE = os.path.join(DATA_DIR, "spaces.json")
+JSON_DIR = os.path.join(DATA_DIR, "json")
+os.makedirs(JSON_DIR, exist_ok=True)
+
+CONVOS_FILE = os.path.join(JSON_DIR, "conversations.json")
+CHARS_FILE = os.path.join(JSON_DIR, "characters.json")
+MCP_FILE = os.path.join(JSON_DIR, "mcp_servers.json")
+USER_PREFS_FILE = os.path.join(JSON_DIR, "user_prefs.json")
+FOLDERS_FILE = os.path.join(JSON_DIR, "folders.json")
+SPACES_FILE = os.path.join(JSON_DIR, "spaces.json")
 AVATARS_DIR = os.path.join(DATA_DIR, "avatars")
 SPACES_DIR = os.path.join(DATA_DIR, "spaces")
-INSIGHTS_FILE = os.path.join(DATA_DIR, "insights.jsonl")
+INSIGHTS_FILE = os.path.join(JSON_DIR, "insights.jsonl")
 
 os.makedirs(AVATARS_DIR, exist_ok=True)
 os.makedirs(SPACES_DIR, exist_ok=True)

@@ -1,6 +1,6 @@
 [project]
 name = "kokomi"
-version = "3.6.4"
+version = "4.0.0"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -34,4 +34,6 @@ dependencies = [
     "matplotlib>=3.8.2",
     "requests>=2.31.0",
     "docker>=7.1.0",
+    "aiosqlite>=0.20.0",
+    "sqlalchemy[asyncio]>=2.0.0",
 ]

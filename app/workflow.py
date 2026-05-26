@@ -19,8 +19,10 @@ from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
 
 # App imports
-from app.config import DATA_DIR, GROQ_API_KEY, GOOGLE_API_KEY
-from app.storage import _load, _save, load_prefs
+from app.config import GROQ_API_KEY, GOOGLE_API_KEY, JSON_DIR, DATA_DIR
+from app.storage import _load, _save, load_prefs, _run_async
+from app.db import _session, WorkflowRow, AgentTemplateRow, j_loads, j_dumps
+from sqlalchemy import select, delete
 from app.llm import get_llm, get_atlas_llm
 from app.memory import search_memories
 
@@ -33,21 +35,92 @@ from reportlab.lib.units import inch
 import re as _re
 
 # ── Storage File for Workflows ───────────────────────────────────────
-WORKFLOWS_FILE = os.path.join(DATA_DIR, "multi_agent_workflows.json")
+WORKFLOWS_FILE = os.path.join(JSON_DIR, "multi_agent_workflows.json")
 
 _WORKFLOWS_CACHE: dict = {}
+
+async def load_workflows_async() -> dict:
+    async with _session() as sess:
+        stmt = select(WorkflowRow)
+        result = await sess.execute(stmt)
+        rows = result.scalars().all()
+    
+    workflows = {}
+    for row in rows:
+        state = j_loads(row.state_json) or {}
+        wf = {
+            "run_id": row.run_id,
+            "run_title": row.run_title,
+            "run_icon": row.run_icon,
+            "user_id": row.user_id,
+            "user_request": row.user_request,
+            "status": row.status,
+            "final_result": row.final_result,
+            "storage_dir": row.storage_dir,
+            "created_at": row.created_at,
+            "started_at": row.started_at,
+            "completed_at": row.completed_at,
+        }
+        for k, v in state.items():
+            wf[k] = v
+        workflows[row.run_id] = wf
+    return workflows
+
+async def save_workflows_async(workflows: dict) -> None:
+    async with _session() as sess:
+        all_ids_res = await sess.execute(select(WorkflowRow.run_id))
+        existing_ids = {r for (r,) in all_ids_res}
+        to_delete = existing_ids - set(workflows.keys())
+        if to_delete:
+            await sess.execute(
+                delete(WorkflowRow).where(WorkflowRow.run_id.in_(to_delete))
+            )
+        
+        for run_id, wf in workflows.items():
+            state = {
+                k: wf.get(k) for k in [
+                    "tasks", "debug_logs", "artifacts", "plan",
+                    "notifications", "completed_tasks", "failed_tasks",
+                    "running_tasks", "ready_queue", "collaborative_chat",
+                ]
+            }
+            existing = await sess.get(WorkflowRow, run_id)
+            if existing is None:
+                sess.add(WorkflowRow(
+                    run_id=run_id,
+                    run_title=wf.get("run_title"),
+                    run_icon=wf.get("run_icon"),
+                    user_id=wf.get("user_id"),
+                    user_request=wf.get("user_request"),
+                    status=wf.get("status"),
+                    final_result=wf.get("final_result"),
+                    storage_dir=wf.get("storage_dir"),
+                    created_at=wf.get("created_at"),
+                    started_at=wf.get("started_at"),
+                    completed_at=wf.get("completed_at"),
+                    state_json=j_dumps(state),
+                ))
+            else:
+                existing.run_title = wf.get("run_title", existing.run_title)
+                existing.run_icon = wf.get("run_icon", existing.run_icon)
+                existing.user_id = wf.get("user_id", existing.user_id)
+                existing.user_request = wf.get("user_request", existing.user_request)
+                existing.status = wf.get("status", existing.status)
+                existing.final_result = wf.get("final_result", existing.final_result)
+                existing.storage_dir = wf.get("storage_dir", existing.storage_dir)
+                existing.created_at = wf.get("created_at", existing.created_at)
+                existing.started_at = wf.get("started_at", existing.started_at)
+                existing.completed_at = wf.get("completed_at", existing.completed_at)
+                existing.state_json = j_dumps(state)
 
 def load_workflows() -> dict:
     global _WORKFLOWS_CACHE
     if not _WORKFLOWS_CACHE:
-        if not os.path.exists(WORKFLOWS_FILE):
+        try:
+            _WORKFLOWS_CACHE = _run_async(load_workflows_async())
+        except Exception as e:
+            print(f"Error loading workflows from database: {e}")
             _WORKFLOWS_CACHE = {}
-        else:
-            data = _load(WORKFLOWS_FILE)
-            if isinstance(data, dict):
-                _WORKFLOWS_CACHE = data
-            else:
-                _WORKFLOWS_CACHE = {}
     return _WORKFLOWS_CACHE
 
 def save_workflows(data: dict) -> None:
@@ -55,11 +128,12 @@ def save_workflows(data: dict) -> None:
     _WORKFLOWS_CACHE = data
     try:
         loop = asyncio.get_running_loop()
-        # Persist to disk asynchronously in a background thread to prevent blocking the event loop
-        loop.create_task(asyncio.to_thread(_save, WORKFLOWS_FILE, data))
+        loop.create_task(save_workflows_async(data))
     except RuntimeError:
-        # Fallback to synchronous save if not running inside an event loop
-        _save(WORKFLOWS_FILE, data)
+        try:
+            _run_async(save_workflows_async(data))
+        except Exception as e:
+            print(f"Error saving workflows to database: {e}")
 
 def clean_markdown_if_json(content: str) -> str:
     if not isinstance(content, str):
@@ -134,7 +208,7 @@ class WorkflowState(TypedDict):
 
 # ── Worker Templates ─────────────────────────────────────────────────
 
-TEMPLATES_FILE = os.path.join(DATA_DIR, "agent_templates.json")
+TEMPLATES_FILE = os.path.join(JSON_DIR, "agent_templates.json")
 
 DEFAULT_WORKER_TEMPLATES = {
     "researcher": {
@@ -255,17 +329,76 @@ DEFAULT_WORKER_TEMPLATES = {
     }
 }
 
+async def load_templates_async() -> dict:
+    async with _session() as sess:
+        stmt = select(AgentTemplateRow)
+        result = await sess.execute(stmt)
+        rows = result.scalars().all()
+    
+    if not rows:
+        await save_templates_async(DEFAULT_WORKER_TEMPLATES)
+        return DEFAULT_WORKER_TEMPLATES
+    
+    templates = {}
+    for r in rows:
+        templates[r.id] = {
+            "name": r.name,
+            "purpose": r.purpose,
+            "allowed_tools": j_loads(r.allowed_tools) or [],
+            "system_prompt_template": r.system_prompt_template,
+            "expected_output_schema": j_loads(r.expected_output_schema) or {},
+            "timeout": r.timeout,
+            "retry_limit": r.retry_limit,
+            "max_iterations": r.max_iterations,
+        }
+    return templates
+
+async def save_templates_async(templates: dict) -> None:
+    async with _session() as sess:
+        all_ids_res = await sess.execute(select(AgentTemplateRow.id))
+        existing_ids = {r for (r,) in all_ids_res}
+        to_delete = existing_ids - set(templates.keys())
+        if to_delete:
+            await sess.execute(
+                delete(AgentTemplateRow).where(AgentTemplateRow.id.in_(to_delete))
+            )
+        
+        for tid, t in templates.items():
+            existing = await sess.get(AgentTemplateRow, tid)
+            if existing is None:
+                sess.add(AgentTemplateRow(
+                    id=tid,
+                    name=t.get("name", tid),
+                    purpose=t.get("purpose"),
+                    allowed_tools=j_dumps(t.get("allowed_tools", [])),
+                    system_prompt_template=t.get("system_prompt_template"),
+                    expected_output_schema=j_dumps(t.get("expected_output_schema")),
+                    timeout=t.get("timeout"),
+                    retry_limit=t.get("retry_limit"),
+                    max_iterations=t.get("max_iterations"),
+                ))
+            else:
+                existing.name = t.get("name", existing.name)
+                existing.purpose = t.get("purpose", existing.purpose)
+                existing.allowed_tools = j_dumps(t.get("allowed_tools", []))
+                existing.system_prompt_template = t.get("system_prompt_template", existing.system_prompt_template)
+                existing.expected_output_schema = j_dumps(t.get("expected_output_schema"))
+                existing.timeout = t.get("timeout", existing.timeout)
+                existing.retry_limit = t.get("retry_limit", existing.retry_limit)
+                existing.max_iterations = t.get("max_iterations", existing.max_iterations)
+
 def load_templates() -> dict:
-    if not os.path.exists(TEMPLATES_FILE):
-        _save(TEMPLATES_FILE, DEFAULT_WORKER_TEMPLATES)
+    try:
+        return _run_async(load_templates_async())
+    except Exception as e:
+        print(f"Error loading worker templates from database: {e}")
         return DEFAULT_WORKER_TEMPLATES
-    data = _load(TEMPLATES_FILE)
-    if not isinstance(data, dict):
-        return DEFAULT_WORKER_TEMPLATES
-    return data
 
 def save_templates(data: dict) -> None:
-    _save(TEMPLATES_FILE, data)
+    try:
+        _run_async(save_templates_async(data))
+    except Exception as e:
+        print(f"Error saving worker templates to database: {e}")
 
 
 # ── Tool Definitions ──────────────────────────────────────────────────

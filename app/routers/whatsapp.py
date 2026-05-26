@@ -13,7 +13,7 @@ from app.config import DATA_DIR
 
 router = APIRouter(prefix="/api/whatsapp")
 
-WORKFLOWS_FILE = os.path.join(DATA_DIR, "workflows.json")
+WORKFLOWS_FILE = os.path.join(DATA_DIR, "json", "workflows.json")
 
 def load_workflows():
     if not os.path.exists(WORKFLOWS_FILE):

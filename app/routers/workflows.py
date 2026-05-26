@@ -4,7 +4,7 @@ import os
 from app.config import DATA_DIR
 
 router = APIRouter(prefix="/api/workflows")
-WORKFLOWS_FILE = os.path.join(DATA_DIR, "workflows.json")
+WORKFLOWS_FILE = os.path.join(DATA_DIR, "json", "workflows.json")
 
 @router.get("")
 async def get_workflows():

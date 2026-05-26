@@ -30,13 +30,22 @@ from fastapi.templating import Jinja2Templates
 
 @asynccontextmanager
 async def lifespan(app):
-    # Startup — download CDN vendor assets if missing, and start scheduler
+    # Startup — initialize SQLite DB tables, run legacy JSON auto-migration, download CDN vendor assets, start scheduler
+    from app.db import init_db
+    await init_db()
+
+    from app.migration import auto_migrate_and_cleanup
+    try:
+        await auto_migrate_and_cleanup()
+    except Exception as mig_err:
+        logger.warning(f"Auto-migration failed during startup: {mig_err}")
+
     from app.cdn import download_vendor_assets_if_missing
     try:
         await download_vendor_assets_if_missing()
     except Exception as e:
         logger.warning(f"Failed to download/verify CDN assets on startup: {e}")
-        
+
     from app.scheduler import start_scheduler_loop
     import asyncio
     scheduler_task = asyncio.create_task(start_scheduler_loop())
