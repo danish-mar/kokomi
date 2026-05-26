@@ -1343,26 +1343,109 @@
             </div>
 
             <!-- ═══ TAB: ABOUT ═══ -->
-            <div x-show="tab === 'about'" x-transition class="tab-panel">
+            <div x-show="tab === 'about'" x-transition class="tab-panel" x-data="{ clicks: 0, showEgg: false }">
                 <h2 class="section-title">About</h2>
                 <p class="section-subtitle">Version info and model details.</p>
 
                 <div class="glass-card">
                     <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
                         <span style="font-size:13px; color:var(--text-secondary);">Chat Model</span>
-                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">qwen3-32b via Groq</span>
+                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">qwen-2.5-32b via Groq</span>
                     </div>
                     <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
                         <span style="font-size:13px; color:var(--text-secondary);">Title Model</span>
-                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">llama-4-scout-17b</span>
+                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">llama-3.3-70b-versatile</span>
                     </div>
                     <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
                         <span style="font-size:13px; color:var(--text-secondary);">MCP SDK</span>
                         <span style="font-size:13px; font-weight:600; color:var(--text-primary);">v1.27+</span>
                     </div>
-                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; cursor: pointer; user-select: none;"
+                        @click="clicks++; if (clicks >= 5) { showEgg = true; }">
                         <span style="font-size:13px; color:var(--text-secondary);">App</span>
-                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Kokomi AI</span>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Kokomi AI</span>
+                            <span style="font-size:10px; color:var(--text-quaternary);" x-show="clicks > 0 && clicks < 5" x-text="'(' + clicks + '/5)'"></span>
+                        </div>
+                    </div>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <span style="font-size:13px; color:var(--text-secondary); display:block; margin-bottom:2px;">Interactive Walkthrough</span>
+                            <span style="font-size:10.5px; color:var(--text-quaternary);">Launch step-by-step tour of the chat space.</span>
+                        </div>
+                        <button @click="resetTourAndStart()" class="btn-accent" style="font-size:12px; padding: 6px 12px;">
+                            <i class="fa-solid fa-play"></i> Start Tour
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 🌟 Secret Kokomi Easter Egg Panel 🌟 -->
+                <div x-show="showEgg" x-transition:enter="transition ease-out duration-300"
+                    x-transition:enter-start="opacity-0 translate-y-4"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    style="margin-top: 18px;">
+                    <div class="glass-card" style="background: rgba(39, 39, 87, 0.4); border: 1px dashed var(--accent); padding: 20px; position: relative; overflow: hidden;">
+                        
+                        <!-- Decorative background light bubble -->
+                        <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); opacity: 0.15; pointer-events: none;"></div>
+                        
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff; animation: pulse 2s infinite;">
+                                <i class="fa-solid fa-fish-fins" style="font-size: 16px;"></i>
+                            </div>
+                            <div>
+                                <h3 style="font-size: 14px; font-weight: 700; color: #FFFFFF; margin: 0;">Sangonomiya Diagnostics</h3>
+                                <p style="font-size: 10px; color: var(--text-tertiary); margin: 0;">Divine Strategist Secret Terminal</p>
+                            </div>
+                        </div>
+
+                        <!-- Divine Quote Box -->
+                        <div style="background: rgba(15, 14, 71, 0.3); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px;">
+                            <p style="font-size: 12px; font-style: italic; color: #EDEDF5; margin: 0; line-height: 1.5;">
+                                "To survive the battle, one must always have a contingency plan. Or seven. 🐟"
+                            </p>
+                            <span style="font-size: 9px; font-weight: bold; color: var(--text-quaternary); display: block; margin-top: 4px; text-transform: uppercase;">— SANGONOMIYA KOKOMI</span>
+                        </div>
+
+                        <!-- Technical Diagnostic Details -->
+                        <div style="display: flex; flex-direction: column; gap: 8px; font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 11px;">
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                                <span style="color: var(--text-tertiary);">Application Version</span>
+                                <span style="color: var(--accent); font-weight: bold;">v2.4.0-Tahoe</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                                <span style="color: var(--text-tertiary);">Codename</span>
+                                <span style="color: var(--text-primary);">Sangonomiya</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                                <span style="color: var(--text-tertiary);">Build Date</span>
+                                <span style="color: var(--text-secondary);">2026.05.26.1740</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                                <span style="color: var(--text-tertiary);">Execution Engine</span>
+                                <span style="color: #34d399; font-weight: bold;">Docker Sandboxed v2</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                                <span style="color: var(--text-tertiary);">Connected Transports</span>
+                                <span style="color: var(--text-secondary);">stdio, sse (active)</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
+                                <span style="color: var(--text-tertiary);">Security Seal</span>
+                                <span style="color: var(--accent); font-weight: bold;">ENFORCED & ENCRYPTED</span>
+                            </div>
+                        </div>
+
+                        <!-- Interactive Buttons inside Easter Egg -->
+                        <div style="margin-top: 16px; display: flex; gap: 8px;">
+                            <button @click="alert('Diagnostics Report: All sub-systems operational. Strategy simulation complete.')" 
+                                class="btn-accent" style="font-size: 10px; padding: 4px 10px; border-radius: 6px; background: rgba(80,80,129,0.3); border: 1px solid var(--accent); color: #fff;">
+                                <i class="fa-solid fa-square-poll-vertical"></i> Self-Test
+                            </button>
+                            <button @click="showEgg = false; clicks = 0" 
+                                class="btn-ghost" style="font-size: 10px; padding: 4px 10px; border-radius: 6px; color: var(--text-tertiary);">
+                                Hide Terminal
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1934,6 +2017,13 @@ function settingsApp() {
                 await fetch('/api/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.prefs) });
                 setTimeout(() => (this.prefSaving = false), 800);
             } catch(e) { console.error(e); this.prefSaving = false; }
+        },
+
+        async resetTourAndStart() {
+            this.prefs.tour_completed = false;
+            localStorage.removeItem('kokomi_tour_completed');
+            await this.savePrefs();
+            window.location.href = '/';
         },
         
         async refreshMCPPool() {

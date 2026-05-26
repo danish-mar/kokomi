@@ -47,6 +47,8 @@ export function getInitialState() {
         useWebSearch: localStorage.getItem('useWebSearch') === 'true',
         isRecording: false,
         liveStats: { tps: null, ttft: null, context: null },
+        showTourPrompt: false,
+        messagesLoaded: true,
 
         // Quick prompts 
         quickPrompts: [

@@ -72,7 +72,12 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(cook
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         username: str = payload.get("sub")
-        if username is None or username != AUTH_USERNAME:
+        
+        from app.storage import load_prefs
+        prefs = load_prefs()
+        configured_username = prefs.get("admin_username", "admin")
+        
+        if username is None or username != configured_username:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
@@ -86,8 +91,13 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(cook
 
 def authenticate_user(username, password):
     """Authenticate a user against the configured credentials."""
-    if username != AUTH_USERNAME:
+    from app.storage import load_prefs
+    prefs = load_prefs()
+    configured_username = prefs.get("admin_username", "admin")
+    configured_password = prefs.get("admin_password", "admin")
+
+    if username != configured_username:
         return False
-    if not verify_password(password, AUTH_PASSWORD):
+    if not verify_password(password, configured_password):
         return False
     return True

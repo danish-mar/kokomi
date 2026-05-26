@@ -39,12 +39,18 @@ async def list_available_models():
     all_models = list(curated)
     curated_ids = {m["id"] for m in curated}
 
+    from app.storage import load_prefs
+    prefs = load_prefs()
+    groq_key = prefs.get("groq_api_key") or GROQ_API_KEY
+    google_key = prefs.get("google_api_key") or GOOGLE_API_KEY
+    nvidia_key = prefs.get("nvidia_api_key") or NVIDIA_API_KEY
+
     async with httpx.AsyncClient() as client:
-        if GROQ_API_KEY:
+        if groq_key:
             try:
                 resp = await client.get(
                     "https://api.groq.com/openai/v1/models",
-                    headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                    headers={"Authorization": f"Bearer {groq_key}"},
                 )
                 if resp.status_code == 200:
                     for m in resp.json().get("data", []):
@@ -54,10 +60,10 @@ async def list_available_models():
             except Exception as e:
                 print(f"Error fetching Groq models: {e}")
 
-        if GOOGLE_API_KEY:
+        if google_key:
             try:
                 resp = await client.get(
-                    f"https://generativelanguage.googleapis.com/v1beta/models?key={GOOGLE_API_KEY}"
+                    f"https://generativelanguage.googleapis.com/v1beta/models?key={google_key}"
                 )
                 if resp.status_code == 200:
                     for m in resp.json().get("models", []):
@@ -69,11 +75,11 @@ async def list_available_models():
             except Exception as e:
                 print(f"Error fetching Google models: {e}")
 
-        if NVIDIA_API_KEY:
+        if nvidia_key:
             try:
                 resp = await client.get(
                     "https://integrate.api.nvidia.com/v1/models",
-                    headers={"Authorization": f"Bearer {NVIDIA_API_KEY}", "Accept": "application/json"},
+                    headers={"Authorization": f"Bearer {nvidia_key}", "Accept": "application/json"},
                 )
                 if resp.status_code == 200:
                     for m in resp.json().get("data", []):

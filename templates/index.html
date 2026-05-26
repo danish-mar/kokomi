@@ -226,6 +226,72 @@
         letter-spacing: -0.01em;
     }
     .dark .meta-tooltip-value { color: #ffffff; }
+
+    /* ── Driver.js Custom Aesthetic overrides ───────────────────── */
+    .driver-popover.driverjs-theme {
+        background: rgba(39, 39, 87, 0.85) !important; /* Deep Midnight with opacity */
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(134, 134, 172, 0.35) !important;
+        border-radius: 18px !important; /* Squircle fallback */
+        box-shadow: 0 20px 40px rgba(15, 14, 71, 0.6) !important;
+        padding: 20px !important;
+        color: #EDEDF5 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif !important;
+        max-width: 320px !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-title {
+        font-size: 15px !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.01em !important;
+        color: #FFFFFF !important;
+        margin-bottom: 8px !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-description {
+        font-size: 12.5px !important;
+        line-height: 1.5 !important;
+        color: #C5C4DD !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-arrow {
+        border-color: rgba(39, 39, 87, 0.85) !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-footer {
+        margin-top: 16px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-close-btn {
+        color: #8686AC !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-close-btn:hover {
+        color: #EDEDF5 !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-next-btn,
+    .driver-popover.driverjs-theme .driver-popover-prev-btn {
+        background: var(--accent) !important;
+        color: var(--accent-text, #ffffff) !important;
+        border: none !important;
+        border-radius: 9999px !important;
+        font-size: 11.5px !important;
+        font-weight: 600 !important;
+        padding: 5px 12px !important;
+        text-shadow: none !important;
+        transition: transform 0.15s ease !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-next-btn:hover,
+    .driver-popover.driverjs-theme .driver-popover-prev-btn:hover {
+        transform: scale(1.05) !important;
+    }
+    .driver-popover.driverjs-theme .driver-popover-progress-text {
+        font-size: 11px !important;
+        color: #8686AC !important;
+        font-weight: 500 !important;
+        margin-right: auto !important;
+    }
 </style>
 {% endblock %}
 
@@ -332,7 +398,7 @@
 <div id="app" x-data="aiApp()" x-cloak class="flex h-screen overflow-hidden">
 
     <!-- ═══════════════ SIDEBAR ═══════════════ -->
-    <aside 
+    <aside id="tour-sidebar"
         :class="sidebarOpen ? 'translate-x-0 cursor-default' : '-translate-x-full sm:w-0 sm:translate-x-0'"
         class="material-sidebar fixed inset-y-0 left-0 z-50 w-[260px] sm:static sm:flex-shrink-0 flex flex-col overflow-hidden border-r border-themed t-apple transition-transform duration-300 ease-in-out sm:transition-[width] sm:duration-300"
         :style="sidebarOpen ? 'width: 260px' : ''">
@@ -490,7 +556,7 @@
             <div class="shrink-0 px-3 pb-3 pt-2 space-y-3 border-t separator">
                 
                 <!-- Character Selector -->
-                <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] bg-accent-sub cursor-pointer hover:brightness-[1.03] t-apple"
+                <div id="tour-character" class="flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] bg-accent-sub cursor-pointer hover:brightness-[1.03] t-apple"
                     @click="charPickerOpen = !charPickerOpen">
                     <template x-if="activeChar.avatar">
                         <img :src="activeChar.avatar" class="w-[22px] h-[22px] rounded-[6px] object-cover" />
@@ -543,7 +609,7 @@
                 </div>
 
                 <!-- Quick Actions Grid -->
-                <div class="grid grid-cols-2 gap-1.5 px-0.5">
+                <div id="tour-quick-access" class="grid grid-cols-2 gap-1.5 px-0.5">
                     <!-- Spaces -->
                     <a href="/spaces" title="Knowledge Spaces"
                         class="flex flex-col items-center justify-center gap-1.5 p-2 rounded-[12px] bg-black/[0.03] dark:bg-white/[0.03] hover:bg-accent-sub text-3 hover:text-accent-c t-apple">
@@ -571,7 +637,7 @@
                 </div>
 
                 <!-- Settings Pinned -->
-                <a href="/settings"
+                <a id="tour-settings" href="/settings"
                     class="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] text-2 hover:text-1 t-apple">
                     <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
                         <i class="fa-solid fa-gear text-[11px] text-accent-c"></i>
@@ -662,7 +728,7 @@
             </button>
             
             <!-- ═══════ Room Capsule (Apple HIG Segmented-Pill) ═══════ -->
-            <div class="room-capsule relative" x-data="{ showPicker: false }">
+            <div id="tour-room-capsule" class="room-capsule relative" x-data="{ showPicker: false }">
                 <button @click="showPicker = !showPicker"
                     class="flex items-center gap-2 px-2.5 py-1.5 rounded-full t-apple group"
                     :class="showPicker ? 'bg-accent-sub' : 'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'">
@@ -877,7 +943,7 @@
                  x-transition:leave-end="opacity-0 scale-95"
                  class="h-full flex flex-col items-center justify-center px-6 pb-12">
                     <div class="relative">
-                        <button @click="welcomePickerOpen = !welcomePickerOpen" 
+                        <button @click="welcomePickerOpen = !welcomePickerOpen"  id="tour-chat-welcome"
                             class="flex flex-col items-center group t-apple px-6 py-2 rounded-squircle hover:bg-black/5 dark:hover:bg-white/5">
                             <!-- Room Avatar(s) -->
                             <template x-if="!isGroupChat">
@@ -1003,10 +1069,10 @@
                 </div>
 
             <!-- ═══════════════ MESSAGE LIST ═══════════════ -->
-            <div x-show="messages.length > 0" x-cloak
-                 x-transition:enter="transition ease-out duration-500 delay-200"
-                 x-transition:enter-start="opacity-0"
-                 x-transition:enter-end="opacity-100"
+            <div x-show="messages.length > 0 && messagesLoaded" x-cloak
+                 x-transition:enter="transition ease-out duration-400"
+                 x-transition:enter-start="opacity-0 translate-y-3"
+                 x-transition:enter-end="opacity-100 translate-y-0"
                  class="py-4">
                     <template x-for="(msg, index) in messages" :key="msg.id || index">
                         <div class="px-4 py-3 t-apple group message-container" 
@@ -1332,7 +1398,7 @@
         </main>
 
         <!-- ═══════════════ INPUT ═══════════════ -->
-        <footer class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
+        <footer id="tour-input" class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
             <div class="max-w-[680px] mx-auto">
                 <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple flex flex-col"
                     style="transition: border-color 0.2s, box-shadow 0.2s;">
@@ -1621,6 +1687,44 @@
                         </template>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ Guided Tour Prompt Overlay ═══════════════ -->
+    <div x-show="showTourPrompt" x-cloak class="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+        <!-- Backdrop -->
+        <div x-show="showTourPrompt" x-transition.opacity @click="dismissTour()" class="absolute inset-0 bg-black/40 backdrop-blur-md"></div>
+        
+        <!-- Modal Card -->
+        <div x-show="showTourPrompt"
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-10"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-200 transform"
+             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-y-10"
+             class="relative w-full max-w-[380px] material-elevated border border-themed rounded-squircle-lg shadow-t-2xl overflow-hidden p-6 t-apple text-center">
+            
+            <!-- Icon Hero -->
+            <div class="w-16 h-16 rounded-full bg-accent-sub flex items-center justify-center mx-auto mb-4 border border-accent/20 shadow-inner">
+                <i class="fa-solid fa-compass text-[24px] text-accent-c fa-spin" style="animation-duration: 6s;"></i>
+            </div>
+            
+            <!-- Typography -->
+            <h3 class="text-[19px] font-bold text-1 tracking-tight mb-2">Welcome to your Workspace!</h3>
+            <p class="text-[13px] text-3 leading-relaxed mb-6">Would you like a quick 1-minute guided tour of Kokomi's new workspace interface?</p>
+            
+            <!-- Actions -->
+            <div class="flex flex-col gap-2">
+                <button @click="startTour()"
+                    class="w-full py-2.5 bg-accent text-accent-t rounded-full text-[13.5px] font-semibold shadow-t hover:scale-[1.02] active:scale-[0.98] transition-all t-apple flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Take the Tour
+                </button>
+                <button @click="dismissTour()"
+                    class="w-full py-2.5 text-[13.5px] font-semibold text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-all t-apple">
+                    Maybe Later
+                </button>
             </div>
         </div>
     </div>

@@ -52,6 +52,17 @@ from jose import JWTError
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
+    from app.storage import load_prefs
+    prefs = load_prefs()
+    setup_completed = prefs.get("setup_completed", False)
+
+    # If setup is not completed, disable auth constraints globally so user can onboard
+    if not setup_completed:
+        response = await call_next(request)
+        if request.url.path.startswith("/static/") or request.url.path.startswith("/images/") or request.url.path == "/favicon.ico":
+            response.headers["Cache-Control"] = "public, max-age=604800, must-revalidate"
+        return response
+
     # Public paths that don't require authentication
     public_paths = ["/auth/login", "/auth/logout", "/static", "/images", "/health", "/favicon.ico"]
     
@@ -63,7 +74,7 @@ async def auth_middleware(request: Request, call_next):
     if not is_public:
         try:
             # We use get_current_user logic here manually since it's a middleware
-            from app.auth import cookie_sec, AUTH_USERNAME, JWT_SECRET_KEY, JWT_ALGORITHM
+            from app.auth import JWT_SECRET_KEY, JWT_ALGORITHM
             from jose import jwt
             
             token = request.cookies.get("access_token")
@@ -72,7 +83,9 @@ async def auth_middleware(request: Request, call_next):
             
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
             username: str = payload.get("sub")
-            if username is None or username != AUTH_USERNAME:
+            
+            configured_username = prefs.get("admin_username", "admin")
+            if username is None or username != configured_username:
                 return RedirectResponse(url="/auth/login")
                 
         except (JWTError, Exception):

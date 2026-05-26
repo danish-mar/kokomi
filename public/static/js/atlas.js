@@ -62,6 +62,7 @@ function atlasApp() {
     dragInitialOffsetX: 0,
     dragInitialOffsetY: 0,
     currentTime: Date.now(),
+    showTourPrompt: false,
 
     suggestions: [
       { title: 'Research & PDF', desc: 'Research 8086 Microcomputer, compile to PDF, email me', text: 'Research 8086 Microcomputer architecture, compile findings to a detailed PDF, and email me the report', icon: 'fa-microchip' },
@@ -105,6 +106,26 @@ function atlasApp() {
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
+
+      if (params.get('tour') === 'true') {
+        // Clean URL to prevent repeated tours on refresh
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + (wfId ? `?workflow=${wfId}` : '');
+        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+        
+        setTimeout(() => {
+          this.startTour(true);
+        }, 800);
+      } else {
+        // Trigger Guided Tour Prompt if not completed
+        setTimeout(() => {
+          if (this.prefs && this.prefs.tour_completed === false) {
+            localStorage.removeItem('atlas_tour_completed');
+          }
+          if ((!this.prefs || this.prefs.tour_completed !== true) && localStorage.getItem('atlas_tour_completed') !== 'true') {
+            this.showTourPrompt = true;
+          }
+        }, 1200);
+      }
     },
 
     async loadModels() {
@@ -127,6 +148,246 @@ function atlasApp() {
         const p = await this.api('GET', '/api/prefs');
         this.prefs = p;
       } catch(e) { console.warn('Prefs load failed', e); }
+    },
+    async startTour(force = false) {
+      this.showTourPrompt = false;
+      localStorage.setItem('atlas_tour_completed', 'true');
+      
+      if (!window.driver || !window.driver.js) {
+        console.error('Driver.js is not loaded.');
+        return;
+      }
+
+      // Save original state so we can restore it when the tour ends
+      const originalRunId = this.activeRunId;
+      const originalWorkflow = this.activeWorkflow;
+      const originalTab = this.activeTab;
+      const originalWorkflows = { ...this.workflows };
+
+      const mockRunId = 'mock-tour-run';
+      const mockWorkflow = {
+        run_id: mockRunId,
+        run_title: 'Research & PDF: Microcomputer 8086',
+        user_request: 'Research 8086 Microcomputer architecture, compile findings to a detailed PDF, and email me the report',
+        status: 'completed',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        tasks: [
+          {
+            task_id: 'task-1',
+            title: 'Specifications Crawler',
+            description: 'Fetch architecture sheets, register mappings, and timing diagram specs for 8086 microprocessors from official datasheets.',
+            worker_type: 'researcher',
+            status: 'completed',
+            depends_on: [],
+            attempt_count: 0,
+            timestamps: { start: '10:00:15 AM', end: '10:01:05 AM' },
+            step_log: [
+              { type: 'info', message: 'Initializing tavily-web-researcher with 8086 specs...' },
+              { type: 'info', message: 'Extracting data on 16-bit registers (AX, BX, CX, DX) and segments (CS, DS, SS, ES)...' },
+              { type: 'info', message: 'Caching register specifications successfully.' }
+            ],
+            output: { specs_found: ['16-bit register files', 'Segment-Offset addressing model', '40-pin DIP layout'] }
+          },
+          {
+            task_id: 'task-2',
+            title: 'Python Compiler Script',
+            description: 'Generate python compiler model simulation showing addressing offset computations and timing simulations.',
+            worker_type: 'coder',
+            status: 'completed',
+            depends_on: ['task-1'],
+            attempt_count: 0,
+            timestamps: { start: '10:01:08 AM', end: '10:01:58 AM' },
+            step_log: [
+              { type: 'info', message: 'Starting python execution sandbox environment...' },
+              { type: 'info', message: 'Running offset computation validation suite...' },
+              { type: 'info', message: 'Generated structural diagram simulation script.' }
+            ],
+            output: { exit_code: 0, stdout: 'Offset computations match. Segmentation fault checks passed!' }
+          },
+          {
+            task_id: 'task-3',
+            title: 'Document Compilation',
+            description: 'Synthesize research text findings, register tables, and addressing specs into a sleek Outfit PDF guide.',
+            worker_type: 'writer',
+            status: 'completed',
+            depends_on: ['task-2'],
+            attempt_count: 0,
+            timestamps: { start: '10:02:00 AM', end: '10:02:45 AM' },
+            step_log: [
+              { type: 'info', message: 'Compiling structural markdown into styled document layout...' },
+              { type: 'info', message: 'Rendering custom tables for CS/DS segments...' },
+              { type: 'info', message: 'Wrote final output to data/outputs/microprocessor_guide_8086.pdf.' }
+            ],
+            output: { pdf_path: 'data/outputs/microprocessor_guide_8086.pdf', pages: 8 }
+          },
+          {
+            task_id: 'task-4',
+            title: 'Email Notification Dispatcher',
+            description: 'Send the compiled microprocessor guide PDF directly to user mailbox using standard mail protocols.',
+            worker_type: 'mailer',
+            status: 'completed',
+            depends_on: ['task-3'],
+            attempt_count: 0,
+            timestamps: { start: '10:02:48 AM', end: '10:03:10 AM' },
+            step_log: [
+              { type: 'info', message: 'Connecting to SMTP server...' },
+              { type: 'info', message: 'Attaching data/outputs/microprocessor_guide_8086.pdf...' },
+              { type: 'info', message: 'Dispatching mail to user inbox...' },
+              { type: 'info', message: 'Email sent successfully!' }
+            ],
+            output: { status: 'dispatched', tracking_id: 'mail-8086-guide-9912' }
+          }
+        ],
+        collaborative_chat: [
+          { role: 'user', sender: 'User', message: 'Can you summarize the register timing diagrams of the 8086 microcomputer?', timestamp: '10:00:05 AM' },
+          { role: 'assistant', sender: 'Supervisor', message: 'Absolutely! I am orchestrating the Researchers to query timing diagrams and register layouts. The coder will build an addressing simulator, and the writer will compile a structured PDF guidebook.', timestamp: '10:00:12 AM' },
+          { role: 'system', sender: 'System', message: 'Specs Crawler (Researcher) has started operation.', timestamp: '10:00:15 AM' },
+          { role: 'system', sender: 'System', message: 'Document Compilation (Writer) successfully compiled 8-page Microcomputer Guide PDF.', timestamp: '10:02:45 AM' },
+          { role: 'assistant', sender: 'Supervisor', message: 'The timing guide and microprocessor guide have been successfully compiled and sent to your email inbox! You can also download the PDF directly in the Files tab.', timestamp: '10:03:15 AM' }
+        ]
+      };
+
+      const tourSteps = [
+        {
+          popover: {
+            title: 'Welcome to Atlas Terminal!',
+            description: 'Atlas is a multi-agent orchestration console designed to decompose complex objectives into nested parallel operations. We have loaded a live mock completed pipeline to show you exactly how Atlas manages Specialized Agents (Researchers, Coders, Writers) in real time!',
+            side: 'bottom',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.workflows[mockRunId] = mockWorkflow;
+            this.activeRunId = mockRunId;
+            this.activeWorkflow = mockWorkflow;
+            this.activeTab = 'overview';
+          }
+        },
+        {
+          element: '#atlas-sidebar',
+          popover: {
+            title: 'Agent Control Sidebar',
+            description: 'Use the sidebar to explore past run histories, trigger new outcomes, check active recurring execution schedules, or configure reusable team templates.',
+            side: 'right',
+            align: 'start'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'overview';
+          }
+        },
+        {
+          element: '#tour-topbar-tabs',
+          popover: {
+            title: 'Interactive Tab Swapper',
+            description: 'These tabs allow you to swap views dynamically to inspect the active pipeline from different dimensions: List, Graph, Files, and Chat. Let\'s explore them together!',
+            side: 'bottom',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'overview';
+          }
+        },
+        {
+          element: '#atlas-content',
+          popover: {
+            title: 'Tab 1: Granular Task List',
+            description: 'The List tab displays active worker cards executing parallel tasks, their live duration clocks, status badges, and overall process execution progress. Click any card to see real-time stdout streams!',
+            side: 'top',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'overview';
+          }
+        },
+        {
+          element: '#atlas-content',
+          popover: {
+            title: 'Tab 2: Visual Execution Graph',
+            description: 'The Graph tab renders a fully dynamic, draggable topological DAG execution tree. Instantly trace sequential task dependencies, parallel execution routes, and parent-child workflows.',
+            side: 'top',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'graph';
+          }
+        },
+        {
+          element: '#atlas-content',
+          popover: {
+            title: 'Tab 3: Delivered Project Files',
+            description: 'In the Files tab, browse and download assets generated within the sandboxed environment (like microprocessor_guide_8086.pdf, python codes, or timing JSON sheets). You can also download a full zip bundle!',
+            side: 'top',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'files';
+            this.loadFiles();
+          }
+        },
+        {
+          element: '#atlas-content',
+          popover: {
+            title: 'Tab 4: Supervisor Collaborative Chat',
+            description: 'Finally, the Chat tab lets you communicate directly with the Supervisor. Refine requirements, review system notifications, and interact with the AI coordinator while worker nodes operate.',
+            side: 'top',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'chat';
+          }
+        },
+        {
+          element: '#tour-schedule-btn',
+          popover: {
+            title: 'Schedule Recurring Execution',
+            description: 'Automate your workflows! Use the Schedule button to set recurring cron triggers (hourly, daily, weekly, or custom cron patterns) so the supervisor runs the multi-agent task automatically in the background.',
+            side: 'bottom',
+            align: 'center'
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'overview';
+          }
+        },
+        {
+          popover: {
+            title: "That's All, Folks!",
+            description: "You're now fully equipped to orchestrate specialized AI agent pipelines with Atlas Terminal. Click Done to return to your workspace and start building!",
+            side: 'bottom',
+            align: 'center',
+            onNextClick: () => {
+              window.location.href = '/';
+            }
+          },
+          onHighlightStarted: () => {
+            this.activeTab = 'overview';
+          }
+        }
+      ];
+
+      const driverObj = window.driver.js.driver({
+        showProgress: true,
+        allowClose: true,
+        popoverClass: 'driverjs-theme',
+        steps: tourSteps,
+        onDestroyed: () => {
+          // Restore original user state
+          this.activeRunId = originalRunId;
+          this.activeWorkflow = originalWorkflow;
+          this.activeTab = originalTab;
+          this.workflows = originalWorkflows;
+          this.$nextTick(() => {
+            if (originalRunId) {
+              this.loadFiles();
+            }
+          });
+        }
+      });
+
+      driverObj.drive();
+    },
+
+    dismissTour() {
+      this.showTourPrompt = false;
+      localStorage.setItem('atlas_tour_completed', 'true');
     },
     resolvedAtlasModel() {
       if (!this.prefs) return 'Loading...';
@@ -321,6 +582,7 @@ function atlasApp() {
 
     async loadWorkflowDetail() {
       if (!this.activeRunId) return;
+      if (this.activeRunId === 'mock-tour-run') return;
       try {
         const wf = await this.api('GET', `/api/workflows/${this.activeRunId}`);
         if (this.isStreamingChat) {
@@ -717,7 +979,7 @@ function atlasApp() {
     },
 
     restartDetailPolling() {
-      if (!this.activeRunId) {
+      if (!this.activeRunId || this.activeRunId === 'mock-tour-run') {
         if (this.wsDetail) {
           try { this.wsDetail.close(); } catch(e) {}
           this.wsDetail = null;
@@ -811,6 +1073,16 @@ function atlasApp() {
     // ── Files ──
     async loadFiles() {
       if (!this.activeRunId) return;
+      if (this.activeRunId === 'mock-tour-run') {
+        this.filesLoading = true;
+        this.workflowFiles = [
+          { name: 'microprocessor_guide_8086.pdf', is_dir: false, size: 845210, path: 'microprocessor_guide_8086.pdf' },
+          { name: 'timing_simulations.json', is_dir: false, size: 12450, path: 'timing_simulations.json' },
+          { name: 'addressing_offset_tests.py', is_dir: false, size: 4120, path: 'addressing_offset_tests.py' }
+        ];
+        this.filesLoading = false;
+        return;
+      }
       this.filesLoading = true;
       try {
         const pathParam = encodeURIComponent(this.currentDirPath);
@@ -1558,3 +1830,6 @@ function atlasApp() {
     },
   };
 }
+
+// Attach to window so Alpine can find it under SES/strict environments
+window.atlasApp = atlasApp;

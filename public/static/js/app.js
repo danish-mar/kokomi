@@ -68,6 +68,118 @@ function aiApp() {
                 this.$nextTick(() => this.updateLivePreview(this.artifactModal.content));
             }
         });
+
+        // Trigger Guided Tour Prompt if not completed
+        setTimeout(() => {
+            if (this.prefs && this.prefs.tour_completed === false) {
+                localStorage.removeItem('kokomi_tour_completed');
+            }
+            if ((!this.prefs || this.prefs.tour_completed !== true) && localStorage.getItem('kokomi_tour_completed') !== 'true') {
+                this.showTourPrompt = true;
+            }
+        }, 1200);
+    };
+
+    app.startTour = async function() {
+        this.showTourPrompt = false;
+        localStorage.setItem('kokomi_tour_completed', 'true');
+        
+        // Sync tour completed to backend
+        if (this.prefs) {
+            this.prefs.tour_completed = true;
+            try {
+                await this.updatePreferences();
+            } catch (e) {
+                console.error('Failed to sync tour completion state to backend:', e);
+            }
+        }
+        
+        if (!window.driver || !window.driver.js) {
+            console.error('Driver.js is not loaded.');
+            return;
+        }
+
+        const driverObj = window.driver.js.driver({
+            showProgress: true,
+            allowClose: false,
+            popoverClass: 'driverjs-theme',
+            steps: [
+                {
+                    element: '#tour-sidebar',
+                    popover: {
+                        title: 'Chats & Projects',
+                        description: 'Organize your conversations into project workspaces, view folder categories, and track recent chat threads.',
+                        side: 'right',
+                        align: 'start'
+                    }
+                },
+                {
+                    element: '#tour-room-capsule',
+                    popover: {
+                        title: 'Multi-Agent Room Capsule',
+                        description: 'Engage multiple AI agents simultaneously! Switch between 1-on-1 chats and full multi-agent room sessions.',
+                        side: 'bottom',
+                        align: 'center'
+                    }
+                },
+                {
+                    element: '#tour-chat-welcome',
+                    popover: {
+                        title: 'Character Profiles',
+                        description: 'Instantly select your active conversational partner, modify their details, or build customized AI personas.',
+                        side: 'bottom',
+                        align: 'center'
+                    }
+                },
+                {
+                    element: '#tour-quick-access',
+                    popover: {
+                        title: 'Quick Access Actions',
+                        description: 'Quickly access multi-agent Knowledge Spaces, WhatsApp automation dashboards, live voice calls, and the powerful Atlas shell interface.',
+                        side: 'right',
+                        align: 'end'
+                    }
+                },
+                {
+                    element: '#tour-settings',
+                    popover: {
+                        title: 'Advanced Settings & Integration',
+                        description: 'Configure multi-provider LLM credentials (Groq, Google, Nvidia), dynamic suggestions, developer tools, and sandboxed runtimes.',
+                        side: 'right',
+                        align: 'end'
+                    }
+                },
+                {
+                    element: '#tour-input',
+                    popover: {
+                        title: 'Intelligent Console (Next: Atlas Terminal)',
+                        description: 'Input prompts, search the web, and run code. Clicking next will transition you to the next application in the suite—Atlas Terminal—to explore multi-agent workflow pipelines!',
+                        side: 'top',
+                        align: 'center',
+                        onNextClick: () => {
+                            window.location.href = '/atlas?tour=true';
+                        }
+                    }
+                }
+            ]
+        });
+
+        driverObj.drive();
+    };
+
+    app.dismissTour = async function() {
+        this.showTourPrompt = false;
+        localStorage.setItem('kokomi_tour_completed', 'true');
+        
+        // Sync tour completed to backend
+        if (this.prefs) {
+            this.prefs.tour_completed = true;
+            try {
+                await this.updatePreferences();
+            } catch (e) {
+                console.error('Failed to sync tour completion state to backend:', e);
+            }
+        }
     };
 
     app.setInput = function(t) {

@@ -226,13 +226,12 @@ def get_llm(
     streaming: bool = False,
     model_override: Optional[str] = None,
 ):
-    """Return the appropriate LangChain-compatible LLM based on user prefs.
-
-    ``model_override`` is the value returned by ``resolve_character_model()``
-    for the active provider.  If it is ``"default"`` (or omitted) the global
-    model from prefs is used.
-    """
+    """Return the appropriate LangChain-compatible LLM based on user prefs."""
     provider = prefs.get("llm_provider", "groq")
+
+    groq_key = prefs.get("groq_api_key") or GROQ_API_KEY
+    google_key = prefs.get("google_api_key") or GOOGLE_API_KEY
+    nvidia_key = prefs.get("nvidia_api_key") or NVIDIA_API_KEY
 
     if provider == "local":
         base_url = prefs.get("local_url", "http://localhost:8080/v1")
@@ -248,8 +247,8 @@ def get_llm(
         )
 
     elif provider == "nvidia":
-        if not NVIDIA_API_KEY:
-            raise ValueError("NVIDIA_API_KEY not found in environment")
+        if not nvidia_key:
+            raise ValueError("NVIDIA_API_KEY not found in preferences or environment")
         if ChatNVIDIA is None:
             raise ValueError("langchain-nvidia-ai-endpoints package is not installed.")
         
@@ -258,14 +257,14 @@ def get_llm(
             model = model_override
         return ChatNVIDIA(
             model=model,
-            api_key=NVIDIA_API_KEY,
+            api_key=nvidia_key,
             temperature=0.6,
             max_completion_tokens=4096, 
         )
 
     elif provider == "google":
-        if not GOOGLE_API_KEY:
-            raise ValueError("GOOGLE_API_KEY not found in environment")
+        if not google_key:
+            raise ValueError("GOOGLE_API_KEY not found in preferences or environment")
         active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
         if model_override and model_override != "default":
             active_model = _normalize_model(model_override)
@@ -274,11 +273,13 @@ def get_llm(
             
         return GeminiDirectLLM(
             model_name=active_model,
-            api_key=GOOGLE_API_KEY,
+            api_key=google_key,
             temperature=0.7,
         )
 
     else:  # groq (default)
+        if not groq_key:
+            raise ValueError("GROQ_API_KEY not found in preferences or environment")
         active_model = _normalize_model(prefs.get("model_name", "llama-3.3-70b-versatile"))
         if model_override and model_override != "default":
             active_model = _normalize_model(model_override)
@@ -288,7 +289,7 @@ def get_llm(
         return ChatGroq(
             model_name=active_model,
             temperature=0.7,
-            groq_api_key=GROQ_API_KEY,
+            groq_api_key=groq_key,
             streaming=streaming,
         )
 

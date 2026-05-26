@@ -25,8 +25,9 @@ class SandboxManager:
         return load_prefs().get("docker_image", "kokomi-agent-base")
 
     @classmethod
-    def ensure_base_image(cls) -> bool:
-        """Ensure the Docker image exists. If not, build it natively."""
+    def ensure_base_image(cls, run_id: str = None) -> bool:
+        """Ensure the base sandbox image exists."""
+        import docker
         client = cls.get_client()
         if not client:
             return False
@@ -41,9 +42,21 @@ class SandboxManager:
             print(f"❌ Docker error checking image: {e}")
             return False
             
-        print(f"🐳 Building base Docker image '{image_name}' natively...")
-        dockerfile_content = """FROM alpine:3.18
-RUN apk update && apk add --no-cache \\
+        build_msg = f"🐳 Building base Docker image '{image_name}' natively (this may take a few minutes)..."
+        print(build_msg)
+        
+        if run_id:
+            from app.workflow import load_workflows, save_workflows
+            from datetime import datetime
+            db = load_workflows()
+            if run_id in db:
+                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                db[run_id].setdefault("debug_logs", []).append(f"[{ts}] {build_msg}")
+                save_workflows(db)
+
+        dockerfile_content = """FROM debian:bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \\
     bash \\
     curl \\
     wget \\
@@ -51,16 +64,19 @@ RUN apk update && apk add --no-cache \\
     jq \\
     ripgrep \\
     python3 \\
-    py3-pip \\
+    python3-pip \\
     nodejs \\
     npm \\
     libffi-dev \\
-    openssl-dev \\
-    build-base \\
+    libssl-dev \\
+    build-essential \\
     openssh-client \\
     sshpass \\
-    docker-cli \\
-    docker-compose
+    docker.io \\
+    docker-compose \\
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 config set global.break-system-packages true
 
 WORKDIR /workspace
 """
@@ -70,12 +86,29 @@ WORKDIR /workspace
             f.write(dockerfile_content)
             
         try:
-            # Natively build the image using the python SDK
-            image, logs = client.images.build(
+            # Use the low-level API to stream logs
+            resp = client.api.build(
                 path=tmpdir,
                 tag=image_name,
-                rm=True
+                rm=True,
+                decode=True
             )
+            from datetime import datetime
+            for chunk in resp:
+                if 'stream' in chunk:
+                    line = chunk['stream'].strip()
+                    if line:
+                        print(f"   [Docker Build] {line}")
+                        if run_id:
+                            from app.workflow import load_workflows, save_workflows
+                            db = load_workflows()
+                            if run_id in db:
+                                ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                                db[run_id].setdefault("debug_logs", []).append(f"[{ts}] [Docker Build] {line}")
+                                save_workflows(db)
+                elif 'error' in chunk:
+                    print(f"❌ Docker build error: {chunk['error']}")
+                    
             print(f"🐳 Base image '{image_name}' built successfully!")
             return True
         except Exception as e:
@@ -91,7 +124,7 @@ WORKDIR /workspace
         if not client:
             return False
             
-        if not cls.ensure_base_image():
+        if not cls.ensure_base_image(run_id=run_id):
             return False
             
         container_name = f"kokomi-sandbox-{run_id}"

@@ -396,6 +396,7 @@ export function getChatActions() {
 
         async loadConversation(id) {
             if (this.currentConvId === id) return;
+            this.messagesLoaded = false;
             try {
                 const r = await fetch(`/api/conversations/${id}`);
                 if (!r.ok) throw new Error(r.status);
@@ -411,7 +412,13 @@ export function getChatActions() {
                 if (doc.character_id) this.activeCharId = doc.character_id;
                 else if (this.groupParticipants.length > 0) this.activeCharId = this.groupParticipants[0];
                 this.$nextTick(() => this.scrollToBottom());
-            } catch (e) { console.error('Load failed:', e); }
+            } catch (e) { 
+                console.error('Load failed:', e); 
+            } finally {
+                setTimeout(() => {
+                    this.messagesLoaded = true;
+                }, 80);
+            }
         },
 
         renderMarkdown(msg, isStreaming = false) {

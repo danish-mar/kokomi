@@ -238,7 +238,10 @@ DEFAULT_WORKER_TEMPLATES = {
             "Handle errors gracefully — if a command fails, diagnose and retry with a corrected command.\n"
             "You can run: bash commands, docker, docker-compose, pip, npm, ssh, curl, systemctl, etc.\n"
             "For long-running commands, use shell_exec with an appropriate timeout parameter.\n"
-            "CRITICAL: You are executing inside an isolated Alpine Docker Sandbox! The working directory is ALWAYS `/workspace` which is mapped to the current task. Do NOT reference host paths (e.g., `/home/...`). Just use `./` or `/workspace/` directly.\n"
+            "CRITICAL: You are executing inside an isolated Debian Linux Docker Sandbox (debian:bookworm-slim)!\n"
+            "- The package manager is `apt-get` (use `apt-get update && apt-get install -y <pkg>` to install dependencies).\n"
+            "- Pre-installed packages: bash, curl, wget, git, jq, ripgrep, python3, pip, nodejs, npm, build-essential, openssh-client, docker.\n"
+            "- The working directory is ALWAYS `/workspace` which is mapped to the current task. Do NOT reference host paths (e.g., `/home/...`). Just use `./` or `/workspace/` directly.\n"
             "Task-specific context: {task_description}\n"
             "Work iteratively until the task is fully complete, then report results."
         ),
@@ -1641,12 +1644,13 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
         
     sys_tpl = template["system_prompt_template"]
     if worker_type == "code_worker":
-        from app.storage import load_prefs
-        prefs = load_prefs()
         engine = prefs.get("execution_engine", "docker")
         if engine == "local":
             sys_tpl = sys_tpl.replace(
-                "CRITICAL: You are executing inside an isolated Alpine Docker Sandbox! The working directory is ALWAYS `/workspace` which is mapped to the current task. Do NOT reference host paths (e.g., `/home/...`). Just use `./` or `/workspace/` directly.",
+                "CRITICAL: You are executing inside an isolated Debian Linux Docker Sandbox (debian:bookworm-slim)!\n"
+                "- The package manager is `apt-get` (use `apt-get update && apt-get install -y <pkg>` to install dependencies).\n"
+                "- Pre-installed packages: bash, curl, wget, git, jq, ripgrep, python3, pip, nodejs, npm, build-essential, openssh-client, docker.\n"
+                "- The working directory is ALWAYS `/workspace` which is mapped to the current task. Do NOT reference host paths (e.g., `/home/...`). Just use `./` or `/workspace/` directly.",
                 "CRITICAL: You are executing directly on the user's local host system! The working directory is ALWAYS the active task folder. Do NOT use Docker `/workspace` paths. Just use `./` or relative paths directly."
             )
             
@@ -2499,7 +2503,6 @@ Respond in JSON exactly matching this schema:
         active_run_id.set(run_id)
         
         # Initialize Docker Sandbox Container for high-performance dependency isolation
-        from app.storage import load_prefs
         prefs = load_prefs()
         engine = prefs.get("execution_engine", "docker")
         

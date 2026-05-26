@@ -2,11 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.6.0] - 2026-05-26
+
+### Added
+
+- **Onboarding Tour**:
+  - Implemented a premium, multi-step interactive guided onboarding tour of the multi-agent workflow terminal using `driver.js`.
+  - Injected a highly realistic, complete mock execution pipeline (`Research & PDF: Microcomputer 8086`) containing distinct specialized worker nodes (Researcher, Coder, Writer, Mailer), precise start/end timing diagnostics, error details, and an interactive Supervisor chat log history.
+  - Implemented dynamic, state-aware tab swappers inside the tour script that automatically flip the active UI view (List, Graph, Files, Chat, and Schedule button highlights) as you click through steps.
+  - Developed a seamless completion loop that automatically redirects the user from the main conversational chat dashboard tour directly into the Atlas workflow page.
+- **Fluid Conversational Transitions**:
+  - Overhauled conversational switches in the main dashboard, introducing a new state toggle (`messagesLoaded`) to trigger a smooth fade-in and slide-up animation whenever changing between different previous chat threads.
+- **SES Sandbox & Layout Polish**:
+  - Bound the `atlasApp` Alpine component globally to the `window` context to bypass strict browser SES (Secure EcmaScript) sandbox security restrictions.
+  - Fixed syntax errors inside the Atlas template (invalid `mx-auto` inside inline styles) and removed the manual guide button to keep the header minimal.
+
 ## [v3.5.5] - 2026-05-23
 
 ### Added
 
-- **Living Long-Term Memory Engine (v2)**: 
+- **Living Long-Term Memory Engine (v2)**:
   - Overhauled unstructured Qdrant memory storage into a self-cleaning, importance-weighted memory system.
   - Implemented **Dedup-on-Write** using cosine similarity (`DEDUP_THRESHOLD = 0.85`) to dynamically merge redundant context into single high-fidelity memory atoms.
   - Introduced **Importance-Weighted Decay** (1.0 to 5.0 scale) and periodic background decay sweeps to automatically weaken and prune stale/trivial atoms.
@@ -82,7 +97,7 @@ All notable changes to this project will be documented in this file.
 - **Apple HIG Inline Bold-Text Parser**: Developed a state-of-the-art markdown inline text parser for PowerPoint slides and Word paragraphs. Converts raw `**bold**` markup decorators dynamically into native bold runs (`run.font.bold = True`), creating pristine, presentation-grade slide decks.
 - **Dynamic Allowed Tools Endpoint**: Added `/api/workflow/tools` FastAPI router endpoint to dynamically populate available agent tools, decoupling Alpine.js frontend from hardcoded tool lists and enabling live discovery of connected external MCP services.
 - **Thread-Safe Context Redirection**: Redirected all document compilation tools (`pdf_export`, `docx_export`, `pptx_export`, `excel_export`) to dynamically save output assets directly inside the active workflow storage folder (`active_storage_dir.get()`) rather than general upload folders.
-- **Self-Healing LLM Task Recovery**: Refactored the `pdf_worker` system prompt to act as a *Professional Document Layout Designer*, instructing it to utilize dependent task prompt context to recover draft markdown sections when files are not physically present on disk.
+- **Self-Healing LLM Task Recovery**: Refactored the `pdf_worker` system prompt to act as a _Professional Document Layout Designer_, instructing it to utilize dependent task prompt context to recover draft markdown sections when files are not physically present on disk.
 
 ## [v1.0.1] - 2026-05-17
 

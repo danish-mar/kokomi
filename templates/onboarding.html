@@ -1,0 +1,841 @@
+{% extends "base.html" %}
+
+{% block head %}
+    <title>Welcome - Setup</title>
+    <style>
+        body {
+            background: #0F0E47;
+            background-image: radial-gradient(circle at 50% -20%, #272757 0%, #0F0E47 70%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            color: #EDEDF5;
+        }
+
+        /* Apple HIG Continuous Curves Glass Window */
+        .mac-window {
+            background: rgba(39, 39, 87, 0.45);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(134, 134, 172, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255,255,255,0.1);
+            width: 100%;
+            max-width: 800px;
+            height: 560px;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Left Sidebar Gradient */
+        .mac-sidebar {
+            width: 260px;
+            background: rgba(20, 19, 60, 0.3);
+            border-right: 1px solid rgba(134, 134, 172, 0.15);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+        }
+        .step-item {
+            font-size: 14px;
+            color: rgba(134, 134, 172, 0.6);
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        .step-item.active {
+            background: rgba(134, 134, 172, 0.15);
+            color: #FFFFFF;
+        }
+
+        /* Main Content Area */
+        .mac-content {
+            flex: 1;
+            padding: 40px 50px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .step-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: absolute;
+            top: 40px; bottom: 80px; left: 50px; right: 50px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #C5C4DD 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            font-size: 15px;
+            color: #8686AC;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .apple-input-setup {
+            background: rgba(20, 19, 60, 0.6) !important;
+            border: 1px solid rgba(134, 134, 172, 0.2) !important;
+            border-radius: 10px;
+            color: #FFFFFF !important;
+            padding: 12px 14px;
+            font-size: 14px;
+            width: 100%;
+            transition: all 0.3s ease;
+            outline: none;
+            margin-bottom: 16px;
+        }
+        .apple-input-setup:focus {
+            border-color: #8686AC !important;
+            box-shadow: 0 0 0 3px rgba(134, 134, 172, 0.15) !important;
+            background: rgba(20, 19, 60, 0.8) !important;
+        }
+
+        .apple-select-setup {
+            appearance: none;
+            background: rgba(20, 19, 60, 0.6) !important;
+            border: 1px solid rgba(134, 134, 172, 0.2) !important;
+            border-radius: 10px;
+            color: #FFFFFF !important;
+            padding: 12px 14px;
+            font-size: 14px;
+            width: 100%;
+            margin-bottom: 16px;
+            outline: none;
+            cursor: pointer;
+        }
+        .apple-select-setup:focus {
+            border-color: #8686AC !important;
+        }
+
+        .feature-list {
+            list-style: none; padding: 0; margin-bottom: 30px;
+        }
+        .feature-list li {
+            display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; color: #C5C4DD;
+        }
+        .feature-list i {
+            color: #8686AC; font-size: 16px; width: 28px; text-align: center; margin-right: 10px;
+        }
+
+        .nav-buttons {
+            position: absolute;
+            bottom: 40px; left: 50px; right: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .primary-btn {
+            background: #505081; color: #FFFFFF; border: none; border-radius: 10px;
+            padding: 10px 24px; font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(80, 80, 129, 0.2);
+        }
+        .primary-btn:hover { background: #656596; transform: translateY(-1px); }
+        .primary-btn:active { transform: scale(0.98); }
+        .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .secondary-btn {
+            background: transparent; color: #8686AC; border: 1px solid rgba(134, 134, 172, 0.3);
+            border-radius: 10px; padding: 10px 24px; font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .secondary-btn:hover { background: rgba(134, 134, 172, 0.1); color: #C5C4DD; }
+
+        .toggle-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: rgba(20, 19, 60, 0.6); border: 1px solid rgba(134, 134, 172, 0.2);
+            padding: 12px; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; color: #8686AC;
+        }
+        .toggle-btn.selected {
+            background: rgba(80, 80, 129, 0.3); border-color: #8686AC; color: #FFFFFF;
+        }
+
+        /* 2x2 Feature Cards for Welcome Screen */
+        .welcome-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 20px 0;
+        }
+        .welcome-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(134, 134, 172, 0.15);
+            border-radius: 16px;
+            padding: 14px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        html:not(.dark) .welcome-card {
+            background: rgba(80, 80, 129, 0.03);
+            border-color: rgba(80, 80, 129, 0.15);
+        }
+        .welcome-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(134, 134, 172, 0.3);
+        }
+        html:not(.dark) .welcome-card:hover {
+            background: rgba(80, 80, 129, 0.06);
+            border-color: rgba(80, 80, 129, 0.3);
+        }
+        .welcome-card-icon {
+            font-size: 20px;
+            color: #8686AC;
+            margin-top: 2px;
+        }
+        html:not(.dark) .welcome-card-icon {
+            color: #505081;
+        }
+        .welcome-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #EDEDF5;
+            margin-bottom: 4px;
+        }
+        html:not(.dark) .welcome-card-title {
+            color: #0F0E47;
+        }
+        .welcome-card-desc {
+            font-size: 12px;
+            color: #C5C4DD;
+            line-height: 1.4;
+        }
+        html:not(.dark) .welcome-card-desc {
+            color: #505081;
+        }
+
+        /* Avatar Squircle */
+        .squircle-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
+        }
+        .squircle-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 28px; /* Smooth continuous curve approximate */
+            object-fit: cover;
+            border: 2px solid rgba(134, 134, 172, 0.4);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+        }
+        html:not(.dark) .squircle-avatar {
+            border-color: rgba(80, 80, 129, 0.4);
+        }
+        .squircle-avatar:hover {
+            transform: scale(1.05);
+            border-color: #8686AC;
+            box-shadow: 0 8px 24px rgba(134, 134, 172, 0.25);
+        }
+        html:not(.dark) .squircle-avatar:hover {
+            border-color: #505081;
+            box-shadow: 0 8px 24px rgba(80, 80, 129, 0.15);
+        }
+        .squircle-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+            color: #FFFFFF;
+            font-size: 12px;
+        }
+        .squircle-container:hover .squircle-overlay {
+            opacity: 1;
+        }
+
+        /* Animations */
+        .slide-enter { animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .slide-exit { animation: slideOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; pointer-events: none; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-30px); visibility: hidden; } }
+
+        /* Light Theme Overrides (Frosted macOS style) */
+        html:not(.dark) body {
+            background: #F4F4F9;
+            background-image: radial-gradient(circle at 50% -20%, #E2E2EC 0%, #F4F4F9 70%);
+            color: #0F0E47;
+        }
+
+        html:not(.dark) .mac-window {
+            background: rgba(255, 255, 255, 0.45);
+            border: 1px solid rgba(80, 80, 129, 0.15);
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255,255,255,0.6);
+        }
+
+        html:not(.dark) .mac-sidebar {
+            background: rgba(80, 80, 129, 0.05);
+            border-right: 1px solid rgba(80, 80, 129, 0.1);
+        }
+
+        html:not(.dark) h1 {
+            background: linear-gradient(135deg, #0F0E47 0%, #505081 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        html:not(.dark) p {
+            color: #505081;
+        }
+
+        html:not(.dark) .step-item {
+            color: rgba(80, 80, 129, 0.6);
+        }
+        html:not(.dark) .step-item.active {
+            background: rgba(80, 80, 129, 0.15);
+            color: #0F0E47;
+        }
+
+        html:not(.dark) .apple-input-setup, html:not(.dark) .apple-select-setup {
+            background: rgba(255, 255, 255, 0.8) !important;
+            border: 1px solid rgba(80, 80, 129, 0.2) !important;
+            color: #0F0E47 !important;
+        }
+        html:not(.dark) .apple-input-setup:focus {
+            border-color: #505081 !important;
+            box-shadow: 0 0 0 3px rgba(80, 80, 129, 0.1) !important;
+        }
+        html:not(.dark) .toggle-btn {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(80, 80, 129, 0.15);
+            color: #505081;
+        }
+        html:not(.dark) .toggle-btn.selected {
+            background: rgba(80, 80, 129, 0.15);
+            border-color: #505081;
+            color: #0F0E47;
+        }
+        html:not(.dark) .secondary-btn {
+            color: #505081;
+            border-color: rgba(80, 80, 129, 0.3);
+        }
+        html:not(.dark) .secondary-btn:hover {
+            background: rgba(80, 80, 129, 0.05);
+            color: #0F0E47;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div x-data="onboardingData()" class="mac-window">
+        
+        <!-- Sidebar -->
+        <div class="mac-sidebar">
+            <div style="font-size: 24px; color: #8686AC; margin-bottom: 40px; display: flex; align-items: center; gap: 12px;">
+                <i class="fa-solid fa-fish"></i> <span style="font-size: 16px; font-weight:600; color:#EDEDF5;">Kokomi Setup</span>
+            </div>
+            
+            <div class="step-item" :class="step === 0 ? 'active' : ''">1. Welcome</div>
+            <div class="step-item" :class="(step === 1 || step === 2) ? 'active' : ''">2. Intelligence</div>
+            <div class="step-item" :class="step === 3 ? 'active' : ''">3. Capabilities</div>
+            <div class="step-item" :class="step === 4 ? 'active' : ''">4. Character</div>
+            <div class="step-item" :class="step === 5 ? 'active' : ''">5. Identity</div>
+            <div class="step-item" :class="step === 6 ? 'active' : ''">6. Account</div>
+            <div class="step-item" :class="step === 7 ? 'active' : ''">7. Complete</div>
+        </div>
+
+        <!-- Content -->
+        <div class="mac-content">
+            
+            <!-- Step 0: Welcome -->
+            <div x-show="step === 0" class="step-container" :class="animDirection === 'forward' && animating ? 'slide-exit' : (animDirection === 'backward' && animating ? 'slide-enter' : 'slide-enter')" x-cloak>
+                <h1 style="background: linear-gradient(135deg, #EDEDF5 0%, #8686AC 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 36px; font-weight:800; margin-bottom:4px; letter-spacing: -0.5px;">Welcome to Kokomi</h1>
+                <p style="font-size:14px; color:#C5C4DD; margin-bottom: 16px;">Your divine, multi-agent strategist platform. Here is what she can do for you:</p>
+                
+                <div class="welcome-grid">
+                    <div class="welcome-card">
+                        <i class="fa-solid fa-brain welcome-card-icon"></i>
+                        <div>
+                            <div class="welcome-card-title">Agentic Reasoning</div>
+                            <div class="welcome-card-desc">Advanced multi-agent execution & complex planner workflows.</div>
+                        </div>
+                    </div>
+                    <div class="welcome-card">
+                        <i class="fa-solid fa-database welcome-card-icon"></i>
+                        <div>
+                            <div class="welcome-card-title">Living Memory</div>
+                            <div class="welcome-card-desc">Persistent vector embeddings and deep contextual memory.</div>
+                        </div>
+                    </div>
+                    <div class="welcome-card">
+                        <i class="fa-solid fa-globe welcome-card-icon"></i>
+                        <div>
+                            <div class="welcome-card-title">Web Search</div>
+                            <div class="welcome-card-desc">Autonomous Tavily & SearxNG real-time web search.</div>
+                        </div>
+                    </div>
+                    <div class="welcome-card">
+                        <i class="fa-solid fa-terminal welcome-card-icon"></i>
+                        <div>
+                            <div class="welcome-card-title">Sandboxed Run</div>
+                            <div class="welcome-card-desc">Docker-isolated secure agent sandbox command engine.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:16px; margin-top:12px;">
+                    <button @click="nextStep()" class="primary-btn" style="flex:1; padding:12px;"><i class="fa-solid fa-wand-magic-sparkles"></i> Fresh Configure</button>
+                    <button @click="alert('Backup restoration is coming soon. Please start fresh for now!')" class="secondary-btn" style="flex:1; padding:12px;"><i class="fa-solid fa-cloud-arrow-down"></i> Restore from backup</button>
+                </div>
+            </div>
+
+            <!-- Step 1: Provider & Keys -->
+            <div x-show="step === 1" class="step-container" :class="animating ? (animDirection === 'forward' ? 'slide-exit' : 'slide-exit') : 'slide-enter'" x-cloak>
+                <h1>Connect Intelligence</h1>
+                <p>Choose your primary AI provider. Your API key is stored securely in your preferences.</p>
+                
+                <label class="apple-label">AI Provider</label>
+                <select x-model="prefs.llm_provider" class="apple-select-setup">
+                    <option value="groq">Groq (Ultra-Fast)</option>
+                    <option value="google">Google Gemini</option>
+                    <option value="nvidia">NVIDIA NIM</option>
+                    <option value="local">Local Model (Ollama/LMStudio)</option>
+                </select>
+
+                <div x-show="prefs.llm_provider === 'groq'" style="margin-top: 16px;">
+                    <label class="apple-label">Groq API Key</label>
+                    <input type="password" x-model="prefs.groq_api_key" class="apple-input-setup" placeholder="gsk_...">
+                </div>
+                <div x-show="prefs.llm_provider === 'google'" style="margin-top: 16px;">
+                    <label class="apple-label">Google AI API Key</label>
+                    <input type="password" x-model="prefs.google_api_key" class="apple-input-setup" placeholder="AIzaSy...">
+                </div>
+                <div x-show="prefs.llm_provider === 'nvidia'" style="margin-top: 16px;">
+                    <label class="apple-label">NVIDIA API Key</label>
+                    <input type="password" x-model="prefs.nvidia_api_key" class="apple-input-setup" placeholder="nvapi-...">
+                </div>
+                <div x-show="prefs.llm_provider === 'local'" style="margin-top: 16px;">
+                    <label class="apple-label">Local Base URL</label>
+                    <input type="text" x-model="prefs.local_url" class="apple-input-setup" placeholder="http://localhost:8080/v1">
+                </div>
+            </div>
+
+            <!-- Step 2: Model Selection -->
+            <div x-show="step === 2" class="step-container" :class="animating ? 'slide-exit' : 'slide-enter'" x-cloak>
+                <h1>Select Model</h1>
+                <p>Based on your provider, select the reasoning model.</p>
+                
+                <div x-show="loadingModels" style="color:#8686AC; padding:20px 0;">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> Fetching models from provider...
+                </div>
+                
+                <div x-show="!loadingModels">
+                    <select x-model="prefs.model_name" class="apple-select-setup" style="margin-top:10px;">
+                        <template x-for="m in models" :key="m.id">
+                            <option :value="m.id" x-text="m.name"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Step 3: Web Capabilities -->
+            <div x-show="step === 3" class="step-container" :class="animating ? 'slide-exit' : 'slide-enter'" x-cloak>
+                <h1>Web Search Capabilities</h1>
+                <p>Should the AI be able to autonomously search the web for real-time information?</p>
+                
+                <div style="display:flex; gap:16px; margin-bottom:24px;">
+                    <div @click="prefs.web_search_enabled = true" class="toggle-btn" :class="prefs.web_search_enabled ? 'selected' : ''" style="flex:1;">Yes</div>
+                    <div @click="prefs.web_search_enabled = false" class="toggle-btn" :class="!prefs.web_search_enabled ? 'selected' : ''" style="flex:1;">No</div>
+                </div>
+
+                <div x-show="prefs.web_search_enabled">
+                    <label class="apple-label">Search Provider</label>
+                    <select x-model="prefs.search_provider" class="apple-select-setup">
+                        <option value="tavily">Tavily (Recommended)</option>
+                        <option value="searxng">SearxNG (Self-hosted)</option>
+                    </select>
+
+                    <div x-show="prefs.search_provider === 'tavily'">
+                        <label class="apple-label">Tavily API Key</label>
+                        <input type="password" x-model="prefs.tavily_api_key" class="apple-input-setup" placeholder="tvly-...">
+                    </div>
+                    <div x-show="prefs.search_provider === 'searxng'">
+                        <label class="apple-label">SearxNG URL</label>
+                        <input type="text" x-model="prefs.searxng_url" class="apple-input-setup" placeholder="http://localhost:8080">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Character -->
+            <div x-show="step === 4" class="step-container" :class="animating ? 'slide-exit' : 'slide-enter'" x-cloak style="justify-content: flex-start; top: 30px;">
+                <h1>Your AI Companion</h1>
+                <p style="margin-bottom: 12px;">Do you want to create a custom character, or use the default Kokomi?</p>
+                
+                <div style="display:flex; gap:16px; margin-bottom:16px;">
+                    <div @click="skipCharacter = true" class="toggle-btn" :class="skipCharacter ? 'selected' : ''" style="flex:1;">Use Default (Kokomi)</div>
+                    <div @click="skipCharacter = false" class="toggle-btn" :class="!skipCharacter ? 'selected' : ''" style="flex:1;">Create Custom</div>
+                </div>
+
+                <div x-show="!skipCharacter" style="max-height:290px; overflow-y:auto; padding-right:10px;">
+                    <!-- Avatar Upload -->
+                    <div style="display:flex; gap:20px; align-items:center; margin-bottom:16px;">
+                        <div class="squircle-container" @click="document.getElementById('char-avatar-input').click()">
+                            <img :src="character.avatarUrl || 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22 viewBox=%220 0 80 80%22><rect width=%2280%22 height=%2280%22 fill=%22%23272757%22/><circle cx=%2240%22 cy=%2230%22 r=%2214%22 fill=%22%238686AC%22/><path d=%22M15,62 C15,48 25,44 40,44 C55,44 65,48 65,62%22 fill=%22%238686AC%22/></svg>'" class="squircle-avatar">
+                            <div class="squircle-overlay">
+                                <i class="fa-solid fa-camera" style="font-size:16px;"></i>
+                            </div>
+                        </div>
+                        <input type="file" id="char-avatar-input" @change="handleAvatarSelected" accept="image/*" style="display:none;">
+                        
+                        <div style="flex:1;">
+                            <div style="display:flex; gap:8px;">
+                                <button type="button" @click="charMode = 'manual'" class="secondary-btn" :class="charMode === 'manual' ? 'selected' : ''" style="padding: 6px 14px; font-size:12px; border-radius:8px; width:auto; height:auto;">Manual Edit</button>
+                                <button type="button" @click="charMode = 'ai'" class="secondary-btn" :class="charMode === 'ai' ? 'selected' : ''" style="padding: 6px 14px; font-size:12px; border-radius:8px; width:auto; height:auto;"><i class="fa-solid fa-wand-magic-sparkles"></i> Create with AI</button>
+                            </div>
+                            <!-- <p style="margin: 6px 0 0 0; font-size:12px; color:#8686AC;"></p> -->
+                        </div>
+                    </div>
+
+                    <!-- Manual Mode -->
+                    <div x-show="charMode === 'manual'">
+                        <label class="apple-label">Character Name</label>
+                        <input type="text" x-model="character.name" class="apple-input-setup" placeholder="e.g., Jarvis">
+                        
+                        <label class="apple-label">Persona / Instructions</label>
+                        <textarea x-model="character.persona" class="apple-input-setup" rows="3" placeholder="You are a brilliant AI assistant..."></textarea>
+                    </div>
+
+                    <!-- AI Mode -->
+                    <div x-show="charMode === 'ai'">
+                        <label class="apple-label">Describe what kind of character to create</label>
+                        <textarea x-model="aiPrompt" class="apple-input-setup" rows="3" placeholder="e.g., A witty anime companion who is obsessed with tea, speaks politely, and loves math."></textarea>
+                        <button type="button" @click="generateCharacterAI()" class="primary-btn" style="width:100%; margin-top:4px;" :disabled="generatingChar">
+                            <span x-show="!generatingChar"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Character</span>
+                            <span x-show="generatingChar"><i class="fa-solid fa-circle-notch fa-spin"></i> Designing Character...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Identity & Theme -->
+            <div x-show="step === 5" class="step-container" :class="animating ? 'slide-exit' : 'slide-enter'" x-cloak>
+                <h1>Your Identity</h1>
+                <p>What should the agents call you?</p>
+                
+                <label class="apple-label">Your Name</label>
+                <input type="text" x-model="prefs.user_name" class="apple-input-setup" placeholder="e.g., Keqing">
+
+                <div style="margin-top: 24px; display: flex; gap: 24px;">
+                    <div style="flex:1;">
+                        <label class="apple-label">Interface Theme</label>
+                        <div style="display:flex; gap:16px;">
+                            <div @click="toggleTheme('dark')" class="toggle-btn" :class="prefs.theme === 'dark' ? 'selected' : ''" style="flex:1;"><i class="fa-solid fa-moon"></i> Dark</div>
+                            <div @click="toggleTheme('light')" class="toggle-btn" :class="prefs.theme === 'light' ? 'selected' : ''" style="flex:1;"><i class="fa-solid fa-sun"></i> Light</div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="apple-label">Accent Color</label>
+                        <input type="color" x-model="customAccent" class="apple-input-setup" style="height: 52px; padding: 4px 8px; cursor: pointer; width: 100px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Create Account -->
+            <div x-show="step === 6" class="step-container" :class="animDirection === 'forward' && animating ? 'slide-exit' : (animDirection === 'backward' && animating ? 'slide-enter' : 'slide-enter')" x-cloak>
+                <div style="text-align:center; margin-bottom: 32px;">
+                    <div style="width: 80px; height: 80px; border-radius: 50%; background: rgba(134, 134, 172, 0.1); margin: 0 auto 16px auto; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(134, 134, 172, 0.2); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
+                        <i class="fa-solid fa-user-astronaut" style="font-size: 32px; color: var(--dusty-lavender);"></i>
+                    </div>
+                    <h1 style="margin-bottom: 8px;">Create Your Account</h1>
+                    <p style="margin: 0 auto; max-width: 320px;">This will be your master account to access your Kokomi workspace.</p>
+                </div>
+
+                <div class="input-group">
+                    <label class="apple-label">Account Name</label>
+                    <div style="position:relative;">
+                        <input type="text" x-model="prefs.admin_username" class="apple-input-setup" placeholder="e.g. commander" style="font-weight: 500;">
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-top:20px;">
+                    <label class="apple-label">Secure Password</label>
+                    <div style="position:relative;">
+                        <input type="password" x-model="prefs.admin_password" class="apple-input-setup" placeholder="Create a password" style="letter-spacing: 2px; font-weight: 700;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 7: Complete -->
+            <div x-show="step === 7" class="step-container" :class="animating ? 'slide-exit' : 'slide-enter'" x-cloak>
+                <div style="text-align:center;">
+                    <div style="font-size:56px; margin-bottom:20px; color:#8686AC;">
+                        <i class="fa-solid fa-shield-check fa-bounce"></i>
+                    </div>
+                    <h1>You're All Set!</h1>
+                    <p>Your preferences, keys, and security settings are safely stored. Kokomi is ready to assist you.</p>
+                </div>
+            </div>
+
+            <!-- Navigation Bar -->
+            <div x-show="step > 0" class="nav-buttons" x-cloak>
+                <button @click="prevStep()" class="secondary-btn" x-show="step < 7"><i class="fa-solid fa-chevron-left"></i> Back</button>
+                <div style="flex:1;"></div>
+                
+                <!-- Next for Step 1 requires fetching models -->
+                <button @click="connectAndFetch()" class="primary-btn" x-show="step === 1">Connect & Select Model <i class="fa-solid fa-chevron-right"></i></button>
+                
+                <!-- Next for Step 4 -> 5 -->
+                <button @click="saveCharacterAndNext()" class="primary-btn" x-show="step === 4">Continue <i class="fa-solid fa-chevron-right"></i></button>
+
+                <!-- Normal Next -->
+                <button @click="nextStep()" class="primary-btn" x-show="(step > 1 && step < 4) || step === 5 || step === 6">Continue <i class="fa-solid fa-chevron-right"></i></button>
+                
+                <!-- Finish -->
+                <button @click="finishSetup()" class="primary-btn" x-show="step === 7">
+                    <span x-show="!loading">Get Started <i class="fa-solid fa-arrow-right"></i></span>
+                    <span x-show="loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Saving...</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function onboardingData() {
+            return {
+                step: 0,
+                animating: false,
+                animDirection: 'forward',
+                loading: false,
+                models: [],
+                loadingModels: false,
+                skipCharacter: true,
+                customAccent: '#8686AC',
+                fullPrefs: {},
+                
+                charMode: 'manual',
+                aiPrompt: '',
+                generatingChar: false,
+                
+                prefs: {
+                    user_name: 'User',
+                    llm_provider: 'groq',
+                    groq_api_key: '',
+                    google_api_key: '',
+                    nvidia_api_key: '',
+                    model_name: 'llama-3.3-70b-versatile',
+                    local_url: 'http://localhost:8080/v1',
+                    web_search_enabled: false,
+                    search_provider: 'tavily',
+                    tavily_api_key: '',
+                    searxng_url: '',
+                    theme: 'dark',
+                    admin_username: 'admin',
+                    admin_password: 'admin',
+                    setup_completed: true
+                },
+
+                character: {
+                    name: '',
+                    persona: '',
+                    avatarUrl: '',
+                    avatarFile: null
+                },
+
+                async init() {
+                    // Pre-fill existing prefs if any
+                    try {
+                        let res = await fetch('/api/prefs');
+                        this.fullPrefs = await res.json();
+                        for (let k in this.prefs) {
+                            if (this.fullPrefs[k] !== undefined) this.prefs[k] = this.fullPrefs[k];
+                        }
+                    } catch (e) {}
+                },
+
+                handleAvatarSelected(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    this.character.avatarFile = file;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        this.character.avatarUrl = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                },
+
+                async generateCharacterAI() {
+                    if (this.generatingChar || !this.aiPrompt.trim()) return;
+                    this.generatingChar = true;
+                    try {
+                        const systemPrompt = "You are a highly creative Character Designer for Kokomi, an advanced multi-agent system. Design a complete persona based on the user's idea. Output strictly valid JSON. Format: {\"name\": \"Character Name\", \"persona\": \"Detailed instructions and persona for the agent. Maintain their personality.\"}. Do not include markdown code block backticks (like ```json or ```), just return the raw JSON object.";
+                        
+                        const response = await fetch('/api/prefs/ai/generate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                prompt: this.aiPrompt,
+                                system: systemPrompt
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.text) {
+                            let text = data.text.trim();
+                            // Clean any code fences
+                            text = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+                            
+                            const parsed = JSON.parse(text);
+                            if (parsed.name && parsed.persona) {
+                                this.character.name = parsed.name;
+                                this.character.persona = parsed.persona;
+                                this.charMode = 'manual'; // switch back to let user preview
+                            }
+                        }
+                    } catch(err) {
+                        console.error("AI Generation failed:", err);
+                        alert("Could not generate character. Please check your AI provider connection or key!");
+                    }
+                    this.generatingChar = false;
+                },
+
+                toggleTheme(theme) {
+                    this.prefs.theme = theme;
+                    const isDark = theme === 'dark';
+                    localStorage.setItem('theme', theme);
+                    
+                    try {
+                        if (window.Alpine) {
+                            Alpine.$data(document.documentElement).darkMode = isDark;
+                        } else {
+                            if (isDark) {
+                                document.documentElement.classList.add('dark');
+                            } else {
+                                document.documentElement.classList.remove('dark');
+                            }
+                        }
+                    } catch(e) {
+                        if (isDark) {
+                            document.documentElement.classList.add('dark');
+                        } else {
+                            document.documentElement.classList.remove('dark');
+                        }
+                    }
+                },
+
+                nextStep() {
+                    if (this.animating) return;
+                    this.animDirection = 'forward';
+                    this.animating = true;
+                    setTimeout(() => {
+                        this.step++;
+                        this.animating = false;
+                    }, 400);
+                },
+
+                prevStep() {
+                    if (this.animating) return;
+                    this.animDirection = 'backward';
+                    this.animating = true;
+                    setTimeout(() => {
+                        this.step--;
+                        this.animating = false;
+                    }, 400);
+                },
+
+                async connectAndFetch() {
+                    if (this.animating) return;
+                    // First, save the API keys to the backend so the model fetcher can use them
+                    this.loadingModels = true;
+                    this.nextStep(); // Move to step 2 visually
+                    
+                    try {
+                        let payload = Object.assign({}, this.fullPrefs, this.prefs);
+                        await fetch('/api/prefs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        // Now fetch models
+                        let res = await fetch('/api/models');
+                        let allModels = await res.json();
+                        this.models = allModels.filter(m => m.provider === this.prefs.llm_provider);
+                        
+                        if (this.models.length > 0) {
+                            this.prefs.model_name = this.models[0].id;
+                        }
+                    } catch(e) {
+                        console.error(e);
+                    }
+                    this.loadingModels = false;
+                },
+
+                async saveCharacterAndNext() {
+                    if (!this.skipCharacter && this.character.name.trim()) {
+                        try {
+                            const formData = new FormData();
+                            formData.append("name", this.character.name);
+                            formData.append("persona", this.character.persona);
+                            formData.append("memory_enabled", true);
+                            if (this.character.avatarFile) {
+                                formData.append("avatar", this.character.avatarFile);
+                            }
+                            
+                            await fetch('/api/characters', {
+                                method: 'POST',
+                                body: formData
+                            });
+                        } catch(e) {
+                            console.error("Failed to save character:", e);
+                        }
+                    }
+                    this.nextStep();
+                },
+
+                async finishSetup() {
+                    if (this.loading) return;
+                    this.loading = true;
+                    try {
+                        // Apply Theme and Accent directly
+                        localStorage.setItem('theme', this.prefs.theme);
+                        localStorage.setItem('customAccent', this.customAccent);
+                        
+                        // Final save
+                        this.prefs.setup_completed = true;
+                        let payload = Object.assign({}, this.fullPrefs, this.prefs);
+                        const response = await fetch('/api/prefs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            window.location.href = '/';
+                        } else {
+                            this.loading = false;
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+{% endblock %}

@@ -35,8 +35,8 @@ class ConversationFolderUpdate(BaseModel):
 
 
 class PrefsUpdate(BaseModel):
-    model_name: str
-    user_persona: str
+    model_name: Optional[str] = "llama-3.3-70b-versatile"
+    user_persona: Optional[str] = ""
     dynamic_suggestions: bool = True
     streaming_mode: bool = True
     inject_time: bool = False
@@ -68,3 +68,10 @@ class PrefsUpdate(BaseModel):
     atlas_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
     atlas_local_url: Optional[str] = "http://localhost:8080/v1"
     atlas_local_model: Optional[str] = "local-model"
+    setup_completed: bool = False
+    groq_api_key: Optional[str] = ""
+    google_api_key: Optional[str] = ""
+    nvidia_api_key: Optional[str] = ""
+    admin_username: Optional[str] = "admin"
+    admin_password: Optional[str] = "admin"
+    tour_completed: bool = False

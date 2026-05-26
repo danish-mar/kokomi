@@ -68,6 +68,11 @@ DEFAULT_PREFS: dict = {
     "execution_engine": "docker",
     "docker_connection": "local",
     "docker_remote_url": "tcp://192.168.1.100:2375",
-    "docker_image": "kokomi-agent-base"
+    "docker_image": "kokomi-agent-base",
+    "setup_completed": False,
+    "tour_completed": False,
+    "groq_api_key": os.getenv("GROQ_API_KEY", ""),
+    "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
+    "nvidia_api_key": os.getenv("NVIDIA_API_KEY", "")
 }
 

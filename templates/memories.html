@@ -4,17 +4,20 @@
 
 {% block head %}
 <style>
-    /* Styling according to RULE[colo-theme.md] */
+    /* Premium Apple HIG styling according to RULE[colo-theme.md] */
     :root {
         --deep-midnight: #272757;
         --dusty-lavender: #8686AC;
         --muted-indigo: #505081;
         --obsidian-blue: #0F0E47;
+        --sf-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
     }
 
     body {
-        background: var(--obsidian-blue) !important;
-        color: #FFFFFF !important;
+        background: radial-gradient(circle at 50% -20%, #272757 0%, #0F0E47 80%) !important;
+        font-family: var(--sf-font) !important;
+        color: #EDEDF5 !important;
+        letter-spacing: -0.01em;
     }
 
     .memory-page {
@@ -27,23 +30,26 @@
 
     /* Frosted Top Bar */
     .memory-topbar {
-        height: 54px;
+        height: 60px;
         display: flex;
         align-items: center;
-        padding: 0 16px;
-        background: rgba(39, 39, 87, 0.45);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        border-bottom: 1px solid rgba(134, 134, 172, 0.15);
+        padding: 0 24px;
+        background: rgba(15, 14, 71, 0.4);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border-bottom: 1px solid rgba(134, 134, 172, 0.12);
         z-index: 100;
         flex-shrink: 0;
     }
 
     .memory-topbar h1 {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 700;
-        letter-spacing: -0.02em;
-        margin-left: 12px;
+        letter-spacing: -0.03em;
+        margin-left: 14px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #C5C4DD 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
     .tahoe-layout {
@@ -55,15 +61,15 @@
 
     /* macOS Tahoe Sidebar */
     .tahoe-sidebar {
-        width: 240px;
-        background: rgba(15, 14, 71, 0.5);
-        backdrop-filter: blur(30px);
-        -webkit-backdrop-filter: blur(30px);
-        border-right: 1px solid rgba(134, 134, 172, 0.12);
-        padding: 20px 10px;
+        width: 260px;
+        background: rgba(15, 14, 71, 0.25);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border-right: 1px solid rgba(134, 134, 172, 0.1);
+        padding: 24px 14px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 20px;
         flex-shrink: 0;
         overflow-y: auto;
     }
@@ -71,118 +77,130 @@
     .tahoe-sidebar-section {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
     }
 
     .tahoe-sidebar-label {
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
         color: var(--dusty-lavender);
-        letter-spacing: 0.05em;
+        letter-spacing: 0.08em;
         padding-left: 12px;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
     }
 
     .tahoe-nav-item {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
         width: 100%;
-        padding: 8px 12px;
+        padding: 10px 14px;
         border: none;
         background: transparent;
-        color: #FFFFFF;
-        font-size: 13px;
+        color: rgba(237, 237, 245, 0.8);
+        font-size: 13.5px;
         font-weight: 500;
         text-align: left;
         cursor: pointer;
-        border-radius: 10px;
-        transition: background 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), transform 0.1s;
+        border-radius: 12px; /* continuous curves squircle */
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .tahoe-nav-item:hover {
         background: rgba(134, 134, 172, 0.12);
+        color: #FFFFFF;
+        transform: translateX(2px);
     }
 
     .tahoe-nav-item.active {
-        background: var(--muted-indigo);
+        background: rgba(80, 80, 129, 0.4);
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
+        color: #FFFFFF;
         font-weight: 600;
+        border: 1px solid rgba(134, 134, 172, 0.2);
     }
 
     .nav-icon {
-        width: 18px;
-        height: 18px;
+        width: 22px;
+        height: 22px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 4px;
+        border-radius: 6px;
         background: rgba(134, 134, 172, 0.15);
     }
 
     .tahoe-nav-item.active .nav-icon {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.15);
     }
 
     /* Main Content Pane */
     .memory-content {
         flex: 1;
-        background: var(--obsidian-blue);
+        background: transparent;
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        padding: 24px;
+        padding: 30px;
     }
 
     /* Continuous Curves (Squircle) Glass Cards */
     .glass-card {
-        background: rgba(39, 39, 87, 0.4);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(134, 134, 172, 0.12);
-        border-radius: 16px;
-        transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), box-shadow 0.25s;
+        background: rgba(39, 39, 87, 0.35);
+        backdrop-filter: blur(40px);
+        -webkit-backdrop-filter: blur(40px);
+        border: 1px solid rgba(134, 134, 172, 0.15);
+        border-radius: 20px; /* Squircle approximate */
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .glass-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-        border-color: rgba(134, 134, 172, 0.25);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+        border-color: rgba(134, 134, 172, 0.3);
     }
 
     .apple-field {
-        background: rgba(39, 39, 87, 0.3) !important;
-        border: 1px solid rgba(134, 134, 172, 0.18) !important;
-        border-radius: 12px;
+        background: rgba(15, 14, 71, 0.4) !important;
+        border: 1px solid rgba(134, 134, 172, 0.2) !important;
+        border-radius: 14px;
         color: #FFFFFF !important;
-        padding: 10px 14px;
+        padding: 12px 16px;
         width: 100%;
-        transition: border-color 0.2s, box-shadow 0.2s;
+        font-size: 14px;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
     }
 
     .apple-field:focus {
         border-color: var(--dusty-lavender) !important;
-        box-shadow: 0 0 0 3px rgba(134, 134, 172, 0.15) !important;
+        box-shadow: 0 0 0 3px rgba(134, 134, 172, 0.15), inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+        background: rgba(15, 14, 71, 0.6) !important;
         outline: none;
     }
 
     .apple-btn {
-        background: var(--muted-indigo);
+        background: rgba(80, 80, 129, 0.5);
+        border: 1px solid rgba(134, 134, 172, 0.25);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
         color: #FFFFFF;
         font-weight: 600;
         font-size: 13px;
-        padding: 8px 16px;
-        border-radius: 12px;
-        border: none;
+        padding: 10px 18px;
+        border-radius: 14px;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 6px;
-        transition: background 0.2s, transform 0.1s;
+        gap: 8px;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .apple-btn:hover {
-        background: #606095;
+        background: rgba(80, 80, 129, 0.7);
+        border-color: rgba(134, 134, 172, 0.4);
+        transform: translateY(-1px);
     }
 
     .apple-btn:active {
@@ -190,21 +208,23 @@
     }
 
     .icon-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        border: none;
-        background: rgba(134, 134, 172, 0.15);
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid rgba(134, 134, 172, 0.15);
+        background: rgba(134, 134, 172, 0.1);
         color: #FFFFFF;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: background 0.2s;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .icon-btn:hover {
         background: rgba(134, 134, 172, 0.25);
+        border-color: rgba(134, 134, 172, 0.35);
+        color: #FFFFFF;
     }
 
     .modal-overlay {
@@ -214,9 +234,9 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(15, 14, 71, 0.6);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        background: rgba(15, 14, 71, 0.55);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
     }
 
     .modal-backdrop {
@@ -340,53 +360,58 @@
                             <span x-text="searchQuery ? 'Try refining your search query.' : 'Chat with ' + (activeChar ? activeChar.name : 'this character') + ' or add a manual atom to create memories.'"></span>
                         </p>
                     </div>
-                </template>
-
-                <!-- Cards Grid -->
+                </template>                <!-- Cards Grid -->
                 <template x-if="!loading && filteredMemories.length > 0">
-                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; padding: 4px 2px 24px 2px;">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:24px; padding: 4px 2px 32px 2px;">
                         <template x-for="mem in filteredMemories" :key="mem.id">
-                            <div class="glass-card" style="padding:20px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; min-height:140px;" :style="mem.importance >= 4.0 ? 'border-color:rgba(74,222,128,0.3); background:rgba(74,222,128,0.03)' : mem.importance < 2.0 ? 'border-color:rgba(248,113,113,0.2); opacity:0.65' : ''">
-                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex:1;">
-                                    <p style="font-size:14px; color:#FFFFFF; font-weight:500; line-height:1.6; word-break:break-word; margin:0;" x-text="mem.text"></p>
-                                    <button @click="deleteMemory(mem.id)" class="icon-btn" style="background:rgba(248,113,113,0.1); color:#f87171; width:28px; height:28px; border-radius:8px; flex-shrink:0; opacity:0; transition:opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0'" x-init="$el.parentElement.parentElement.addEventListener('mouseover', () => $el.style.opacity='1'); $el.parentElement.parentElement.addEventListener('mouseout', () => $el.style.opacity='0')">
-                                        <i class="fa-solid fa-trash-can" style="font-size:12px;"></i>
+                            <div class="glass-card" style="padding:24px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; min-height:150px; border-radius:24px; position:relative; overflow:hidden;" 
+                                 :style="mem.importance >= 4.0 ? 'border-color:rgba(134,134,172,0.4); background:linear-gradient(145deg, rgba(39,39,87,0.6) 0%, rgba(15,14,71,0.8) 100%); box-shadow:0 12px 30px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.1), inset 0 0 20px rgba(134,134,172,0.05);' : 
+                                         mem.importance < 2.0 ? 'border-color:rgba(80,80,129,0.2); background:rgba(20,19,60,0.3); opacity:0.75;' : 
+                                         'border-color:rgba(134,134,172,0.2); background:linear-gradient(145deg, rgba(39,39,87,0.3) 0%, rgba(15,14,71,0.5) 100%);'">
+                                
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex:1; position:relative; z-index:2;">
+                                    <p style="font-size:14.5px; color:#EDEDF5; font-weight:500; line-height:1.6; word-break:break-word; margin:0; letter-spacing:-0.01em;" x-text="mem.text"></p>
+                                    <button @click="deleteMemory(mem.id)" class="icon-btn" style="background:rgba(248,113,113,0.1); color:#f87171; width:32px; height:32px; border-radius:10px; border:1px solid rgba(248,113,113,0.2); flex-shrink:0; opacity:0; transition:all 0.3s cubic-bezier(0.16, 1, 0.3, 1); transform:scale(0.95);" onmouseover="this.style.opacity='1'; this.style.transform='scale(1)';" onmouseout="this.style.opacity='0'; this.style.transform='scale(0.95)';" x-init="$el.parentElement.parentElement.addEventListener('mouseover', () => { $el.style.opacity='1'; $el.style.transform='scale(1)'; }); $el.parentElement.parentElement.addEventListener('mouseout', () => { $el.style.opacity='0'; $el.style.transform='scale(0.95)'; })">
+                                        <i class="fa-solid fa-trash-can" style="font-size:13px;"></i>
                                     </button>
                                 </div>
                                 
                                 <!-- Importance + Metadata Bar -->
-                                <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid rgba(134, 134, 172, 0.15); padding-top:12px; margin-top:4px;">
-                                    <div style="display:flex; align-items:center; gap:12px;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid rgba(134, 134, 172, 0.15); padding-top:14px; margin-top:6px; position:relative; z-index:2;">
+                                    <div style="display:flex; align-items:center; gap:10px;">
                                         <!-- Importance Stars -->
-                                        <div style="display:flex; align-items:center; gap:4px;" :title="'Importance: ' + mem.importance.toFixed(1)">
+                                        <div style="display:flex; align-items:center; gap:3px;" :title="'Importance: ' + mem.importance.toFixed(1)">
                                             <template x-for="s in 5">
-                                                <i class="fa-solid fa-star" style="font-size:10px;" :style="s <= Math.round(mem.importance || 3) ? 'color:#FBBF24' : 'color:rgba(134,134,172,0.2)'"></i>
+                                                <i class="fa-solid fa-star" style="font-size:10px;" :style="s <= Math.round(mem.importance || 3) ? 'color:#FBBF24; filter:drop-shadow(0 0 4px rgba(251,191,36,0.4))' : 'color:rgba(134,134,172,0.2)'"></i>
                                             </template>
                                         </div>
                                         
                                         <!-- Divider -->
-                                        <div style="width:4px; height:4px; border-radius:50%; background:rgba(134,134,172,0.3);"></div>
+                                        <div style="width:3px; height:3px; border-radius:50%; background:rgba(134,134,172,0.4);"></div>
                                         
                                         <!-- Source Badge -->
-                                        <span style="font-size:9px; padding:3px 8px; border-radius:6px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;" 
-                                              :style="mem.source === 'manual_entry' ? 'background:rgba(167,139,250,0.15); color:#A78BFA' : mem.source === 'tool' ? 'background:rgba(45,212,191,0.15); color:#2DD4BF' : 'background:rgba(134,134,172,0.15); color:var(--dusty-lavender)'"
+                                        <span style="font-size:9.5px; padding:4px 8px; border-radius:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);" 
+                                              :style="mem.source === 'manual_entry' ? 'background:rgba(167,139,250,0.15); color:#A78BFA; border:1px solid rgba(167,139,250,0.2)' : mem.source === 'tool' ? 'background:rgba(45,212,191,0.15); color:#2DD4BF; border:1px solid rgba(45,212,191,0.2)' : 'background:rgba(134,134,172,0.12); color:var(--dusty-lavender); border:1px solid rgba(134,134,172,0.2)'"
                                               x-text="mem.source === 'manual_entry' ? 'MANUAL' : mem.source === 'tool' ? 'TOOL' : 'AUTO'"></span>
                                     </div>
                                     
                                     <div style="display:flex; align-items:center; gap:12px;">
                                         <!-- Access Count -->
-                                        <div style="display:flex; align-items:center; gap:4px;" title="Times accessed">
-                                            <i class="fa-solid fa-eye" style="font-size:10px; color:var(--dusty-lavender);"></i>
-                                            <span style="font-size:10px; font-weight:600; color:var(--dusty-lavender);" x-text="mem.access_count || 0"></span>
+                                        <div style="display:flex; align-items:center; gap:5px;" title="Times accessed">
+                                            <i class="fa-solid fa-eye" style="font-size:11px; color:var(--dusty-lavender);"></i>
+                                            <span style="font-size:11px; font-weight:600; color:var(--dusty-lavender);" x-text="mem.access_count || 0"></span>
                                         </div>
                                         
                                         <!-- Timestamp -->
-                                        <div style="display:flex; align-items:center; gap:4px;">
-                                            <i class="fa-solid fa-clock" style="font-size:10px; color:rgba(134,134,172,0.5);"></i>
-                                            <span style="font-size:10px; color:rgba(134,134,172,0.7);" x-text="formatDate(mem.timestamp)"></span>
+                                        <div style="display:flex; align-items:center; gap:5px;">
+                                            <i class="fa-solid fa-clock" style="font-size:11px; color:rgba(134,134,172,0.6);"></i>
+                                            <span style="font-size:11px; color:rgba(134,134,172,0.8); font-weight:500;" x-text="formatDate(mem.timestamp)"></span>
                                         </div>
                                     </div>
                                 </div>
+                                
+                                <!-- Subtle Background Glow/Noise overlay -->
+                                <div style="position:absolute; inset:0; background:radial-gradient(circle at 100% 0%, rgba(134,134,172,0.08) 0%, transparent 60%); z-index:1; pointer-events:none;"></div>
                             </div>
                         </template>
                     </div>
@@ -400,24 +425,42 @@
     <!-- ── Add Memory Modal ── -->
     <div x-show="addModal" class="modal-overlay" x-cloak>
         <div class="modal-backdrop" @click="addModal = false"></div>
-        <div class="glass-card" style="width:100%; max-width:440px; padding:24px; position:relative; z-index:10; background:var(--deep-midnight);">
-            <h3 style="font-size:17px; font-weight:700; margin-bottom:8px;">Add Manual Memory Atom</h3>
-            <p style="font-size:11px; color:var(--dusty-lavender); margin-bottom:16px;">Directly feed a specific fact into this character's persistent vector context.</p>
+        <div class="glass-card" style="width:100%; max-width:440px; padding:32px 24px; position:relative; z-index:10; background:rgba(20, 19, 60, 0.95); border-radius:24px; border-top: 1px solid rgba(134, 134, 172, 0.3);">
+            <h3 style="font-size:18px; font-weight:700; margin-bottom:8px; color:#EDEDF5;">Add Manual Memory Atom</h3>
+            <p style="font-size:12px; color:var(--dusty-lavender); margin-bottom:20px;">Directly feed a specific fact into this character's persistent vector context.</p>
             
-            <div style="margin-bottom:20px;">
-                <label class="apple-label">Memory Description</label>
-                <textarea x-model="newMemoryText" placeholder="e.g. User prefers short concise bullet points, works as a senior software developer, hates raw onions..." class="apple-field" style="min-height:100px; resize:none;"></textarea>
+            <div style="margin-bottom:24px;">
+                <label class="tahoe-sidebar-label" style="display:block; padding-left:4px;">Memory Description</label>
+                <textarea x-model="newMemoryText" placeholder="e.g. User prefers short concise bullet points, works as a senior software developer, hates raw onions..." class="apple-field" style="min-height:120px; resize:none;"></textarea>
             </div>
 
-            <div style="display:flex; gap:10px;">
-                <button @click="addModal = false" class="apple-btn" style="flex:1; background:transparent; border:1px solid rgba(134,134,172,0.3); justify-content:center;">Cancel</button>
-                <button @click="saveManualMemory()" class="apple-btn" style="flex:1; justify-content:center;" :disabled="!newMemoryText.trim()">
+            <div style="display:flex; gap:12px;">
+                <button @click="addModal = false" class="apple-btn" style="flex:1; background:rgba(80,80,129,0.2); border:1px solid rgba(134,134,172,0.2); justify-content:center; color:var(--dusty-lavender); border-radius:14px;">Cancel</button>
+                <button @click="saveManualMemory()" class="apple-btn" style="flex:1; justify-content:center; background:var(--muted-indigo); border-radius:14px;" :disabled="!newMemoryText.trim()">
                     <i class="fa-solid fa-check"></i> Save Atom
                 </button>
             </div>
         </div>
     </div>
 
+    <!-- ── Confirm Modal ── -->
+    <div x-show="confirmModal" class="modal-overlay" x-cloak>
+        <div class="modal-backdrop" @click="confirmModal = false"></div>
+        <div class="glass-card" style="width:100%; max-width:380px; padding:32px 24px; position:relative; z-index:10; background:rgba(20, 19, 60, 0.95); text-align:center; border-radius:24px; border-top: 1px solid rgba(134, 134, 172, 0.3);">
+            <div style="font-size:42px; color:var(--dusty-lavender); margin-bottom:16px;" :style="confirmDanger ? 'color:#ef4444' : 'color:var(--dusty-lavender)'">
+                <i :class="confirmIcon || 'fa-solid fa-triangle-exclamation'"></i>
+            </div>
+            <h3 style="font-size:18px; font-weight:700; margin-bottom:12px; color:#EDEDF5; letter-spacing:-0.02em;" x-text="confirmTitle"></h3>
+            <p style="font-size:13px; color:var(--dusty-lavender); margin-bottom:24px; line-height:1.6;" x-text="confirmMessage"></p>
+            
+            <div style="display:flex; gap:12px;">
+                <button @click="confirmModal = false" class="apple-btn" style="flex:1; background:rgba(80,80,129,0.2); border:1px solid rgba(134,134,172,0.2); justify-content:center; color:var(--dusty-lavender); border-radius:14px; font-size:13.5px;">Cancel</button>
+                <button @click="executeConfirm()" class="apple-btn" style="flex:1; justify-content:center; background:var(--muted-indigo); color:#EDEDF5; border-radius:14px; font-size:13.5px;" :style="confirmDanger ? 'background:rgba(239,68,68,0.2); color:#ef4444; border-color:rgba(239,68,68,0.3);' : ''">
+                    <i :class="confirmIcon" style="font-size:12px;"></i> <span x-text="confirmBtnText || 'Confirm'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -433,6 +476,32 @@
             // Add Modal
             addModal: false,
             newMemoryText: '',
+
+            // Confirm Modal
+            confirmModal: false,
+            confirmTitle: '',
+            confirmMessage: '',
+            confirmIcon: '',
+            confirmBtnText: '',
+            confirmDanger: false,
+            confirmAction: null,
+
+            openConfirm(title, message, icon, btnText, danger, action) {
+                this.confirmTitle = title;
+                this.confirmMessage = message;
+                this.confirmIcon = icon;
+                this.confirmBtnText = btnText;
+                this.confirmDanger = danger;
+                this.confirmAction = action;
+                this.confirmModal = true;
+            },
+
+            async executeConfirm() {
+                if (this.confirmAction) {
+                    await this.confirmAction();
+                }
+                this.confirmModal = false;
+            },
 
             async init() {
                 // Parse character ID from URL if present
@@ -498,43 +567,58 @@
                 return this.memories.filter(m => m.text.toLowerCase().includes(query));
             },
 
-            async deleteMemory(memId) {
-                if (!confirm("Are you sure you want to forget this memory atom?")) return;
-                try {
-                    const r = await fetch(`/api/characters/${this.activeChar.id}/memories/${memId}`, {
-                        method: 'DELETE'
-                    });
-                    if (r.ok) {
-                        this.memories = this.memories.filter(m => m.id !== memId);
+            deleteMemory(memId) {
+                this.openConfirm(
+                    "Forget Memory Atom?",
+                    "Are you sure you want to completely erase this specific detail from the character's memory?",
+                    "fa-solid fa-eraser",
+                    "Forget",
+                    true,
+                    async () => {
+                        try {
+                            const r = await fetch(`/api/characters/${this.activeChar.id}/memories/${memId}`, { method: 'DELETE' });
+                            if (r.ok) {
+                                this.memories = this.memories.filter(m => m.id !== memId);
+                            }
+                        } catch(e) { console.error("Failed to delete memory:", e); }
                     }
-                } catch(e) {
-                    console.error("Failed to delete memory:", e);
-                }
+                );
             },
 
-            async clearAllMemories() {
-                if (!confirm(`Are you sure you want to completely erase ALL memory atoms for ${this.activeChar.name}? This action is irreversible.`)) return;
-                try {
-                    const r = await fetch(`/api/characters/${this.activeChar.id}/memories`, {
-                        method: 'DELETE'
-                    });
-                    if (r.ok) {
-                        this.memories = [];
-                    }
-                } catch(e) {
-                    console.error("Failed to clear memories:", e);
-                }
-            },
-
-            async triggerDecay() {
+            clearAllMemories() {
                 if (!this.activeChar) return;
-                if (!confirm(`Run memory decay sweep for ${this.activeChar.name}? Low-importance stale atoms will be weakened or pruned.`)) return;
-                try {
-                    await fetch(`/api/characters/${this.activeChar.id}/memories/decay`, { method: 'POST' });
-                    await this.fetchMemories();
-                } catch(e) {
-                    console.error("Decay failed:", e);
-                }
+                this.openConfirm(
+                    "Erase All Memories",
+                    `Are you sure you want to completely erase ALL memory atoms for ${this.activeChar.name}? This action is irreversible.`,
+                    "fa-solid fa-dumpster-fire",
+                    "Erase All",
+                    true,
+                    async () => {
+                        try {
+                            const r = await fetch(`/api/characters/${this.activeChar.id}/memories`, { method: 'DELETE' });
+                            if (r.ok) {
+                                this.memories = [];
+                            }
+                        } catch(e) { console.error("Failed to clear memories:", e); }
+                    }
+                );
+            },
+
+            triggerDecay() {
+                if (!this.activeChar) return;
+                this.openConfirm(
+                    "Run Decay Sweep",
+                    `Sweep memory for ${this.activeChar.name}? Low-importance stale atoms will be weakened or pruned automatically based on time.`,
+                    "fa-solid fa-hourglass-half",
+                    "Run Sweep",
+                    false,
+                    async () => {
+                        try {
+                            await fetch(`/api/characters/${this.activeChar.id}/memories/decay`, { method: 'POST' });
+                            await this.fetchMemories();
+                        } catch(e) { console.error("Decay failed:", e); }
+                    }
+                );
             },
 
             openAddModal() {
