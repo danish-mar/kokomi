@@ -1417,6 +1417,13 @@ def shell_exec(command: str, timeout: int = 60) -> str:
     from app.workflow import active_storage_dir, active_run_id
     from app.container import SandboxManager
     
+    if timeout is None:
+        timeout = 60
+    else:
+        try:
+            timeout = int(timeout)
+        except Exception:
+            timeout = 60
     timeout = min(max(timeout, 5), 300)
     run_id = active_run_id.get()
     
@@ -1807,7 +1814,9 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
     # Each worker iterates: Think → Act (call tool) → Observe (get result)
     # until the LLM stops calling tools (signals task complete) or
     # we hit max_iterations.
-    max_iterations = template.get("max_iterations", 20)
+    max_iterations = template.get("max_iterations")
+    if max_iterations is None:
+        max_iterations = 20
     
     task_prompt_tokens = 0
     task_completion_tokens = 0
@@ -1815,7 +1824,9 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
     task_duration_ms = 0
     
     retries = 0
-    limit = template["retry_limit"]
+    limit = template.get("retry_limit")
+    if limit is None:
+        limit = 3
     
     while retries <= limit:
         try:

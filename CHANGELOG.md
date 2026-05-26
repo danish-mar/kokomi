@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.0.1] - 2026-05-27
+
+### Fixed
+
+- **ReAct Loop NoneType Defensiveness**: Hardened `execute_worker_task` ReAct agent execution against nullable database columns, preventing `TypeError: 'NoneType' object cannot be interpreted as an integer` when template limits are missing or null.
+- **Workflow Time Monospace Clarity**: Applied CSS `text-transform: none;` on the active workflow duration time wrapper, keeping seconds (`s`) and minutes (`m`) lowercase to prevent monospace typeface confusion with the digit `5` (previously rendered as capitalized `S`/`M`).
+- **Tool Sandbox Hardening**: Fortified `shell_exec` time limits to handle non-integer or `None` values gracefully.
+
 ## [v4.0.0] - 2026-05-27
 
 ### Added
