@@ -11,3 +11,4 @@ wheels/
 .env
 data/
 .agents/
+public/static/vendor/

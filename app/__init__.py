@@ -30,7 +30,13 @@ from fastapi.templating import Jinja2Templates
 
 @asynccontextmanager
 async def lifespan(app):
-    # Startup — pool will be lazily initialized on first request or splash
+    # Startup — download CDN vendor assets if missing, and start scheduler
+    from app.cdn import download_vendor_assets_if_missing
+    try:
+        await download_vendor_assets_if_missing()
+    except Exception as e:
+        logger.warning(f"Failed to download/verify CDN assets on startup: {e}")
+        
     from app.scheduler import start_scheduler_loop
     import asyncio
     scheduler_task = asyncio.create_task(start_scheduler_loop())

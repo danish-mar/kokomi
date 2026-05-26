@@ -1185,7 +1185,7 @@ wheels = [
 
 [[package]]
 name = "kokomi"
-version = "3.6.0"
+version = "3.6.3"
 source = { virtual = "." }
 dependencies = [
     { name = "docker" },
