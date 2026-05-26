@@ -2,6 +2,8 @@
  * Chat Logic, Streaming and Message Handling
  */
 
+import { parseWithMath } from './markdown.js';
+
 export function getChatActions() {
     const actions = {
         async sendMessage() {
@@ -411,13 +413,20 @@ export function getChatActions() {
                 this.groupParticipants = doc.participants || [doc.character_id || 'kokomi'];
                 if (doc.character_id) this.activeCharId = doc.character_id;
                 else if (this.groupParticipants.length > 0) this.activeCharId = this.groupParticipants[0];
-                this.$nextTick(() => this.scrollToBottom());
+
+                // Show messages (triggers CSS fade-in), then immediately jump to bottom.
+                // Double-nextTick + rAF ensures Alpine has finished rendering the x-for
+                // list AND the browser has completed layout before we read scrollHeight.
+                this.messagesLoaded = true;
+                this.$nextTick(() => this.$nextTick(() => {
+                    requestAnimationFrame(() => {
+                        const box = this.$refs.chatBox;
+                        if (box) box.scrollTop = box.scrollHeight;
+                    });
+                }));
             } catch (e) { 
-                console.error('Load failed:', e); 
-            } finally {
-                setTimeout(() => {
-                    this.messagesLoaded = true;
-                }, 80);
+                console.error('Load failed:', e);
+                this.messagesLoaded = true;
             }
         },
 
@@ -427,7 +436,8 @@ export function getChatActions() {
             if (!rawContent) return '';
 
             try {
-                let html = marked.parse(rawContent);
+                // parseWithMath handles math extraction → marked → KaTeX injection
+                let html = parseWithMath(rawContent);
                 
                 // Replace Artifact Placeholders with Cards
                 if (msg.artifacts && msg.artifacts.length > 0) {

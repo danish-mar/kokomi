@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v3.6.3] - 2026-05-26
+
+### Added
+
+- **KaTeX Math Rendering**:
+  - Integrated KaTeX library for fast, high-quality LaTeX formula rendering across all chats.
+  - Render block-level math displays cleanly without constraining box containers or vertical scrolls.
+  - Implemented an elegant, floating **Copy as Image** action on math block hover that captures KaTeX DOM elements and writes high-resolution PNG images directly to the clipboard via HTML-to-Canvas serialization.
+  - Custom styled KaTeX `\boxed{}` command formulas to match the Midnight/Lavender theme using border colors and transparent backgrounds.
+
+### Fixed
+
+- **Instant Chat Scroll-to-Bottom**:
+  - Overhauled conversation scroll behavior when shifting chat threads.
+  - Utilized a highly reliable double-nextTick + requestAnimationFrame timing pattern on the scroll-box element, ensuring full layout computation before targeting `scrollTop = scrollHeight`.
+
 ## [v3.6.0] - 2026-05-26
 
 ### Added

@@ -23,6 +23,9 @@
     <!-- Driver.js for Guided Tours -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.js.iife.js"></script>
+    <!-- KaTeX for LaTeX math rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -294,6 +297,72 @@
         .chat-prose a:hover { text-decoration: underline; }
         .chat-prose strong { color: var(--text-primary); font-weight: 600; }
         .chat-prose hr { border: none; border-top: 1px solid var(--separator); margin: 1.2em 0; }
+
+        /* ═══════════ KATEX MATH RENDERING ═══════════ */
+        /* Block-level (display) math — no box, takes natural width */
+        .math-block {
+            position: relative;
+            display: block;
+            text-align: center;
+            margin: 0.8em 0;
+        }
+        /* Let katex-display breathe without extra margin */
+        .math-block .katex-display {
+            margin: 0;
+            overflow-x: visible;
+        }
+        /* Hover copy button */
+        .math-copy-btn {
+            position: absolute;
+            top: -6px;
+            right: 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 9px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-tertiary);
+            font-size: 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.18s ease, color 0.18s ease;
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+            pointer-events: none;
+            line-height: 1;
+        }
+        .math-block:hover .math-copy-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .math-copy-btn:hover {
+            color: var(--accent);
+        }
+        /* Inline math */
+        .math-inline .katex {
+            font-size: 1em;
+        }
+        /* KaTeX color adaptation */
+        .katex { color: var(--text-primary); }
+        .katex .mord, .katex .mbin, .katex .mrel,
+        .katex .mopen, .katex .mclose, .katex .mpunct,
+        .katex .minner { color: inherit; }
+        /* Override \boxed{} — use theme border instead of stark black box */
+        .katex .boxed {
+            border-color: var(--text-secondary) !important;
+            background: transparent !important;
+            border-radius: 4px;
+            padding: 0.15em 0.35em;
+        }
+        /* Error fallback */
+        .math-error {
+            color: var(--text-tertiary);
+            font-family: "SF Mono", monospace;
+            font-size: 0.85em;
+            opacity: 0.7;
+        }
 
 
 

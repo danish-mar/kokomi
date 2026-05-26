@@ -53,7 +53,8 @@ export function getUiActions() {
             el.style.height = Math.min(el.scrollHeight, 200) + 'px';
         },
         scrollToBottom() {
-            document.getElementById('bottom-anchor')?.scrollIntoView({ behavior: 'smooth' });
+            const box = this.$refs.chatBox;
+            if (box) box.scrollTop = box.scrollHeight;
         },
         async copyText(t) { 
             try { 
