@@ -1,0 +1,673 @@
+/* ═══════════════════════════════════════════════════════
+   Settings Page — macOS Tahoe HIG + iOS Mobile
+   Extracted from settings.html for modularization
+═══════════════════════════════════════════════════════ */
+
+.settings-page { min-height: 100vh; background: var(--bg-canvas); }
+
+/* ── Desktop Close & Save Indicators ── */
+.settings-close-btn {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 40;
+    transition: all 0.22s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.settings-close-btn:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
+    transform: scale(1.05);
+}
+.settings-close-btn:active {
+    transform: scale(0.95);
+}
+
+.settings-save-indicator {
+    position: fixed;
+    top: 24px;
+    right: 72px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 40;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ── Icon buttons ── */
+.icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 10px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-tertiary); cursor: pointer;
+    background: transparent;
+    transition: all 0.22s cubic-bezier(0.25,0.1,0.25,1);
+}
+.icon-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+.icon-btn:active { transform: scale(0.92); }
+
+/* ── macOS Tahoe sidebar nav ── */
+.tahoe-layout {
+    display: flex;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 0;
+    padding: 40px 20px 48px;
+    align-items: flex-start;
+}
+
+.tahoe-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 24px;
+    padding-right: 16px;
+}
+
+.tahoe-sidebar-section { margin-bottom: 24px; }
+
+.tahoe-sidebar-label {
+    font-size: 11px; font-weight: 700;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0 10px;
+    margin-bottom: 4px;
+}
+
+.tahoe-nav-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 10px;
+    border-radius: 9px; cursor: pointer;
+    border: none; background: transparent;
+    width: 100%; text-align: left;
+    font-size: 13.5px; font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.18s cubic-bezier(0.25,0.1,0.25,1);
+}
+.tahoe-nav-item:hover:not(.active) {
+    background: var(--accent-subtle);
+    color: var(--text-primary);
+}
+.tahoe-nav-item.active {
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(80,80,129,0.25);
+}
+.tahoe-nav-item .nav-icon {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0;
+    background: transparent;
+    transition: all 0.18s ease;
+}
+.tahoe-nav-item.active .nav-icon {
+    background: rgba(255,255,255,0.2);
+}
+
+/* ── Main content ── */
+.tahoe-content { flex: 1; min-width: 0; }
+
+/* ── Glass card ── */
+.glass-card {
+    background: var(--bg-elevated);
+    backdrop-filter: blur(var(--material-blur));
+    -webkit-backdrop-filter: blur(var(--material-blur));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+/* ── Card row ── */
+.card-row {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--separator);
+    transition: background 0.2s ease;
+}
+.card-row:last-child { border-bottom: none; }
+.card-row:hover { background: var(--accent-subtle); }
+
+/* ── Apple toggle ── */
+.apple-toggle {
+    position: relative;
+    width: 46px; height: 26px;
+    border-radius: 13px;
+    border: none; cursor: pointer;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+.apple-toggle.on { background: var(--accent); }
+.apple-toggle.off { background: var(--bg-input); box-shadow: inset 0 0 0 1px var(--border); }
+.apple-toggle .toggle-knob {
+    position: absolute; top: 3px; left: 3px;
+    width: 20px; height: 20px;
+    border-radius: 10px; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    transition: transform 0.22s cubic-bezier(0.25,0.1,0.25,1);
+}
+.apple-toggle.on .toggle-knob { transform: translateX(20px); }
+
+/* ── Section heading ── */
+.section-title {
+    font-size: 20px; font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.025em;
+    margin-bottom: 4px;
+}
+.section-subtitle {
+    font-size: 12px; color: var(--text-tertiary);
+    letter-spacing: -0.005em;
+    margin-bottom: 16px;
+}
+
+/* ── Character card ── */
+.char-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px;
+    display: flex; gap: 12px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+}
+.char-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-focus);
+    transform: translateY(-1px);
+}
+
+/* ── MCP row ── */
+.mcp-row {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+}
+.mcp-row:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-focus);
+}
+
+/* ── Buttons ── */
+.btn-accent {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    background: var(--accent); color: var(--accent-text);
+    border: none; cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+.btn-accent:hover { background: var(--accent-hover); box-shadow: var(--shadow-md); }
+.btn-accent:active { transform: scale(0.96); }
+
+.btn-ghost {
+    padding: 7px 12px; border-radius: 9px;
+    font-size: 13px; font-weight: 500;
+    background: transparent; color: var(--text-secondary);
+    border: none; cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-ghost:hover { background: var(--bg-surface-hover); }
+
+/* ── Info banner ── */
+.info-banner {
+    padding: 12px 16px; border-radius: 12px;
+    background: var(--accent-subtle);
+    border: 1px solid var(--border);
+    display: flex; align-items: flex-start; gap: 10px;
+}
+
+/* ── Saved toast ── */
+.saved-toast {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 100px;
+    background: var(--accent); color: var(--accent-text);
+    font-size: 12px; font-weight: 600;
+    box-shadow: var(--shadow-lg);
+}
+
+/* ── Modal overlay ── */
+.modal-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center;
+}
+@media (min-width: 640px) { .modal-overlay { align-items: center; } }
+.modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+}
+.modal-sheet {
+    position: relative; z-index: 10;
+    width: 100%; max-width: 480px;
+    margin: 0 16px;
+    background: var(--bg-elevated);
+    backdrop-filter: blur(var(--material-blur));
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    box-shadow: var(--shadow-lg);
+    padding: 26px;
+    max-height: 85vh; overflow-y: auto;
+}
+@media (min-width: 640px) { .modal-sheet { border-radius: 20px; } }
+.modal-handle {
+    width: 40px; height: 4px;
+    border-radius: 2px;
+    background: var(--text-quaternary);
+    margin: 0 auto 18px;
+}
+@media (min-width: 640px) { .modal-handle { display: none; } }
+
+/* ── Avatar ── */
+.avatar-circle {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #505081, #8686AC);
+    color: #fff; font-weight: 700; font-size: 17px;
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+}
+.avatar-circle img { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; }
+
+/* ── Mini badge ── */
+.mini-badge {
+    font-size: 9px; font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 6px; border-radius: 5px;
+}
+
+/* ── Page transition ── */
+.tab-panel { animation: tabFadeIn 0.25s ease-out; }
+@keyframes tabFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── About footer ── */
+.about-footer {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow-sm);
+    margin-top: 24px;
+}
+
+/* ── Action btns on hover ── */
+.action-btns { opacity: 0; transition: opacity 0.2s ease; }
+.char-card:hover .action-btns, .mcp-row:hover .action-btns { opacity: 1; }
+
+.sm-icon-btn {
+    width: 28px; height: 28px;
+    border-radius: 8px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; background: transparent;
+    transition: all 0.2s ease;
+}
+.sm-icon-btn:hover { background: var(--bg-surface-hover); }
+.sm-icon-btn:active { transform: scale(0.9); }
+
+/* ── Transport picker ── */
+.transport-btn {
+    flex: 1; min-width: 90px;
+    padding: 9px 10px; border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 12px; color: var(--text-tertiary);
+    background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all 0.2s ease;
+}
+.transport-btn.selected {
+    border: 2px solid var(--accent);
+    background: var(--accent-subtle);
+    color: var(--text-primary); font-weight: 600;
+}
+
+/* ── Tool pills ── */
+.tool-pill {
+    font-size: 10px; padding: 2px 7px;
+    border-radius: 5px;
+    font-family: "SF Mono","JetBrains Mono",monospace;
+    background: var(--bg-canvas); border: 1px solid var(--border);
+}
+
+/* ── Template badge ── */
+.template-btn {
+    padding: 5px 11px; border-radius: 8px;
+    background: var(--accent-subtle);
+    color: var(--accent); border: 1px solid var(--border);
+    font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s ease;
+}
+.template-btn:hover { background: var(--accent-subtle-h); }
+
+/* ── Upload area ── */
+.upload-area {
+    width: 60px; height: 60px;
+    border-radius: 14px;
+    border: 2px dashed var(--border);
+    background: var(--accent-subtle);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s ease;
+}
+.upload-area:hover { border-color: var(--accent); background: var(--accent-subtle-h); }
+
+/* ── Segment control ── */
+.seg-control {
+    display: flex; gap: 3px; padding: 3px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.seg-btn {
+    flex: 1; padding: 7px 10px;
+    border-radius: 9px; border: none;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-tertiary);
+    background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    transition: all 0.25s cubic-bezier(0.25,0.1,0.25,1);
+}
+.seg-btn:hover:not(.seg-active) { color: var(--text-secondary); }
+.seg-btn.seg-active {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-weight: 600;
+    box-shadow: var(--shadow-md);
+}
+
+[x-cloak] { display: none !important; }
+
+/* ── Cropper ── */
+.cropper-view-box, .cropper-face { border-radius: 50%; }
+.cropper-modal { background-color: rgba(0,0,0,0.5); }
+
+/* ═══════════════════════════════════════════════════════
+   PROFILE CARD (Desktop default: transparent/no highlight) ── */
+.profile-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25,0.1,0.25,1);
+    margin-bottom: 24px;
+    width: 100%;
+}
+.profile-card:hover {
+    background: transparent;
+    opacity: 0.9;
+}
+.profile-card:active { transform: scale(0.98); }
+
+.profile-card .profile-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    border: 1.5px solid var(--accent);
+    background: var(--accent-subtle);
+}
+.profile-card .profile-avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover; border-radius: 50%;
+}
+.profile-card .profile-info {
+    flex: 1; min-width: 0;
+}
+.profile-card .profile-name {
+    font-size: 16px; font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin: 0 0 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.profile-card .profile-sub {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0;
+}
+.profile-card .profile-chevron {
+    color: var(--text-quaternary);
+    font-size: 12px; flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   iOS MOBILE NAVIGATION (≤640px)
+═══════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+    /* Hide desktop topbar back button */
+    .settings-topbar { padding: 10px 16px; }
+
+    .tahoe-layout {
+        flex-direction: column;
+        padding: 0;
+        gap: 0;
+    }
+
+    /* ── iOS Category List ── */
+    .tahoe-sidebar {
+        width: 100%;
+        position: static;
+        padding: 16px;
+        padding-right: 16px;
+    }
+
+    .tahoe-sidebar-section {
+        margin-bottom: 12px;
+    }
+
+    .tahoe-sidebar-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0 16px;
+        margin-bottom: 6px;
+        margin-top: 4px;
+    }
+
+    /* iOS grouped inset rows — grouped per section */
+    .tahoe-nav-item {
+        padding: 13px 16px;
+        border-radius: 0;
+        font-size: 16px;
+        font-weight: 400;
+        color: var(--text-primary);
+        background: var(--bg-elevated);
+        border: none;
+        border-bottom: 1px solid var(--separator);
+        gap: 14px;
+        position: relative;
+    }
+    /* First button in each group */
+    .tahoe-sidebar-section button:first-of-type.tahoe-nav-item {
+        border-radius: 12px 12px 0 0;
+    }
+    /* Last button in each group */
+    .tahoe-sidebar-section button:last-of-type.tahoe-nav-item {
+        border-radius: 0 0 12px 12px;
+        border-bottom: none;
+    }
+    /* Single button group */
+    .tahoe-sidebar-section button:only-of-type.tahoe-nav-item {
+        border-radius: 12px;
+        border-bottom: none;
+    }
+
+    .tahoe-nav-item .nav-icon {
+        width: 30px; height: 30px;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+
+    /* Chevron on right */
+    .tahoe-nav-item::after {
+        content: "\f054"; /* fa-chevron-right */
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 11px;
+        color: var(--text-quaternary);
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .tahoe-nav-item:hover:not(.active) {
+        background: var(--bg-surface-hover);
+    }
+    .tahoe-nav-item.active {
+        background: var(--bg-surface-hover);
+        color: var(--text-primary);
+        box-shadow: none;
+        font-weight: 500;
+    }
+    .tahoe-nav-item.active .nav-icon {
+        background: transparent;
+    }
+
+    /* Profile card in mobile */
+    .profile-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 24px 16px;
+        margin: 0 16px 16px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        width: calc(100% - 32px) !important;
+    }
+    .profile-card:hover {
+        background: var(--bg-surface-hover);
+        box-shadow: var(--shadow-md);
+    }
+    .profile-card .profile-avatar {
+        width: 80px; height: 80px;
+        border-radius: 50%;
+        margin-bottom: 12px;
+        border: 2px solid var(--accent);
+    }
+    .profile-card .profile-avatar img {
+        width: 100%; height: 100%;
+        object-fit: cover;
+    }
+    .profile-card .profile-avatar span {
+        font-size: 32px !important;
+    }
+    .profile-card .profile-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    .profile-card .profile-name {
+        font-size: 19px;
+        font-weight: 700;
+        margin: 0 0 4px;
+        color: var(--text-primary);
+    }
+    .profile-card .profile-sub {
+        font-size: 13px;
+        color: var(--text-tertiary);
+        margin: 0;
+    }
+    .profile-card .profile-chevron {
+        display: none !important;
+    }
+
+    /* ── Tab content in mobile ── */
+    .tahoe-content {
+        padding: 0 16px 24px;
+        width: 100%;
+    }
+
+    /* ── Mobile back button ── */
+    .mobile-back-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 0 16px;
+        cursor: pointer;
+        color: var(--accent);
+        font-size: 16px;
+        font-weight: 400;
+        border: none; background: none;
+        transition: opacity 0.15s ease;
+    }
+    .mobile-back-bar:hover { opacity: 0.7; }
+    .mobile-back-bar i { font-size: 13px; }
+
+    /* Slide-in animation */
+    .mobile-slide-in {
+        animation: mobileSlideIn 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+    @keyframes mobileSlideIn {
+        from { opacity: 0; transform: translateX(30px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* iOS large title */
+    .ios-large-title {
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--text-primary);
+        padding: 8px 16px 16px;
+        margin: 0;
+    }
+
+    /* Section title adjustments for mobile */
+    .section-title { font-size: 18px; }
+    .section-subtitle { font-size: 11px; }
+
+    /* Glass card mobile */
+    .glass-card { border-radius: 14px; }
+    .card-row { padding: 12px 16px; }
+
+    /* Action buttons visible on mobile */
+    .action-btns { opacity: 1; }
+
+    /* Modal full-width on mobile */
+    .modal-sheet { margin: 0 8px; max-width: 100%; }
+}
+
+/* Desktop: hide mobile-only elements */
+@media (min-width: 641px) {
+    .mobile-back-bar { display: none !important; }
+    .ios-large-title { display: none !important; }
+    .ios-mobile-only { display: none !important; }
+}
+
+/* ── Utility helpers ── */
+.hidden { display: none !important; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
