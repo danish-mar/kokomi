@@ -4,7 +4,10 @@ from fastapi.templating import Jinja2Templates
 from app.storage import load_prefs
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
+def inject_prefs(request: Request):
+    return {"prefs": load_prefs()}
+
+templates = Jinja2Templates(directory="templates", context_processors=[inject_prefs])
 
 def check_setup():
     prefs = load_prefs()

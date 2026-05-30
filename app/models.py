@@ -61,6 +61,14 @@ class PrefsUpdate(BaseModel):
     insights: bool = True
     artifacts: bool = True
     memory_enabled: bool = True
+    theme: Optional[str] = "dark"
+    custom_accent: Optional[str] = "#505081"
+    custom_wallpaper: Optional[str] = ""
+    custom_blur: Optional[str] = "0"
+    swatch_midnight: Optional[str] = "#272757"
+    swatch_lavender: Optional[str] = "#8686AC"
+    swatch_indigo: Optional[str] = "#505081"
+    swatch_obsidian: Optional[str] = "#0F0E47"
     
     # Atlas-specific LLM settings
     atlas_llm_provider: Optional[str] = "google"
@@ -75,3 +83,4 @@ class PrefsUpdate(BaseModel):
     admin_username: Optional[str] = "admin"
     admin_password: Optional[str] = "admin"
     tour_completed: bool = False
+    custom_themes: Optional[list] = []

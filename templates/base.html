@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" x-data="{ darkMode: localStorage.getItem('theme') === 'dark' || (localStorage.getItem('theme') !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches) }" :class="darkMode ? 'dark' : ''">
+<html lang="en" class="{% if prefs.get('theme', 'dark') == 'dark' %}dark{% endif %} {% if prefs.get('custom_wallpaper') %}has-wallpaper{% endif %}" x-data="{ darkMode: '{{ prefs.get('theme', 'dark') }}' === 'dark' || ('{{ prefs.get('theme') }}' === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches), hasWallpaper: {{ 'true' if prefs.get('custom_wallpaper') else 'false' }} }" :class="{ 'dark': darkMode, 'has-wallpaper': hasWallpaper }" style="--swatch-midnight: {{ prefs.get('swatch_midnight') or '#272757' }}; --swatch-lavender: {{ prefs.get('swatch_lavender') or '#8686AC' }}; --swatch-indigo: {{ prefs.get('swatch_indigo') or '#505081' }}; --swatch-obsidian: {{ prefs.get('swatch_obsidian') or '#0F0E47' }}; --accent-custom-light: {{ prefs.get('custom_accent') or '#505081' }}; --accent-custom-dark: {{ prefs.get('custom_accent') or '#8686AC' }}; --custom-wallpaper: {% if prefs.get('custom_wallpaper') %}url('{{ prefs.get('custom_wallpaper') }}'){% else %}none{% endif %}; --custom-blur: {{ prefs.get('custom_blur') or '0' }}px;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -39,10 +39,10 @@
                     },
                     colors: {
                         accent:    'var(--accent)',
-                        midnight:  '#272757',
-                        lavender:  '#8686AC',
-                        indigo_m:  '#505081',
-                        obsidian:  '#0F0E47',
+                        midnight:  'var(--swatch-midnight, #272757)',
+                        lavender:  'var(--swatch-lavender, #8686AC)',
+                        indigo_m:  'var(--swatch-indigo, #505081)',
+                        obsidian:  'var(--swatch-obsidian, #0F0E47)',
                     },
                     /* Apple HIG: Continuous corner curves */
                     borderRadius: {
@@ -54,30 +54,59 @@
             }
         }
     </script>
-    <script>
-        (function() {
-            var customAccent = localStorage.getItem('customAccent');
-            var customWallpaper = localStorage.getItem('customWallpaper');
-            var customBlur = localStorage.getItem('customBlur') || '0';
-            var css = '';
-            if (customAccent) {
-                css += ':root, .dark { --accent: ' + customAccent + ' !important; }\n';
+    <style>
+        :root {
+            --accent:          var(--accent-custom-light, #505081);
+        }
+        :root.dark {
+            --accent:          var(--accent-custom-dark, #8686AC);
+        }
+    </style>
+    <style>
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: var(--custom-wallpaper, none) !important;
+            background-size: cover !important;
+            background-position: center !important;
+            background-attachment: fixed !important;
+            filter: blur(var(--custom-blur, 0px));
+            z-index: -1;
+            transform: scale(1.1);
+            transition: filter 0.3s ease;
+        }
+        
+        /* Apply transparent glass backplates for wallpaper mode */
+        .has-wallpaper body { background: transparent !important; }
+        
+        .has-wallpaper {
+            --bg-canvas: rgba(255, 255, 255, 0.4) !important;
+            --bg-sidebar: rgba(255, 255, 255, 0.5) !important;
+            --bg-surface: rgba(255, 255, 255, 0.55) !important;
+            --bg-elevated: rgba(255, 255, 255, 0.6) !important;
+            --bg-input: rgba(255, 255, 255, 0.65) !important;
+            --bg-surface-hover: rgba(0, 0, 0, 0.05) !important;
+        }
+        :root.dark.has-wallpaper {
+            --bg-canvas: rgba(0, 0, 0, 0.35) !important;
+            --bg-sidebar: rgba(12, 11, 20, 0.5) !important;
+            --bg-surface: rgba(0, 0, 0, 0.45) !important;
+            --bg-elevated: rgba(0, 0, 0, 0.5) !important;
+            --bg-input: rgba(0, 0, 0, 0.55) !important;
+            --bg-surface-hover: rgba(255, 255, 255, 0.05) !important;
+        }
+        @media (prefers-color-scheme: dark) {
+            .has-wallpaper:root {
+                --bg-canvas: rgba(0, 0, 0, 0.35) !important;
+                --bg-sidebar: rgba(12, 11, 20, 0.5) !important;
+                --bg-surface: rgba(0, 0, 0, 0.45) !important;
+                --bg-elevated: rgba(0, 0, 0, 0.5) !important;
+                --bg-input: rgba(0, 0, 0, 0.55) !important;
+                --bg-surface-hover: rgba(255, 255, 255, 0.05) !important;
             }
-            if (customWallpaper) {
-                var isDark = localStorage.getItem('theme') === 'dark' || (localStorage.getItem('theme') !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                css += 'body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: url(' + customWallpaper + ') !important; background-size: cover !important; background-position: center !important; background-attachment: fixed !important; filter: blur(' + customBlur + 'px); z-index: -1; transform: scale(1.1); }\n';
-                css += 'body { background: transparent !important; }\n';
-                if (isDark) {
-                    css += ':root, .dark { --bg-canvas: rgba(0, 0, 0, 0.35) !important; --bg-sidebar: rgba(12, 11, 20, 0.5) !important; --bg-surface: rgba(0, 0, 0, 0.45) !important; --bg-elevated: rgba(0, 0, 0, 0.5) !important; --bg-input: rgba(0, 0, 0, 0.55) !important; --bg-surface-hover: rgba(255, 255, 255, 0.05) !important; }\n';
-                } else {
-                    css += ':root { --bg-canvas: rgba(255, 255, 255, 0.4) !important; --bg-sidebar: rgba(255, 255, 255, 0.5) !important; --bg-surface: rgba(255, 255, 255, 0.55) !important; --bg-elevated: rgba(255, 255, 255, 0.6) !important; --bg-input: rgba(255, 255, 255, 0.65) !important; --bg-surface-hover: rgba(0, 0, 0, 0.05) !important; }\n';
-                }
-            }
-            if (css) {
-                document.write('<style>' + css + '</style>');
-            }
-        })();
-    </script>
+        }
+    </style>
 
     <style>
         *, *::before, *::after { box-sizing: border-box; }
@@ -95,33 +124,33 @@
 
         /* ── LIGHT MODE ── */
         :root {
-            --bg-sidebar:       rgba(240, 239, 246, 0.8);
+            --bg-sidebar:       color-mix(in srgb, var(--swatch-midnight, #272757) 8%, #FFFFFF);
             --bg-canvas:        #FBFBFD;
             --bg-surface:       rgba(255, 255, 255, 0.7);
-            --bg-surface-hover: rgba(240, 238, 248, 0.85);
-            --bg-input:         rgba(245, 244, 250, 0.9);
+            --bg-surface-hover: color-mix(in srgb, var(--swatch-indigo, #505081) 6%, #FFFFFF);
+            --bg-input:         color-mix(in srgb, var(--swatch-lavender, #8686AC) 5%, #FFFFFF);
             --bg-elevated:      rgba(255, 255, 255, 0.85);
-            --border:           rgba(80, 80, 129, 0.12);
-            --border-focus:     rgba(80, 80, 129, 0.35);
-            --separator:        rgba(80, 80, 129, 0.08);
-            --text-primary:     #1C1C2E;
-            --text-secondary:   #505081;
-            --text-tertiary:    #8686AC;
-            --text-quaternary:  rgba(134, 134, 172, 0.6);
-            --accent:           #505081;
-            --accent-hover:     #3d3d6e;
+            --border:           color-mix(in srgb, var(--swatch-indigo, #505081) 12%, transparent);
+            --border-focus:     color-mix(in srgb, var(--swatch-indigo, #505081) 35%, transparent);
+            --separator:        color-mix(in srgb, var(--swatch-indigo, #505081) 8%, transparent);
+            --text-primary:     color-mix(in srgb, var(--swatch-obsidian, #0F0E47) 95%, #000000);
+            --text-secondary:   color-mix(in srgb, var(--swatch-indigo, #505081) 25%, var(--swatch-obsidian, #0F0E47));
+            --text-tertiary:    color-mix(in srgb, var(--swatch-lavender, #8686AC) 45%, var(--swatch-obsidian, #0F0E47));
+            --text-quaternary:  color-mix(in srgb, var(--swatch-lavender, #8686AC) 60%, var(--swatch-obsidian, #0F0E47));
+            --accent:           var(--accent-custom-light, #505081);
+            --accent-hover:     color-mix(in srgb, var(--accent) 80%, #000000);
             --accent-text:      #FFFFFF;
-            --accent-subtle:    rgba(80, 80, 129, 0.08);
-            --accent-subtle-h:  rgba(80, 80, 129, 0.14);
-            --think-bg:         rgba(80, 80, 129, 0.05);
-            --think-border:     rgba(80, 80, 129, 0.12);
-            --think-text:       #8686AC;
-            --code-bg:          #F5F4FA;
-            --code-border:      rgba(80, 80, 129, 0.1);
-            --code-inline-bg:   rgba(80, 80, 129, 0.07);
-            --code-inline-text: #505081;
+            --accent-subtle:    color-mix(in srgb, var(--accent) 8%, transparent);
+            --accent-subtle-h:  color-mix(in srgb, var(--accent) 14%, transparent);
+            --think-bg:         color-mix(in srgb, var(--swatch-indigo, #505081) 5%, transparent);
+            --think-border:     color-mix(in srgb, var(--swatch-indigo, #505081) 12%, transparent);
+            --think-text:       var(--swatch-lavender, #8686AC);
+            --code-bg:          color-mix(in srgb, var(--swatch-indigo, #505081) 5%, #FFFFFF);
+            --code-border:      color-mix(in srgb, var(--swatch-indigo, #505081) 10%, transparent);
+            --code-inline-bg:   color-mix(in srgb, var(--swatch-indigo, #505081) 7%, transparent);
+            --code-inline-text: var(--swatch-indigo, #505081);
             --msg-user-bg:      transparent;
-            --msg-ai-bg:        rgba(80, 80, 129, 0.03);
+            --msg-ai-bg:        color-mix(in srgb, var(--swatch-indigo, #505081) 3%, transparent);
             --shadow-sm:        0 1px 2px rgba(80, 80, 129, 0.06);
             --shadow-md:        0 4px 12px rgba(80, 80, 129, 0.08);
             --shadow-lg:        0 8px 28px rgba(80, 80, 129, 0.1);
@@ -130,34 +159,34 @@
         }
 
         /* ── DARK MODE ── */
-        .dark {
-            --bg-sidebar:       rgba(12, 11, 52, 0.85);
-            --bg-canvas:        #131245;
-            --bg-surface:       rgba(39, 39, 87, 0.6);
-            --bg-surface-hover: rgba(55, 55, 100, 0.6);
-            --bg-input:         rgba(20, 19, 60, 0.8);
-            --bg-elevated:      rgba(39, 39, 87, 0.8);
-            --border:           rgba(134, 134, 172, 0.15);
-            --border-focus:     rgba(134, 134, 172, 0.35);
-            --separator:        rgba(134, 134, 172, 0.08);
-            --text-primary:     #EDEDF5;
-            --text-secondary:   #C5C4DD;
-            --text-tertiary:    #8686AC;
-            --text-quaternary:  rgba(134, 134, 172, 0.45);
-            --accent:           #8686AC;
-            --accent-hover:     #A0A0C8;
-            --accent-text:      #0F0E47;
-            --accent-subtle:    rgba(134, 134, 172, 0.1);
-            --accent-subtle-h:  rgba(134, 134, 172, 0.18);
-            --think-bg:         rgba(15, 14, 71, 0.6);
-            --think-border:     rgba(134, 134, 172, 0.15);
-            --think-text:       #8686AC;
-            --code-bg:          rgba(15, 14, 71, 0.7);
-            --code-border:      rgba(134, 134, 172, 0.12);
-            --code-inline-bg:   rgba(134, 134, 172, 0.12);
-            --code-inline-text: #C5C4DD;
+        :root.dark {
+            --bg-sidebar:       color-mix(in srgb, var(--swatch-midnight, #272757) 85%, transparent);
+            --bg-canvas:        var(--swatch-obsidian, #0F0E47);
+            --bg-surface:       color-mix(in srgb, var(--swatch-midnight, #272757) 60%, transparent);
+            --bg-surface-hover: color-mix(in srgb, var(--swatch-indigo, #505081) 60%, transparent);
+            --bg-input:         color-mix(in srgb, var(--swatch-obsidian, #0F0E47) 80%, transparent);
+            --bg-elevated:      color-mix(in srgb, var(--swatch-midnight, #272757) 80%, transparent);
+            --border:           color-mix(in srgb, var(--swatch-lavender, #8686AC) 15%, transparent);
+            --border-focus:     color-mix(in srgb, var(--swatch-lavender, #8686AC) 35%, transparent);
+            --separator:        color-mix(in srgb, var(--swatch-lavender, #8686AC) 8%, transparent);
+            --text-primary:     color-mix(in srgb, var(--swatch-lavender, #8686AC) 10%, #FFFFFF);
+            --text-secondary:   color-mix(in srgb, var(--swatch-lavender, #8686AC) 35%, #FFFFFF);
+            --text-tertiary:    color-mix(in srgb, var(--swatch-lavender, #8686AC) 55%, #FFFFFF);
+            --text-quaternary:  color-mix(in srgb, var(--swatch-lavender, #8686AC) 50%, rgba(255, 255, 255, 0.55));
+            --accent:           var(--accent-custom-dark, #8686AC);
+            --accent-hover:     color-mix(in srgb, var(--accent) 80%, #FFFFFF);
+            --accent-text:      var(--swatch-obsidian, #0F0E47);
+            --accent-subtle:    color-mix(in srgb, var(--accent) 10%, transparent);
+            --accent-subtle-h:  color-mix(in srgb, var(--accent) 18%, transparent);
+            --think-bg:         color-mix(in srgb, var(--swatch-obsidian, #0F0E47) 60%, transparent);
+            --think-border:     color-mix(in srgb, var(--swatch-lavender, #8686AC) 15%, transparent);
+            --think-text:       var(--swatch-lavender, #8686AC);
+            --code-bg:          color-mix(in srgb, var(--swatch-obsidian, #0F0E47) 70%, transparent);
+            --code-border:      color-mix(in srgb, var(--swatch-lavender, #8686AC) 12%, transparent);
+            --code-inline-bg:   color-mix(in srgb, var(--swatch-lavender, #8686AC) 12%, transparent);
+            --code-inline-text: color-mix(in srgb, var(--swatch-lavender, #8686AC) 40%, #FFFFFF);
             --msg-user-bg:      transparent;
-            --msg-ai-bg:        rgba(39, 39, 87, 0.2);
+            --msg-ai-bg:        color-mix(in srgb, var(--swatch-midnight, #272757) 20%, transparent);
             --shadow-sm:        0 1px 3px rgba(0, 0, 0, 0.2);
             --shadow-md:        0 4px 16px rgba(0, 0, 0, 0.25);
             --shadow-lg:        0 8px 32px rgba(0, 0, 0, 0.35);
@@ -184,17 +213,20 @@
             background: var(--bg-surface);
             backdrop-filter: var(--vibrancy);
             -webkit-backdrop-filter: var(--vibrancy);
+            transition: background 0.35s ease, border-color 0.35s ease;
         }
         .material-sidebar {
             background: var(--bg-sidebar);
             backdrop-filter: var(--vibrancy);
             -webkit-backdrop-filter: var(--vibrancy);
+            transition: background 0.35s ease, border-color 0.35s ease;
         }
         .material-elevated {
             background: var(--bg-elevated);
             backdrop-filter: blur(var(--material-blur));
             -webkit-backdrop-filter: blur(var(--material-blur));
             box-shadow: var(--shadow-md);
+            transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
         }
 
         /* ═══════════ APPLE FIELDS ═══════════ */

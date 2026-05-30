@@ -5,8 +5,14 @@ from fastapi.templating import Jinja2Templates
 from app.auth import authenticate_user, create_access_token
 from app.config import ACCESS_TOKEN_EXPIRE_MINUTES
 
+from app.storage import load_prefs
+
 router = APIRouter(prefix="/auth", tags=["auth"])
-templates = Jinja2Templates(directory="templates")
+
+def inject_prefs(request: Request):
+    return {"prefs": load_prefs()}
+
+templates = Jinja2Templates(directory="templates", context_processors=[inject_prefs])
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):

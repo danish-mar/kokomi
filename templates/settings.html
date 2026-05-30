@@ -1271,18 +1271,107 @@
                             </button>
                         </div>
                     </div>
+
+                    <!-- Theme Presets -->
+                    <div class="card-row" style="border-top: 1px solid var(--border); padding-top:16px;">
+                        <label class="apple-label" style="margin-bottom:8px;">Theme Presets</label>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
+                            <template x-for="p in presets" :key="p.id">
+                                <button @click="applyPreset(p.id)" class="tahoe-nav-item" style="flex-direction:column; align-items:flex-start; padding:12px; background:rgba(134,134,172,0.06); border:1px solid var(--border); border-radius:14px; text-align:left; gap:8px; width:100%;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <i :class="p.icon" :style="{ color: p.color, fontSize: '12px' }"></i>
+                                        <span style="font-size:12px; font-weight:700; color:var(--text-primary);" x-text="p.name"></span>
+                                    </div>
+                                    <div style="display:flex; gap:3px;">
+                                        <div style="width:14px; height:14px; border-radius:3px;" :style="{ backgroundColor: p.midnight }" title="Midnight"></div>
+                                        <div style="width:14px; height:14px; border-radius:3px;" :style="{ backgroundColor: p.lavender }" title="Lavender"></div>
+                                        <div style="width:14px; height:14px; border-radius:3px;" :style="{ backgroundColor: p.indigo }" title="Indigo"></div>
+                                        <div style="width:14px; height:14px; border-radius:3px;" :style="{ backgroundColor: p.obsidian }" title="Obsidian"></div>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Custom & AI Themes -->
+                    <div class="card-row" style="border-top: 1px solid var(--border); padding-top:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                            <label class="apple-label" style="margin-bottom:0;">Custom & AI Themes</label>
+                            <div style="display:flex; gap:8px;" x-show="customThemes.length > 0" x-cloak>
+                                <button @click="openCustomThemeModal()" class="btn-ghost" style="font-size:10.5px; padding:6px 10px; display:flex; align-items:center; gap:5px; border-radius:8px; height:28px;">
+                                    <i class="fa-solid fa-plus" style="font-size:9px;"></i> Create Manual
+                                </button>
+                                <button @click="openAiThemeModal()" class="btn-accent" style="font-size:10.5px; padding:6px 10px; display:flex; align-items:center; gap:5px; border-radius:8px; height:28px; background:linear-gradient(135deg, var(--accent), var(--swatch-indigo)); border:none; cursor:pointer;">
+                                    <i class="fa-solid fa-wand-magic-sparkles" style="font-size:9px;"></i> Generate with AI
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Saved Themes List -->
+                        <div style="margin-bottom:8px;">
+                            <!-- Empty State -->
+                            <template x-if="customThemes.length === 0">
+                                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 20px; border: 1px dashed var(--border); border-radius:16px; background:rgba(134,134,172,0.02); text-align:center; gap:8px;">
+                                    <div style="width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(134,134,172,0.08); color:var(--accent);">
+                                        <i class="fa-solid fa-palette" style="font-size:18px;"></i>
+                                    </div>
+                                    <div style="font-size:12px; font-weight:700; color:var(--text-secondary);">No Custom Themes Yet</div>
+                                    <div style="font-size:11px; color:var(--text-quaternary); max-width:300px; line-height:1.45;">
+                                        Pick your own colors manually or describe a creative vibe to let the AI design it.
+                                    </div>
+                                    <div style="font-size:11px; margin-top:8px; display:flex; align-items:center; gap:6px; justify-content:center;">
+                                        <a href="javascript:void(0)" @click="openCustomThemeModal()" style="color:var(--accent); font-weight:700; text-decoration:none;" x-on:mouseover="$el.style.textDecoration='underline'" x-on:mouseout="$el.style.textDecoration='none'">Create Your Own</a>
+                                        <span style="color:var(--text-quaternary); font-size:10px;">&#8226;</span>
+                                        <a href="javascript:void(0)" @click="openAiThemeModal()" style="color:var(--accent); font-weight:700; text-decoration:none;" x-on:mouseover="$el.style.textDecoration='underline'" x-on:mouseout="$el.style.textDecoration='none'">Generate with AI</a>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Theme Cards Grid -->
+                            <template x-if="customThemes.length > 0">
+                                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px;">
+                                    <template x-for="(t, idx) in customThemes" :key="idx">
+                                        <div class="tahoe-nav-item" style="padding:12px; background:rgba(134,134,172,0.06); border:1px solid var(--border); border-radius:14px; display:flex; flex-direction:column; gap:10px; align-items:stretch; transition:all 0.2s; position:relative;" x-on:mouseover="$el.style.transform='translateY(-2px)'" x-on:mouseout="$el.style.transform='none'">
+                                            <!-- Top Header -->
+                                            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+                                                <span style="font-size:12px; font-weight:700; color:var(--text-primary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" x-text="t.name"></span>
+                                                <button @click.stop="deleteCustomTheme(idx)" class="sm-icon-btn" style="color:var(--text-quaternary); border:none; background:transparent; padding:4px; border-radius:6px; cursor:pointer;" x-on:mouseover="$el.style.color='#EF4444'; $el.style.background='rgba(239,68,68,0.1)';" x-on:mouseout="$el.style.color='var(--text-quaternary)'; $el.style.background='transparent';">
+                                                    <i class="fa-solid fa-trash-can" style="font-size:10px;"></i>
+                                                </button>
+                                            </div>
+                                            <!-- Swatch Preview Circles -->
+                                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                                <div style="display:flex; gap:3px;">
+                                                    <div style="width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.1);" :style="{ backgroundColor: t.midnight }" title="Midnight"></div>
+                                                    <div style="width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.1);" :style="{ backgroundColor: t.lavender }" title="Lavender"></div>
+                                                    <div style="width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.1);" :style="{ backgroundColor: t.indigo }" title="Indigo"></div>
+                                                    <div style="width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.1);" :style="{ backgroundColor: t.obsidian }" title="Obsidian"></div>
+                                                    <div style="width:12px; height:12px; border-radius:50%; border:1px solid rgba(255,255,255,0.1);" :style="{ backgroundColor: t.accent }" title="Accent"></div>
+                                                </div>
+                                                <!-- Apply Action -->
+                                                <button @click="applyCustomTheme(t)" class="btn-ghost" style="font-size:9.5px; padding:3px 8px; border-radius:8px; font-weight:700; white-space:nowrap;">
+                                                    Apply
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
                     <!-- Accent Color -->
-                    <div class="card-row">
+                    <div class="card-row" style="border-top: 1px solid var(--border); padding-top:16px;">
                         <label class="apple-label" style="margin-bottom:10px;">Custom Accent Color</label>
                         <div style="display:flex; align-items:center; gap:12px;">
                             <input type="color" x-model="customAccent" @change="saveAppearance()"
                                 style="width:38px; height:38px; padding:0; border:none; border-radius:8px; cursor:pointer; background:transparent;">
-                            <button @click="customAccent = ''; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:5px 10px;">Reset Default</button>
+                            <button @click="customAccent = ''; swatchMidnight = '#272757'; swatchLavender = '#8686AC'; swatchIndigo = '#505081'; swatchObsidian = '#0F0E47'; saveAppearance()" class="btn-ghost" style="font-size:12px; padding:5px 10px;">Reset Palette Defaults</button>
                         </div>
                     </div>
 
                     <!-- Wallpaper -->
-                    <div class="card-row">
+                    <div class="card-row" style="border-top: 1px solid var(--border); padding-top:16px;">
                         <label class="apple-label" style="margin-bottom:8px;">Custom Wallpaper</label>
                         <div style="display:flex; flex-direction:column; gap:8px;">
                             <input type="file" @change="uploadWallpaper" accept="image/*" class="apple-field" style="padding:7px; font-size:12px;">
@@ -1295,7 +1384,7 @@
                     </div>
 
                     <!-- Blur -->
-                    <div class="card-row" x-show="customWallpaper">
+                    <div class="card-row" x-show="customWallpaper" style="border-top: 1px solid var(--border); padding-top:16px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                             <label class="apple-label" style="margin-bottom:0;">Wallpaper Blur</label>
                             <span style="font-size:11px; font-weight:600; color:var(--text-tertiary);" x-text="customBlur + 'px'"></span>
@@ -1805,6 +1894,177 @@
             </div>
         </div>
     </div>
+
+    <!-- ── AI Theme Generator Modal ── -->
+    <div x-show="aiThemeModalOpen" x-cloak class="modal-overlay" style="display:flex;" @keydown.escape.window="aiThemeModalOpen = false">
+        <div class="modal-backdrop" @click="aiThemeModalOpen = false"
+             x-show="aiThemeModalOpen" x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="aiThemeModalOpen" style="max-width:500px; padding:24px;"
+             x-transition:enter="transition ease-out duration-250"
+             x-transition:enter-start="opacity-0 translate-y-4"
+             x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="modal-handle"></div>
+            
+            <!-- Header -->
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+                <div style="width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, var(--accent), var(--swatch-indigo)); flex-shrink:0;">
+                    <i class="fa-solid fa-wand-magic-sparkles" style="font-size:16px; color:#fff;"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin:0 0 2px 0;">Generate Theme with AI</h3>
+                    <p style="font-size:11px; color:var(--text-tertiary); margin:0;">Craft a unique five-color design palette dynamically.</p>
+                </div>
+            </div>
+
+            <!-- Content Inputs -->
+            <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:20px;">
+                <!-- Prompt -->
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Describe your Vibe Prompt</label>
+                    <textarea x-model="aiThemePrompt" rows="3" placeholder="e.g. Neon glowing cyberpunk, midnight city alleyways, high-contrast violet and cyan..." class="apple-field" style="resize:none; width:100%; line-height:1.55;" @keydown.meta.enter="buildThemeFromPrompt()" @keydown.ctrl.enter="buildThemeFromPrompt()"></textarea>
+                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:4px;">
+                        The AI will instantly generate balanced swatches and a matching theme name.
+                    </p>
+                </div>
+
+                <!-- Generated Name & Colors (Visible after generation) -->
+                <template x-if="aiThemePreview">
+                    <div style="background:rgba(134,134,172,0.04); border:1px solid var(--border); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                        <div style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em; display:flex; align-items:center; gap:6px;">
+                            <i class="fa-solid fa-sliders" style="color:var(--accent);"></i> Tweak Generated Palette
+                        </div>
+
+                        <!-- Editable Theme Name -->
+                        <div>
+                            <label class="apple-label" style="font-size:10px; margin-bottom:4px;">Theme Name</label>
+                            <input type="text" x-model="aiThemeName" class="apple-field" style="width:100%; font-size:12px; padding:8px 10px;">
+                        </div>
+
+                        <!-- Editable Swatch pickers -->
+                        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px;">
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <input type="color" x-model="aiThemePreview.midnight" style="width:34px; height:34px; border:none; padding:0; background:transparent; cursor:pointer;">
+                                <span style="font-size:9px; color:var(--text-quaternary); font-weight:700;">Midnight</span>
+                            </div>
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <input type="color" x-model="aiThemePreview.lavender" style="width:34px; height:34px; border:none; padding:0; background:transparent; cursor:pointer;">
+                                <span style="font-size:9px; color:var(--text-quaternary); font-weight:700;">Lavender</span>
+                            </div>
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <input type="color" x-model="aiThemePreview.indigo" style="width:34px; height:34px; border:none; padding:0; background:transparent; cursor:pointer;">
+                                <span style="font-size:9px; color:var(--text-quaternary); font-weight:700;">Indigo</span>
+                            </div>
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <input type="color" x-model="aiThemePreview.obsidian" style="width:34px; height:34px; border:none; padding:0; background:transparent; cursor:pointer;">
+                                <span style="font-size:9px; color:var(--text-quaternary); font-weight:700;">Obsidian</span>
+                            </div>
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <input type="color" x-model="aiThemePreview.accent" style="width:34px; height:34px; border:none; padding:0; background:transparent; cursor:pointer;">
+                                <span style="font-size:9px; color:var(--text-quaternary); font-weight:700;">Accent</span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Error Banner -->
+            <div x-show="aiThemeError" x-cloak style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25); border-radius:10px; padding:10px 14px; font-size:11.5px; color:#F87171; margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-circle-exclamation" style="flex-shrink:0;"></i>
+                <span x-text="aiThemeError"></span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:16px;">
+                <button type="button" @click="aiThemeModalOpen = false" class="btn-ghost" style="padding:10px 16px;">Cancel</button>
+                <button type="button" @click="buildThemeFromPrompt()" class="btn-accent" style="padding:10px 16px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;" :disabled="aiThemeLoading || !aiThemePrompt.trim()">
+                    <template x-if="!aiThemeLoading">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>Generate Theme</span>
+                        </div>
+                    </template>
+                    <template x-if="aiThemeLoading">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                            <span>Thinking…</span>
+                        </div>
+                    </template>
+                </button>
+                <button type="button" @click="saveAndApplyGeneratedTheme()" class="btn-accent" style="padding:10px 16px; background:linear-gradient(135deg, #10B981, #059669); border-color:#059669; border-radius:12px; display:flex; align-items:center; gap:5px; cursor:pointer;" :disabled="!aiThemePreview" x-show="aiThemePreview" x-cloak>
+                    <i class="fa-solid fa-circle-check"></i> Save Theme
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Manual Custom Theme Modal ── -->
+    <div x-show="customThemeModalOpen" x-cloak class="modal-overlay" style="display:flex;" @keydown.escape.window="customThemeModalOpen = false">
+        <div class="modal-backdrop" @click="customThemeModalOpen = false"
+             x-show="customThemeModalOpen" x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="customThemeModalOpen" style="max-width:480px; padding:24px;"
+             x-transition:enter="transition ease-out duration-250"
+             x-transition:enter-start="opacity-0 translate-y-4"
+             x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="modal-handle"></div>
+            
+            <!-- Header -->
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+                <div style="width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(134,134,172,0.1); color:var(--accent); flex-shrink:0;">
+                    <i class="fa-solid fa-palette" style="font-size:16px;"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin:0 0 2px 0;">Create Custom Theme</h3>
+                    <p style="font-size:11px; color:var(--text-tertiary); margin:0;">Define your own custom name and palette manually.</p>
+                </div>
+            </div>
+
+            <!-- Content Inputs -->
+            <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:20px;">
+                <!-- Name -->
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Theme Name</label>
+                    <input type="text" x-model="customThemeName" placeholder="e.g. Obsidian Nebula" class="apple-field" style="width:100%;">
+                </div>
+
+                <!-- 5 Color Swatch Pickers -->
+                <div>
+                    <label class="apple-label" style="margin-bottom:8px;">Select Swatch Colors</label>
+                    <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; background:rgba(134,134,172,0.03); border:1px solid var(--border); border-radius:14px; padding:12px 6px;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <input type="color" x-model="customThemeMidnight" style="width:36px; height:36px; border:none; padding:0; background:transparent; cursor:pointer;">
+                            <span style="font-size:9.5px; color:var(--text-quaternary); font-weight:700;">Midnight</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <input type="color" x-model="customThemeLavender" style="width:36px; height:36px; border:none; padding:0; background:transparent; cursor:pointer;">
+                            <span style="font-size:9.5px; color:var(--text-quaternary); font-weight:700;">Lavender</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <input type="color" x-model="customThemeIndigo" style="width:36px; height:36px; border:none; padding:0; background:transparent; cursor:pointer;">
+                            <span style="font-size:9.5px; color:var(--text-quaternary); font-weight:700;">Indigo</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <input type="color" x-model="customThemeObsidian" style="width:36px; height:36px; border:none; padding:0; background:transparent; cursor:pointer;">
+                            <span style="font-size:9.5px; color:var(--text-quaternary); font-weight:700;">Obsidian</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <input type="color" x-model="customThemeAccent" style="width:36px; height:36px; border:none; padding:0; background:transparent; cursor:pointer;">
+                            <span style="font-size:9.5px; color:var(--text-quaternary); font-weight:700;">Accent</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:16px;">
+                <button type="button" @click="customThemeModalOpen = false" class="btn-ghost" style="padding:10px 16px;">Cancel</button>
+                <button type="button" @click="saveCustomTheme()" class="btn-accent" style="padding:10px 16px; border-radius:12px; font-weight:600; display:flex; align-items:center; gap:5px; cursor:pointer;" :disabled="!customThemeName.trim()">
+                    <i class="fa-solid fa-square-check"></i> Save Theme
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -1852,17 +2112,270 @@ function settingsApp() {
         saving: false,
         refreshingPool: false,
 
-        customAccent: localStorage.getItem('customAccent') || '',
-        customWallpaper: localStorage.getItem('customWallpaper') || '',
-        customBlur: localStorage.getItem('customBlur') || '0',
+        presets: [
+            // ⚡ YOUR WAIFUS FIRST ⚡
 
-        saveAppearance() {
-            if (this.customAccent) localStorage.setItem('customAccent', this.customAccent);
-            else localStorage.removeItem('customAccent');
-            localStorage.setItem('customBlur', this.customBlur);
-            if (this.customWallpaper.trim()) localStorage.setItem('customWallpaper', this.customWallpaper.trim());
-            else localStorage.removeItem('customWallpaper');
-            location.reload();
+            // 1. Keqing — electric purple, deep violet, silver highlights
+            { id: 'keqing', name: 'Keqing', icon: 'fa-solid fa-bolt', color: '#C39BD3', midnight: '#1A0A2E', lavender: '#C39BD3', indigo: '#7D3C98', obsidian: '#0A0414', accent: '#A855F7' },
+
+            // 2. Ayaka — icy blue, frost white, cryo elegance
+            { id: 'ayaka', name: 'Ayaka', icon: 'fa-solid fa-snowflake', color: '#AED6F1', midnight: '#071828', lavender: '#D6EAF8', indigo: '#1A6FA8', obsidian: '#020810', accent: '#5DADE2' },
+
+{ id: 'kokomi', name: 'Kokomi', icon: 'fa-solid fa-droplet', color: '#F2D6E4', midnight: '#1C0A1A', lavender: '#F6D4CB', indigo: '#968DD8', obsidian: '#0A0308', accent: '#E8827A' },
+            // ✨ REST OF THE ROSTER ✨
+
+            // 4. Raiden Shogun — deep violet, lightning purple, imperial gold
+            { id: 'raiden', name: 'Raiden Shogun', icon: 'fa-solid fa-khanda', color: '#9B59B6', midnight: '#1A0A2E', lavender: '#D2B4DE', indigo: '#6C3483', obsidian: '#08030F', accent: '#D4AC0D' },
+
+            // 5. Hu Tao — flame orange, ghost white, blood red
+            { id: 'hutao', name: 'Hu Tao', icon: 'fa-solid fa-skull', color: '#FF6B35', midnight: '#1E0800', lavender: '#FDEBD0', indigo: '#C0392B', obsidian: '#080200', accent: '#FF4500' },
+
+            // 6. Ganyu — soft lavender, moonlit blue, celestial white
+            { id: 'ganyu', name: 'Ganyu', icon: 'fa-solid fa-moon', color: '#AEB6BF', midnight: '#0C1020', lavender: '#D2D7DF', indigo: '#5D78AA', obsidian: '#040608', accent: '#8BA4CC' },
+
+            // 7. Yae Miko — hot pink, sakura rose, fox silver
+            { id: 'yaemiko', name: 'Yae Miko', icon: 'fa-solid fa-torii-gate', color: '#FF69B4', midnight: '#220A18', lavender: '#FFB6D9', indigo: '#CC2277', obsidian: '#0D0309', accent: '#FF1493' },
+
+            // 8. Zhongli — amber gold, geo brown-orange, dark earth
+            { id: 'zhongli', name: 'Zhongli', icon: 'fa-solid fa-mountain', color: '#F0A500', midnight: '#1A1000', lavender: '#F9E4B7', indigo: '#C47A00', obsidian: '#080500', accent: '#E8A020' },
+
+            // 9. Nahida — mint green, dendro leaf, soft white
+            { id: 'nahida', name: 'Nahida', icon: 'fa-solid fa-leaf', color: '#82E0AA', midnight: '#061A0A', lavender: '#C8F5D8', indigo: '#27AE60', obsidian: '#020A04', accent: '#2ECC71' },
+
+            { id: 'citlali', name: 'Citlali', icon: 'fa-solid fa-icicles', color: '#B8C8E8', midnight: '#0C0A1A', lavender: '#D4D8F0', indigo: '#4A3878', obsidian: '#050410', accent: '#8B7CC8' },
+        ],
+
+        customAccent: '',
+        customWallpaper: '',
+        customBlur: '0',
+        swatchMidnight: '#272757',
+        swatchLavender: '#8686AC',
+        swatchIndigo: '#505081',
+        swatchObsidian: '#0F0E47',
+        customThemes: [],
+        aiThemeModalOpen: false,
+        aiThemePrompt: '',
+        aiThemeName: '',
+        aiThemeLoading: false,
+        aiThemeError: '',
+        aiThemePreview: null,
+        customThemeModalOpen: false,
+        customThemeName: '',
+        customThemeMidnight: '#272757',
+        customThemeLavender: '#8686AC',
+        customThemeIndigo: '#505081',
+        customThemeObsidian: '#0F0E47',
+        customThemeAccent: '#505081',
+
+        applyLiveTheme() {
+            const d = document.documentElement;
+            d.style.setProperty('--swatch-midnight', this.swatchMidnight || '#272757');
+            d.style.setProperty('--swatch-lavender', this.swatchLavender || '#8686AC');
+            d.style.setProperty('--swatch-indigo', this.swatchIndigo || '#505081');
+            d.style.setProperty('--swatch-obsidian', this.swatchObsidian || '#0F0E47');
+            d.style.setProperty('--accent-custom-light', this.customAccent || '#505081');
+            d.style.setProperty('--accent-custom-dark', this.customAccent || '#8686AC');
+            d.style.setProperty('--custom-wallpaper', this.customWallpaper ? `url('${this.customWallpaper.trim()}')` : 'none');
+            d.style.setProperty('--custom-blur', `${this.customBlur || 0}px`);
+
+            if (this.customWallpaper && this.customWallpaper.trim() !== '') {
+                d.classList.add('has-wallpaper');
+                const rootEl = document.querySelector('[x-data]');
+                if (rootEl && rootEl.__x__) {
+                    rootEl.__x__.$data.hasWallpaper = true;
+                }
+            } else {
+                d.classList.remove('has-wallpaper');
+                const rootEl = document.querySelector('[x-data]');
+                if (rootEl && rootEl.__x__) {
+                    rootEl.__x__.$data.hasWallpaper = false;
+                }
+            }
+        },
+
+        async savePrefsSilently() {
+            this.prefs.custom_accent = this.customAccent;
+            this.prefs.custom_wallpaper = this.customWallpaper.trim();
+            this.prefs.custom_blur = this.customBlur;
+            this.prefs.swatch_midnight = this.swatchMidnight;
+            this.prefs.swatch_lavender = this.swatchLavender;
+            this.prefs.swatch_indigo = this.swatchIndigo;
+            this.prefs.swatch_obsidian = this.swatchObsidian;
+            this.prefs.custom_themes = this.customThemes;
+            try {
+                await fetch('/api/prefs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.prefs)
+                });
+            } catch (err) {
+                console.error("Failed to save theme preferences quietly:", err);
+            }
+        },
+
+        async saveAppearance() {
+            this.applyLiveTheme();
+            await this.savePrefsSilently();
+        },
+
+        applyPreset(preset) {
+            const p = this.presets.find(x => x.id === preset);
+            if (p) {
+                this.swatchMidnight = p.midnight;
+                this.swatchLavender = p.lavender;
+                this.swatchIndigo = p.indigo;
+                this.swatchObsidian = p.obsidian;
+                this.customAccent = p.accent;
+                this.saveAppearance();
+            }
+        },
+
+        openAiThemeModal() {
+            this.aiThemeModalOpen = true;
+            this.aiThemePrompt = '';
+            this.aiThemeName = '';
+            this.aiThemeLoading = false;
+            this.aiThemeError = '';
+            this.aiThemePreview = null;
+        },
+
+        async buildThemeFromPrompt() {
+            if (!this.aiThemePrompt || !this.aiThemePrompt.trim()) return;
+            this.aiThemeLoading = true;
+            this.aiThemeError = '';
+            this.aiThemePreview = null;
+
+            const systemPrompt = `You are a professional web designer specializing in high-contrast, premium, dark-mode and light-mode theme palettes.
+Your task is to generate a beautiful custom 5-color theme swatch palette based on the user's prompt, along with a creative, short, matching theme name (2-3 words, capitalized).
+You MUST output EXACTLY a raw JSON object and nothing else. No markdown wrapping, no explanation.
+
+JSON format:
+{
+  "name": "Creative Theme Name",
+  "midnight": "#HEX",
+  "lavender": "#HEX",
+  "indigo": "#HEX",
+  "obsidian": "#HEX",
+  "accent": "#HEX"
+}
+
+Guidance on colors:
+- "midnight": This is the primary backdrop and sidebars. It must be deep and rich, not a basic gray.
+- "lavender": This is the tertiary text and highlights. It must be a lighter desaturated pastel shade of the dominant theme color to ensure beautiful contrast.
+- "indigo": This is the secondary highlight and card border accents. It must be a medium/rich shade.
+- "obsidian": This is the canvas background. It must be extremely deep and dark (very close to black but beautifully tinted with the prompt's theme colors).
+- "accent": This is the primary interactive accent color. It must be extremely vibrant, gorgeous, and rich.
+
+Ensure all HEX codes are valid 6-character hex strings (starting with #) and have excellent color harmony. No markdown, no backticks, just raw JSON text.`;
+
+            try {
+                const response = await fetch('/api/ai/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: `Generate a theme palette for prompt: "${this.aiThemePrompt}"`,
+                        system: systemPrompt
+                    })
+                });
+
+                const result = await response.json();
+                if (result.error) {
+                    this.aiThemeError = result.error;
+                    return;
+                }
+
+                let cleanText = result.text.trim();
+                if (cleanText.includes('```json')) {
+                    cleanText = cleanText.split('```json')[1].split('```')[0].trim();
+                } else if (cleanText.includes('```')) {
+                    cleanText = cleanText.split('```')[1].trim();
+                }
+
+                const palette = JSON.parse(cleanText);
+                if (palette.midnight && palette.lavender && palette.indigo && palette.obsidian && palette.accent) {
+                    this.aiThemePreview = palette;
+                    this.aiThemeName = palette.name || 'AI Generated Theme';
+                } else {
+                    this.aiThemeError = "AI returned an incomplete color palette. Please try again!";
+                }
+            } catch (err) {
+                console.error("AI Theme Generation failed:", err);
+                this.aiThemeError = "Failed to generate theme. Make sure your LLM provider is connected!";
+            } finally {
+                this.aiThemeLoading = false;
+            }
+        },
+
+        async saveAndApplyGeneratedTheme() {
+            if (!this.aiThemePreview) return;
+            const themeName = (this.aiThemeName && this.aiThemeName.trim()) ? this.aiThemeName.trim() : 'AI Theme';
+            const newTheme = {
+                name: themeName,
+                midnight: this.aiThemePreview.midnight,
+                lavender: this.aiThemePreview.lavender,
+                indigo: this.aiThemePreview.indigo,
+                obsidian: this.aiThemePreview.obsidian,
+                accent: this.aiThemePreview.accent
+            };
+            this.customThemes.push(newTheme);
+            this.swatchMidnight = newTheme.midnight;
+            this.swatchLavender = newTheme.lavender;
+            this.swatchIndigo = newTheme.indigo;
+            this.swatchObsidian = newTheme.obsidian;
+            this.customAccent = newTheme.accent;
+
+            await this.saveAppearance();
+            this.aiThemeModalOpen = false;
+            this.showToast(`Theme "${themeName}" applied & saved!`, 'success');
+        },
+
+        openCustomThemeModal() {
+            this.customThemeModalOpen = true;
+            this.customThemeName = 'My Custom Theme';
+            this.customThemeMidnight = this.swatchMidnight || '#272757';
+            this.customThemeLavender = this.swatchLavender || '#8686AC';
+            this.customThemeIndigo = this.swatchIndigo || '#505081';
+            this.customThemeObsidian = this.swatchObsidian || '#0F0E47';
+            this.customThemeAccent = this.customAccent || '#505081';
+        },
+
+        async saveCustomTheme() {
+            const name = (this.customThemeName && this.customThemeName.trim()) ? this.customThemeName.trim() : 'Custom Theme';
+            const newTheme = {
+                name: name,
+                midnight: this.customThemeMidnight,
+                lavender: this.customThemeLavender,
+                indigo: this.customThemeIndigo,
+                obsidian: this.customThemeObsidian,
+                accent: this.customThemeAccent
+            };
+            this.customThemes.push(newTheme);
+            this.swatchMidnight = newTheme.midnight;
+            this.swatchLavender = newTheme.lavender;
+            this.swatchIndigo = newTheme.indigo;
+            this.swatchObsidian = newTheme.obsidian;
+            this.customAccent = newTheme.accent;
+
+            await this.saveAppearance();
+            this.customThemeModalOpen = false;
+            this.showToast(`Theme "${name}" created & applied!`, 'success');
+        },
+
+        async applyCustomTheme(theme) {
+            this.swatchMidnight = theme.midnight;
+            this.swatchLavender = theme.lavender;
+            this.swatchIndigo = theme.indigo;
+            this.swatchObsidian = theme.obsidian;
+            this.customAccent = theme.accent;
+            await this.saveAppearance();
+            this.showToast(`Theme "${theme.name}" applied!`, 'success');
+        },
+
+        async deleteCustomTheme(index) {
+            const deletedName = this.customThemes[index].name;
+            this.customThemes.splice(index, 1);
+            await this.saveAppearance();
+            this.showToast(`Theme "${deletedName}" deleted!`, 'success');
         },
 
         uploadWallpaper(e) {
@@ -1908,10 +2421,11 @@ function settingsApp() {
         mcpCommand: '', mcpArgs: '', mcpEnv: '', mcpUrl: '', mcpEnabled: true,
         testingId: null, testResult: null,
 
-        activeTheme: localStorage.getItem('theme') || 'system',
-        setTheme(theme) {
+        activeTheme: 'system',
+        async setTheme(theme) {
             this.activeTheme = theme;
-            localStorage.setItem('theme', theme);
+            this.prefs.theme = theme;
+            await this.savePrefs();
             
             let isDark = false;
             if (theme === 'system') {
@@ -1954,7 +2468,19 @@ function settingsApp() {
         },
 
         async fetchPrefs() {
-            try { const r = await fetch('/api/prefs'); this.prefs = await r.json(); } catch(e) { console.error(e); }
+            try { 
+                const r = await fetch('/api/prefs'); 
+                this.prefs = await r.json(); 
+                this.customAccent = this.prefs.custom_accent || '';
+                this.customWallpaper = this.prefs.custom_wallpaper || '';
+                this.customBlur = this.prefs.custom_blur || '0';
+                this.swatchMidnight = this.prefs.swatch_midnight || '#272757';
+                this.swatchLavender = this.prefs.swatch_lavender || '#8686AC';
+                this.swatchIndigo = this.prefs.swatch_indigo || '#505081';
+                this.swatchObsidian = this.prefs.swatch_obsidian || '#0F0E47';
+                this.customThemes = this.prefs.custom_themes || [];
+                this.activeTheme = this.prefs.theme || 'system';
+            } catch(e) { console.error(e); }
         },
 
         initCrop(e) {

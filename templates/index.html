@@ -7,7 +7,7 @@
     /* ── Splash Screen ─────────────────────────────── */
     .splash-overlay {
         position: fixed; inset: 0; z-index: 9999;
-        background: #0F0E47; /* Obsidian Blue */
+        background: var(--swatch-obsidian, #0F0E47);
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
@@ -48,8 +48,8 @@
         padding: 15px;
         backdrop-filter: blur(4px);
     }
-    .mcp-poster i { font-size: 32px; color: #8686AC; margin-bottom: 12px; }
-    .mcp-poster span { font-size: 10px; font-weight: 800; color: #8686AC; text-align: center; text-transform: uppercase; letter-spacing: 0.05em; }
+    .mcp-poster i { font-size: 32px; color: var(--swatch-lavender, #8686AC); margin-bottom: 12px; }
+    .mcp-poster span { font-size: 10px; font-weight: 800; color: var(--swatch-lavender, #8686AC); text-align: center; text-transform: uppercase; letter-spacing: 0.05em; }
 
     /* ── Center Content ── */
     .splash-content {
@@ -63,36 +63,36 @@
 
     .splash-logo {
         width: 100px; height: 100px; border-radius: 32px;
-        background: linear-gradient(135deg, #272757, #505081);
+        background: linear-gradient(135deg, var(--swatch-midnight, #272757), var(--swatch-indigo, #505081));
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 0 40px rgba(80, 80, 129, 0.5), 0 0 80px rgba(80, 80, 129, 0.3);
-        border: 2px solid rgba(134, 134, 172, 0.3);
+        box-shadow: 0 0 40px color-mix(in srgb, var(--accent, #505081) 50%, transparent), 0 0 80px color-mix(in srgb, var(--accent, #505081) 30%, transparent);
+        border: 2px solid color-mix(in srgb, var(--swatch-lavender, #8686AC) 30%, transparent);
         animation: splashPulse 3s ease-in-out infinite;
         position: relative;
     }
     .splash-logo::after {
         content: ""; position: absolute; inset: -4px;
         border-radius: 36px;
-        background: linear-gradient(135deg, #8686AC, transparent);
+        background: linear-gradient(135deg, var(--swatch-lavender, #8686AC), transparent);
         opacity: 0.5; filter: blur(8px);
     }
 
     @keyframes splashPulse {
-        0%, 100% { transform: scale(1); box-shadow: 0 0 40px rgba(80, 80, 129, 0.5); }
-        50% { transform: scale(1.05); box-shadow: 0 0 60px rgba(80, 80, 129, 0.8), 0 0 100px rgba(134, 134, 172, 0.4); }
+        0%, 100% { transform: scale(1); box-shadow: 0 0 40px color-mix(in srgb, var(--accent, #505081) 50%, transparent); }
+        50% { transform: scale(1.05); box-shadow: 0 0 60px color-mix(in srgb, var(--accent, #505081) 80%, transparent), 0 0 100px color-mix(in srgb, var(--swatch-lavender, #8686AC) 40%, transparent); }
     }
 
     .splash-status-container {
         margin-top: 30px;
-        background: rgba(15, 14, 71, 0.8);
+        background: color-mix(in srgb, var(--swatch-obsidian, #0F0E47) 80%, transparent);
         backdrop-filter: blur(12px);
         padding: 12px 24px;
         border-radius: 100px;
-        border: 1px solid rgba(134, 134, 172, 0.2);
+        border: 1px solid color-mix(in srgb, var(--swatch-lavender, #8686AC) 20%, transparent);
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     .splash-status-text {
-        font-size: 13px; color: #8686AC; font-weight: 600; letter-spacing: 0.05em;
+        font-size: 13px; color: var(--swatch-lavender, #8686AC); font-weight: 600; letter-spacing: 0.05em;
         text-transform: uppercase; margin: 0;
     }
     /* ── Insights Status Bar ─────────────────────── */
@@ -308,8 +308,8 @@
             <i class="fa-solid fa-fish-fins text-white text-[32px] relative z-10"></i>
         </div>
         
-        <h1 style="margin-top:24px; font-size:42px; font-weight:900; color:#ffffff; letter-spacing:-0.04em; text-shadow: 0 10px 20px rgba(0,0,0,0.5);">
-            KOKOMI<span style="color:#8686AC; opacity:0.6;">AI</span>
+        <h1 style="margin-top:24px; font-size:42px; font-weight:900; color:color-mix(in srgb, var(--swatch-lavender, #8686AC) 10%, #ffffff); letter-spacing:-0.04em; text-shadow: 0 10px 20px rgba(0,0,0,0.5);">
+            KOKOMI<span style="color:var(--swatch-lavender, #8686AC); opacity:0.6;">AI</span>
         </h1>
         
         <div class="splash-status-container">
