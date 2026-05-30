@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.1.0] - 2026-05-30
+
+### Added
+
+- **Settings Page v4.1.0**:
+  - **Remake**: remake setting page UI to follow new aesthetic similar to macOS setting page UI
+  - **Responsiveness** : the setting page looks different based on the device its viewed on eg IOS for smaller screen, and MacOS setting page for larger screen
+  - **Fixes**:
+    - added profile picture cropper, reused from the the character picture cropper
+
+- **Theme Engine v4.0.6**:
+  - **Dynamic Color Presets**: Added dynamic color-mix swatch presets for easy theme switching.
+  - **AI Theme Generator**: Added an AI-powered theme generator to create new color schemes.
+  - **Sidebar Contrast Audit**: Added a contrast audit to ensure accessibility and readability of sidebar elements.
+  - **Sidebar Dark Mode**: Fixed sidebar dark mode to use `mix()` for proper background contrast.
+
 ## [v4.0.1] - 2026-05-27
 
 ### Fixed
