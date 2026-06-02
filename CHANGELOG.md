@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v4.5.0] - 2026-06-02
+
+### Added
+
+- **About page refinements**:
+  - Added smooth swimming animation to the fish icon.
+  - Removed "Model Edition" section from the General Properties.
+- **Diagnostics Easter Egg Remake**:
+  - Remade the secret diagnostics easter egg from an inline panel into a premium, backdrop-blurred dialog modal.
+  - Added a monospace terminal logs box with auto-scrolling log sequence.
+- **Software Update Checker**:
+  - Implemented an iOS/macOS-style Software Update card in the About tab with gear icon themed styling.
+  - Fetches update info asynchronously from git repository `pyproject.toml` with cache-busting timestamp parameters.
+  - Displays a clean release notes popup modal rendering parsed Markdown changelog blocks.
+
 ## [v4.1.0] - 2026-05-30
 
 ### Added

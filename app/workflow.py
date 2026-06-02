@@ -1493,18 +1493,30 @@ _WORKFLOW_KEYWORDS = [
 ]
 
 def is_complex_workflow(request: str) -> bool:
-    """Route to workflow engine vs simple chat. Uses keyword pre-filter for speed."""
-    req_lower = request.lower()
-    # Quick keyword pass
-    if any(kw in req_lower for kw in _WORKFLOW_KEYWORDS):
+    """Route to workflow engine vs simple chat.
+    Requires explicit prefixes or triggers to prevent hijacking standard conversational chat.
+    """
+    req_lower = request.strip().lower()
+    
+    # 1. Explicit slash commands or prefixes
+    explicit_prefixes = (
+        "/atlas", 
+        "atlas:", 
+        "[atlas]", 
+        "/workflow", 
+        "workflow:",
+    )
+    if any(req_lower.startswith(pref) for pref in explicit_prefixes):
         return True
-    # If request is long and imperative (sounds like instructions), treat as workflow
-    words = req_lower.split()
-    if len(words) >= 10 and any(req_lower.startswith(v) for v in (
-        "can you ", "could you ", "please ", "i want you to ", "i need you to ",
-        "go ahead and ", "make ", "create ", "build ", "find ", "get me "
-    )):
+        
+    # 2. Starting with "atlas " as a direct command (e.g. "atlas write a report", "atlas run ssh...")
+    if req_lower.startswith("atlas ") or req_lower.startswith("atlas,"):
         return True
+        
+    # 3. Explicitly asking to execute a workflow or research
+    if "start atlas research" in req_lower or "run atlas workflow" in req_lower or "initiate atlas workflow" in req_lower:
+        return True
+
     return False
 
 

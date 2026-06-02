@@ -10,6 +10,16 @@ function settingsApp() {
         characters: [],
         mcpServers: [],
         models: [],
+        toasts: [],
+        diagnosticsLogs: [],
+        diagnosticsRunning: false,
+        showEgg: false,
+        clicks: 0,
+        updateChecking: false,
+        updateAvailable: false,
+        updateInfo: null,
+        updateError: '',
+        showUpdateNotes: false,
         profileModalOpen: false,
         profileNameEdit: '',
         prefs: {
@@ -99,6 +109,10 @@ function settingsApp() {
             }
             // Update hash
             window.location.hash = tabName;
+
+            if (tabName === 'about') {
+                this.checkForUpdates();
+            }
         },
 
         goBackToCategories() {
@@ -467,6 +481,9 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                     if (validTabs.includes(clean)) {
                         this.tab = clean;
                         if (this.isMobile) this.mobileView = 'detail';
+                        if (clean === 'about') {
+                            this.checkForUpdates();
+                        }
                     }
                 }
             };
@@ -531,7 +548,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                     const r = await fetch('/api/prefs/avatar', { method: 'POST', body: fd });
                     const res = await r.json();
                     if (res.avatar) {
-                        this.prefs.user_avatar = res.avatar;
+                        this.prefs.user_avatar = res.avatar + '?t=' + Date.now();
                         this.showToast('Profile photo updated!', 'success');
                     }
                 } catch(e) { console.error(e); }
@@ -543,7 +560,76 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         },
 
         showToast(msg, type = 'success') {
-            console.log(msg);
+            const id = Date.now() + Math.random().toString(36).substr(2, 5);
+            this.toasts.push({ id, message: msg, type });
+            setTimeout(() => {
+                this.toasts = this.toasts.filter(t => t.id !== id);
+            }, 3000);
+        },
+
+        async runDiagnostics() {
+            this.diagnosticsRunning = true;
+            this.diagnosticsLogs = [];
+            const steps = [
+                "Initializing Tactician Diagnostics...",
+                "Testing Docker sandbox connection... OK",
+                "Checking active MCP protocol connections... SSE/Stdio active",
+                "Measuring LLM response latency... 340ms (Excellent)",
+                "Synchronizing Divine Strategy context layers...",
+                "Diagnose completed: 100% operational. Strategic contingency plans loaded. 🐟"
+            ];
+            for (const step of steps) {
+                await new Promise(r => setTimeout(r, 450));
+                this.diagnosticsLogs.push(step);
+                this.$nextTick(() => {
+                    const term = document.getElementById('diagnostics-terminal-screen');
+                    if (term) term.scrollTop = term.scrollHeight;
+                });
+            }
+            this.diagnosticsRunning = false;
+        },
+
+        async checkForUpdates() {
+            if (this.updateChecking) return;
+            this.updateChecking = true;
+            this.updateError = '';
+            this.updateInfo = null;
+            this.updateAvailable = false;
+            try {
+                const resp = await fetch('/api/update/check?t=' + Date.now());
+                const data = await resp.json();
+                if (data.ok) {
+                    this.updateAvailable = data.update_available;
+                    this.updateInfo = {
+                        currentVersion: data.current_version,
+                        latestVersion: data.latest_version,
+                        latestReleaseName: data.latest_release_name,
+                        changelog: data.changelog
+                    };
+                } else {
+                    this.updateError = data.error || 'Failed to check for updates.';
+                }
+            } catch (err) {
+                console.error("Update check failed:", err);
+                this.updateError = "Connection to server failed. Please check internet connection.";
+            } finally {
+                this.updateChecking = false;
+            }
+        },
+
+        renderMarkdown(md) {
+            if (!md) return '';
+            try {
+                if (window.marked) {
+                    if (window.marked.parse) {
+                        return window.marked.parse(md);
+                    }
+                    return window.marked(md);
+                }
+            } catch (err) {
+                console.error("Markdown parsing failed:", err);
+            }
+            return md.replace(/\n/g, '<br>');
         },
 
         async savePrefs() {

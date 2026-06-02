@@ -209,46 +209,6 @@ async def _ensure_pool():
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
-    if is_complex_workflow(req.message):
-        run_id = await MultiAgentWorkflowEngine.create_run(req.message)
-        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-        
-        reply = (
-            "🌊 **Atlas Intelligence Supervisor Activated**\n\n"
-            "I have dynamically routed your complex outcome-based request into our **Multi-Agent Execution Graph**.\n\n"
-            f"*   **Run ID**: `{run_id}`\n"
-            "*   **Mode**: Parallel Task Execution\n"
-            "*   **Engine**: LangGraph & LangChain Supervisor\n\n"
-            "You can track real-time task pipelines, logs, downloads, and output statuses directly on the **[Atlas Terminal](/atlas)**."
-        )
-        
-        convos = load_convos()
-        conv_id = req.conversation_id or str(uuid.uuid4())[:12]
-        if conv_id not in convos:
-            convos[conv_id] = {
-                "id": conv_id,
-                "title": "Atlas Workflow: " + req.message[:20],
-                "character_id": req.character_id or "kokomi",
-                "updated_at": time.time(),
-                "messages": []
-            }
-        
-        now = datetime.datetime.utcnow().isoformat()
-        convos[conv_id]["messages"].append({"role": "user", "content": req.message, "timestamp": now})
-        convos[conv_id]["messages"].append({
-            "role": "assistant", 
-            "content": reply, 
-            "timestamp": now,
-            "metrics": {"tps": 0, "ttft": 0, "total_time": 0}
-        })
-        save_convos(convos)
-        
-        return {
-            "conversation_id": conv_id,
-            "reply": reply,
-            "thinking": "Routing to LangGraph workflow..."
-        }
-
     t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
@@ -512,57 +472,6 @@ async def chat(req: ChatRequest):
 
 @router.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    if is_complex_workflow(req.message):
-        run_id = await MultiAgentWorkflowEngine.create_run(req.message)
-        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-        
-        reply = (
-            "🌊 **Atlas Intelligence Supervisor Activated**\n\n"
-            "I have dynamically routed your complex outcome-based request into our **Multi-Agent Execution Graph**.\n\n"
-            f"*   **Run ID**: `{run_id}`\n"
-            "*   **Mode**: Parallel Task Execution\n"
-            "*   **Engine**: LangGraph & LangChain Supervisor\n\n"
-            "You can track real-time task pipelines, logs, downloads, and output statuses directly on the **[Atlas Terminal](/atlas)**."
-        )
-        
-        convos = load_convos()
-        conv_id = req.conversation_id or str(uuid.uuid4())[:12]
-        if conv_id not in convos:
-            convos[conv_id] = {
-                "id": conv_id,
-                "title": "Atlas Workflow: " + req.message[:20],
-                "character_id": req.character_id or "kokomi",
-                "updated_at": time.time(),
-                "messages": []
-            }
-        
-        now = datetime.datetime.utcnow().isoformat()
-        convos[conv_id]["messages"].append({"role": "user", "content": req.message, "timestamp": now})
-        convos[conv_id]["messages"].append({
-            "role": "assistant", 
-            "content": reply, 
-            "timestamp": now,
-            "metrics": {"tps": 0, "ttft": 0, "total_time": 0}
-        })
-        save_convos(convos)
-
-        async def workflow_stream_generator():
-            yield f"data: {json.dumps({'type': 'start'})}\n\n"
-            yield f"data: {json.dumps({'type': 'thinking', 'text': 'Routing to LangGraph...' })}\n\n"
-            yield f"data: {json.dumps({'type': 'chunk', 'text': reply })}\n\n"
-            yield f"data: {json.dumps({'type': 'metrics', 'tps': 0, 'ttft': 0, 'total_time': 0})}\n\n"
-            yield "data: [DONE]\n\n"
-            
-        return StreamingResponse(
-            workflow_stream_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
-
     t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")

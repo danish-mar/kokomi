@@ -1,7 +1,18 @@
 import os
 from dotenv import load_dotenv
-
+from pathlib import Path
+import tomli
 load_dotenv()
+
+# Load project version once at startup
+try:
+    with open(Path(__file__).parent / "../pyproject.toml", "rb") as f:
+        _pyproject_data = tomli.load(f)
+        VERSION = _pyproject_data["project"]["version"]
+        RELEASE_NAME = _pyproject_data["project"].get("release-name", "")
+except Exception:
+    VERSION = "4.1.0"
+    RELEASE_NAME = "springlit splendor"
 
 # ── API Keys ────────────────────────────────────────────────────────
 GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")

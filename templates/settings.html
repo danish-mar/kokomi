@@ -1025,110 +1025,114 @@
             </div>
 
             <!-- ═══ TAB: ABOUT ═══ -->
-            <div x-show="tab === 'about'" x-transition class="tab-panel" x-data="{ clicks: 0, showEgg: false }">
-                <h2 class="section-title">About</h2>
-                <p class="section-subtitle">Version info and model details.</p>
+            <div x-show="tab === 'about'" x-transition class="tab-panel">
+                <!-- Center App Icon Header -->
+                <div style="display:flex; flex-direction:column; align-items:center; text-align:center; padding: 24px 0 20px;">
+                    <!-- Premium Squircle Icon -->
+                    <div style="width: 80px; height: 80px; border-radius: 20px; background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight)); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-md); margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); position: relative;">
+                        <i class="fa-solid fa-fish-fins swimming-fish" style="font-size: 36px; color: var(--swatch-lavender);"></i>
+                    </div>
+                    <h2 style="font-size: 20px; font-weight: 700; color: var(--text-primary); margin: 0 0 4px;">Kokomi AI</h2>
+                    <p style="font-size: 13px; color: var(--text-tertiary); margin: 0 0 16px;">Version {{ app_version.version }} ({{ app_version.release_name }})</p>
+                </div>
 
-                <div class="glass-card">
-                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                        <span style="font-size:13px; color:var(--text-secondary);">Chat Model</span>
-                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">qwen-2.5-32b via Groq</span>
+                <!-- Group 1: General Properties -->
+                <div class="glass-card" style="margin-bottom: 20px;">
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 12px 16px;">
+                        <span style="font-size:13.5px; color:var(--text-secondary);">Name</span>
+                        <span style="font-size:13.5px; font-weight:500; color:var(--text-primary);">Kokomi AI</span>
                     </div>
-                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                        <span style="font-size:13px; color:var(--text-secondary);">Title Model</span>
-                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">llama-3.3-70b-versatile</span>
-                    </div>
-                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                        <span style="font-size:13px; color:var(--text-secondary);">MCP SDK</span>
-                        <span style="font-size:13px; font-weight:600; color:var(--text-primary);">v1.27+</span>
-                    </div>
-                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; cursor: pointer; user-select: none;"
-                        @click="clicks++; if (clicks >= 5) { showEgg = true; }">
-                        <span style="font-size:13px; color:var(--text-secondary);">App</span>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; cursor: pointer; user-select: none;"
+                         @click="clicks++; if (clicks >= 5) { showEgg = true; showToast('Secret strategic diagnostics active!', 'success'); }">
+                        <span style="font-size:13.5px; color:var(--text-secondary);">Software Version</span>
                         <div style="display:flex; align-items:center; gap:6px;">
-                            <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Kokomi AI</span>
+                            <span style="font-size:13.5px; font-weight:500; color:var(--text-primary);">{{ app_version.version }}</span>
                             <span style="font-size:10px; color:var(--text-quaternary);" x-show="clicks > 0 && clicks < 5" x-text="'(' + clicks + '/5)'"></span>
                         </div>
                     </div>
-                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
-                        <div>
-                            <span style="font-size:13px; color:var(--text-secondary); display:block; margin-bottom:2px;">Interactive Walkthrough</span>
-                            <span style="font-size:10.5px; color:var(--text-quaternary);">Launch step-by-step tour of the chat space.</span>
-                        </div>
-                        <button @click="resetTourAndStart()" class="btn-accent" style="font-size:12px; padding: 6px 12px;">
-                            <i class="fa-solid fa-play"></i> Start Tour
-                        </button>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 12px 16px;">
+                        <span style="font-size:13.5px; color:var(--text-secondary);">Codename</span>
+                        <span style="font-size:13.5px; font-weight:500; color:var(--text-secondary); text-transform: capitalize;">{{ app_version.release_name }}</span>
                     </div>
                 </div>
 
-                <!-- 🌟 Secret Kokomi Easter Egg Panel 🌟 -->
-                <div x-show="showEgg" x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-4"
-                    x-transition:enter-end="opacity-100 translate-y-0"
-                    style="margin-top: 18px;">
-                    <div class="glass-card" style="background: rgba(39, 39, 87, 0.4); border: 1px dashed var(--accent); padding: 20px; position: relative; overflow: hidden;">
-                        
-                        <!-- Decorative background light bubble -->
-                        <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); opacity: 0.15; pointer-events: none;"></div>
-                        
-                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
-                            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff; animation: pulse 2s infinite;">
-                                <i class="fa-solid fa-fish-fins" style="font-size: 16px;"></i>
-                            </div>
-                            <div>
-                                <h3 style="font-size: 14px; font-weight: 700; color: #FFFFFF; margin: 0;">Sangonomiya Diagnostics</h3>
-                                <p style="font-size: 10px; color: var(--text-tertiary); margin: 0;">Divine Strategist Secret Terminal</p>
-                            </div>
-                        </div>
+                <!-- Software Update Card (iOS/macOS Style) -->
+                <div class="glass-card" style="margin-bottom: 20px; padding: 16px; display: flex; gap: 14px; align-items: flex-start;">
+                    <!-- Gears Squircle Icon -->
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight)); display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; box-shadow: var(--shadow-sm);">
+                        <i class="fa-solid fa-gear" style="font-size: 20px;"></i>
+                    </div>
 
-                        <!-- Divine Quote Box -->
-                        <div style="background: rgba(15, 14, 71, 0.3); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px;">
-                            <p style="font-size: 12px; font-style: italic; color: #EDEDF5; margin: 0; line-height: 1.5;">
-                                "To survive the battle, one must always have a contingency plan. Or seven. 🐟"
+                    <div style="flex-grow: 1; min-width: 0;">
+                        <h4 style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 0 0 3px 0;">Software Update</h4>
+                        
+                        <!-- Checking State -->
+                        <div x-show="updateChecking">
+                            <p style="font-size:12px; color:var(--text-secondary); margin:0; display:flex; align-items:center; gap:6px;">
+                                <i class="fa-solid fa-circle-notch fa-spin" style="color:var(--accent); font-size:11px;"></i>
+                                Checking for updates...
                             </p>
-                            <span style="font-size: 9px; font-weight: bold; color: var(--text-quaternary); display: block; margin-top: 4px; text-transform: uppercase;">— SANGONOMIYA KOKOMI</span>
                         </div>
 
-                        <!-- Technical Diagnostic Details -->
-                        <div style="display: flex; flex-direction: column; gap: 8px; font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 11px;">
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
-                                <span style="color: var(--text-tertiary);">Application Version</span>
-                                <span style="color: var(--accent); font-weight: bold;">v2.4.0-Tahoe</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
-                                <span style="color: var(--text-tertiary);">Codename</span>
-                                <span style="color: var(--text-primary);">Sangonomiya</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
-                                <span style="color: var(--text-tertiary);">Build Date</span>
-                                <span style="color: var(--text-secondary);">2026.05.26.1740</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
-                                <span style="color: var(--text-tertiary);">Execution Engine</span>
-                                <span style="color: #34d399; font-weight: bold;">Docker Sandboxed v2</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
-                                <span style="color: var(--text-tertiary);">Connected Transports</span>
-                                <span style="color: var(--text-secondary);">stdio, sse (active)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
-                                <span style="color: var(--text-tertiary);">Security Seal</span>
-                                <span style="color: var(--accent); font-weight: bold;">ENFORCED & ENCRYPTED</span>
-                            </div>
+                        <!-- Error State -->
+                        <div x-show="!updateChecking && updateError">
+                            <p style="font-size:12px; color:#E74C3C; margin:0;" x-text="updateError"></p>
+                            <button @click="checkForUpdates()" style="background:none; border:none; color:var(--accent); font-size:12px; font-weight:600; cursor:pointer; padding:0; margin-top:6px; display:inline-flex; align-items:center; gap:4px;">
+                                <i class="fa-solid fa-rotate-right"></i> Check Again
+                            </button>
                         </div>
 
-                        <!-- Interactive Buttons inside Easter Egg -->
-                        <div style="margin-top: 16px; display: flex; gap: 8px;">
-                            <button @click="alert('Diagnostics Report: All sub-systems operational. Strategy simulation complete.')" 
-                                class="btn-accent" style="font-size: 10px; padding: 4px 10px; border-radius: 6px; background: rgba(80,80,129,0.3); border: 1px solid var(--accent); color: #fff;">
-                                <i class="fa-solid fa-square-poll-vertical"></i> Self-Test
+                        <!-- Up To Date State -->
+                        <div x-show="!updateChecking && !updateError && !updateAvailable && updateInfo">
+                            <p style="font-size:12.5px; font-weight:600; color:var(--text-primary); margin:0 0 2px 0;">Kokomi AI {{ app_version.version }}</p>
+                            <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 6px 0;">Your system is up to date.</p>
+                            <button @click="showUpdateNotes = true" style="background:none; border:none; color:var(--accent); font-size:12px; font-weight:500; cursor:pointer; padding:0; text-decoration:none; display:inline-flex; align-items:center; gap:3px;">
+                                Learn More...
                             </button>
-                            <button @click="showEgg = false; clicks = 0" 
-                                class="btn-ghost" style="font-size: 10px; padding: 4px 10px; border-radius: 6px; color: var(--text-tertiary);">
-                                Hide Terminal
-                            </button>
+                        </div>
+
+                        <!-- Update Available State -->
+                        <div x-show="!updateChecking && !updateError && updateAvailable && updateInfo">
+                            <p style="font-size:12.5px; font-weight:600; color:var(--text-primary); margin:0 0 2px 0;">Kokomi AI <span x-text="updateInfo.latestVersion"></span></p>
+                            <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 8px 0;">Update available (<span x-text="updateInfo.latestReleaseName" style="text-transform: capitalize;"></span>).</p>
+                            
+                            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-start;">
+                                <button @click="showUpdateNotes = true" style="background:none; border:none; color:var(--accent); font-size:12px; font-weight:500; cursor:pointer; padding:0; display:inline-flex; align-items:center; gap:3px;">
+                                    Learn More...
+                                </button>
+                                <a href="https://github.com/danish-mar/kokomi" target="_blank" class="btn-accent" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:6px 12px; border-radius:8px; text-decoration:none; color:#fff; font-weight:600; margin-top:2px;">
+                                    <i class="fa-brands fa-github"></i> Update Now
+                                </a>
+                            </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Group 2: System Architecture -->
+                <div class="glass-card" style="margin-bottom: 20px;">
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 12px 16px;">
+                        <span style="font-size:13.5px; color:var(--text-secondary);">Default Chat Model</span>
+                        <span style="font-size:13.5px; font-weight:500; color:var(--text-primary);">qwen-2.5-32b</span>
+                    </div>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 12px 16px;">
+                        <span style="font-size:13.5px; color:var(--text-secondary);">Title Model</span>
+                        <span style="font-size:13.5px; font-weight:500; color:var(--text-primary);">llama-3.3-70b-versatile</span>
+                    </div>
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; padding: 12px 16px;">
+                        <span style="font-size:13.5px; color:var(--text-secondary);">MCP Framework</span>
+                        <span style="font-size:13.5px; font-weight:500; color:var(--text-primary);">v1.27+</span>
+                    </div>
+                </div>
+
+                <!-- Group 3: Actions -->
+                <div class="glass-card" style="margin-bottom: 20px;">
+                    <button @click="resetTourAndStart()" class="card-row" style="display:flex; align-items:center; justify-content:space-between; width:100%; border:none; background:transparent; text-align:left; cursor:pointer; padding: 12px 16px; outline:none;">
+                        <div>
+                            <span style="font-size:13.5px; color:var(--text-primary); display:block; font-weight:500;">Interactive Walkthrough</span>
+                            <span style="font-size:11px; color:var(--text-tertiary); display:block; margin-top:2px;">Launch step-by-step tour of the chat space.</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="font-size:12px; color:var(--text-quaternary);"></i>
+                    </button>
                 </div>
             </div>
 
@@ -1718,6 +1722,162 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- ═══ SECRET SANGONOMIYA DIAGNOSTICS MODAL ═══ -->
+    <div x-show="showEgg" x-cloak class="modal-overlay" style="display:flex;" @keydown.escape.window="showEgg = false; clicks = 0; diagnosticsLogs = []; diagnosticsRunning = false">
+        <div class="modal-backdrop" @click="showEgg = false; clicks = 0; diagnosticsLogs = []; diagnosticsRunning = false"
+            x-show="showEgg" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="showEgg" style="max-width:460px;"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="modal-handle"></div>
+            
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; color: #fff;">
+                        <i class="fa-solid fa-fish-fins"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0;">Sangonomiya Diagnostics</h3>
+                        <p style="font-size: 10px; color: var(--text-tertiary); margin: 0;">Divine Strategist Secret Terminal</p>
+                    </div>
+                </div>
+                <button @click="showEgg = false; clicks = 0; diagnosticsLogs = []; diagnosticsRunning = false" style="background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; padding: 4px;">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Divine Quote Box -->
+            <div style="background: rgba(15, 14, 71, 0.35); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px;">
+                <p style="font-size: 12px; font-style: italic; color: var(--text-primary); margin: 0; line-height: 1.5;">
+                    "To survive the battle, one must always have a contingency plan. Or seven. 🐟"
+                </p>
+                <span style="font-size: 9px; font-weight: bold; color: var(--text-tertiary); display: block; margin-top: 4px; text-transform: uppercase;">— SANGONOMIYA KOKOMI</span>
+            </div>
+
+            <!-- Technical Diagnostic Details -->
+            <div style="display: flex; flex-direction: column; gap: 8px; font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 11px; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px; border: 1px solid var(--border); margin-bottom: 14px;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                    <span style="color: var(--text-tertiary);">Application Version</span>
+                    <span style="color: var(--accent); font-weight: bold;">{{ app_version.version }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                    <span style="color: var(--text-tertiary);">Codename</span>
+                    <span style="color: var(--text-primary);">{{ app_version.release_name }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                    <span style="color: var(--text-tertiary);">Build Date</span>
+                    <span style="color: var(--text-secondary);">2026.05.26.1740</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                    <span style="color: var(--text-tertiary);">Execution Engine</span>
+                    <span style="color: #34d399; font-weight: bold;">Docker Sandboxed v2</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
+                    <span style="color: var(--text-tertiary);">Connected Transports</span>
+                    <span style="color: var(--text-secondary);">stdio, sse (active)</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-bottom: 4px;">
+                    <span style="color: var(--accent); font-weight: bold;">Security Seal</span>
+                    <span style="color: var(--accent); font-weight: bold;">ENFORCED & ENCRYPTED</span>
+                </div>
+            </div>
+
+            <!-- Monospace Terminal Screen -->
+            <div id="diagnostics-terminal-screen" class="diagnostics-terminal">
+                <!-- Default initial prompt -->
+                <template x-if="diagnosticsLogs.length === 0 && !diagnosticsRunning">
+                    <div class="diagnostics-terminal-line">
+                        <span class="diagnostics-terminal-prompt">strategist@kokomi-sh ~ %</span>
+                        <span style="color: var(--text-secondary);">ready to run tactical diagnostics.</span>
+                        <span class="diagnostics-terminal-blink">_</span>
+                    </div>
+                </template>
+
+                <!-- Running or completed logs -->
+                <template x-for="(log, index) in diagnosticsLogs" :key="index">
+                    <div class="diagnostics-terminal-line">
+                        <span class="diagnostics-terminal-prompt">diagnostics_daemon:~$</span>
+                        <span class="diagnostics-terminal-text" x-text="log"></span>
+                    </div>
+                </template>
+
+                <!-- Blink cursor at the end while running -->
+                <template x-if="diagnosticsRunning">
+                    <div class="diagnostics-terminal-line">
+                        <span class="diagnostics-terminal-prompt">diagnostics_daemon:~$</span>
+                        <span class="diagnostics-terminal-blink">_</span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex; gap:10px; margin-top: 14px;">
+                <button @click="showEgg = false; clicks = 0; diagnosticsLogs = []; diagnosticsRunning = false" class="btn-ghost" style="flex:1; padding:11px; border-radius:12px; font-size:14px;">Dismiss</button>
+                <button @click="runDiagnostics()" :disabled="diagnosticsRunning" class="btn-accent" style="flex:1; padding:11px; border-radius:12px; font-size:14px; font-weight:600; display:flex; justify-content:center; align-items:center; gap:8px;">
+                    <template x-if="diagnosticsRunning">
+                        <i class="fa-solid fa-circle-notch fa-spin" style="font-size:12px;"></i>
+                    </template>
+                    <template x-if="!diagnosticsRunning">
+                        <i class="fa-solid fa-terminal" style="font-size:12px;"></i>
+                    </template>
+                    <span x-text="diagnosticsRunning ? 'Running...' : 'Run Diagnostics'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ SOFTWARE UPDATE NOTES DIALOG MODAL ═══ -->
+    <div x-show="showUpdateNotes" x-cloak class="modal-overlay" style="display:flex;" @keydown.escape.window="showUpdateNotes = false">
+        <div class="modal-backdrop" @click="showUpdateNotes = false"
+            x-show="showUpdateNotes" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="showUpdateNotes" style="max-width:520px;"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="modal-handle"></div>
+            
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-cloud-arrow-down" style="color:var(--accent); font-size:18px;"></i>
+                    <h3 style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0;" x-text="updateAvailable ? 'About this Update' : 'Release Notes'"></h3>
+                </div>
+                <button @click="showUpdateNotes = false" style="background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; padding: 4px;">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Content Area (Rendered Markdown) -->
+            <div style="max-height: 320px; overflow-y: auto; padding-right: 4px; margin-bottom: 20px;" class="custom-markdown-body">
+                <template x-if="updateInfo && updateInfo.changelog">
+                    <div x-html="renderMarkdown(updateInfo.changelog)" style="font-size:13px; line-height:1.6; color:var(--text-secondary);"></div>
+                </template>
+                <template x-if="!updateInfo || !updateInfo.changelog">
+                    <p style="font-size:12px; color:var(--text-tertiary); text-align:center; padding:20px 0;">No release notes found.</p>
+                </template>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex; gap:10px; justify-content:flex-end; border-top: 1px solid var(--border); padding-top: 14px;">
+                <button @click="showUpdateNotes = false" class="btn-accent" style="padding:8px 18px; border-radius:10px; font-size:13.5px; font-weight:600; min-width:80px; justify-content:center; display:inline-flex; align-items:center;">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Toast Notifications ── -->
+    <div class="toast-container">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="toast-notification" :class="toast.type" x-transition>
+                <i class="fa-solid" :class="toast.type === 'error' ? 'fa-circle-xmark' : 'fa-circle-check'"></i>
+                <span x-text="toast.message"></span>
+            </div>
+        </template>
     </div>
 
 </div>

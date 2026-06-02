@@ -2,12 +2,16 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from app.storage import load_prefs
+from app.config import VERSION, RELEASE_NAME
 
 router = APIRouter()
 def inject_prefs(request: Request):
     return {"prefs": load_prefs()}
 
-templates = Jinja2Templates(directory="templates", context_processors=[inject_prefs])
+def inject_app_version(request: Request):
+    return {"app_version": {"version": VERSION, "release_name": RELEASE_NAME}}
+
+templates = Jinja2Templates(directory="templates", context_processors=[inject_prefs, inject_app_version])
 
 def check_setup():
     prefs = load_prefs()
