@@ -272,3 +272,62 @@ async def check_for_updates():
         "changelog": changelog
     }
 
+
+@router.post("/update/run")
+async def run_update():
+    from fastapi.responses import StreamingResponse
+    import json
+    import asyncio
+    import subprocess
+    import shutil
+    import sys
+    import os
+
+    async def restart_server():
+        await asyncio.sleep(2)
+        print("🔄 Restarting Kokomi server process...")
+        try:
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as e:
+            print(f"❌ Failed to execv restart: {e}. Exiting process to let supervisor handle it...")
+            os._exit(0)
+
+    async def update_generator():
+        async def yield_status(status: str, progress: int, error: str = None):
+            data = {"status": status, "progress": progress}
+            if error:
+                data["error"] = error
+            yield f"data: {json.dumps(data)}\n\n"
+            await asyncio.sleep(0.8)
+
+        try:
+            await yield_status("Checking local repository status...", 10)
+            if not os.path.exists(".git"):
+                await yield_status("Error: Not a git repository.", 10, error="Not a git repository.")
+                return
+
+            await yield_status("Stashing any uncommitted local changes...", 30)
+            subprocess.run(["git", "stash"], capture_output=True, text=True, timeout=15)
+
+            await yield_status("Pulling changes from GitHub repository...", 55)
+            pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
+            if pull_res.returncode != 0:
+                err_msg = pull_res.stderr.strip() or "git pull failed"
+                await yield_status(f"Error pulling changes: {err_msg}", 55, error=err_msg)
+                return
+
+            await yield_status("Synchronizing dependencies & local package...", 80)
+            uv_path = shutil.which("uv")
+            if uv_path:
+                subprocess.run([uv_path, "sync"], capture_output=True, text=True, timeout=60)
+            else:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], capture_output=True, text=True, timeout=60)
+
+            await yield_status("Done! Kokomi will restart to apply changes...", 100)
+            asyncio.create_task(restart_server())
+
+        except Exception as e:
+            await yield_status(f"Unexpected error: {str(e)}", 100, error=str(e))
+
+    return StreamingResponse(update_generator(), media_type="text/event-stream")
+

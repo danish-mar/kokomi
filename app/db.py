@@ -203,6 +203,12 @@ async def init_db() -> None:
         await conn.execute(text("PRAGMA synchronous=NORMAL"))
         await conn.execute(text("PRAGMA foreign_keys=ON"))
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Schema migration: Ensure selected_tools column exists in characters table
+        try:
+            await conn.execute(text("ALTER TABLE characters ADD COLUMN selected_tools TEXT DEFAULT '[]'"))
+        except Exception:
+            pass
 
 
 @asynccontextmanager

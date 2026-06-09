@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.5] - 2026-06-10
+
+### Fixed
+
+- **Automatic SQLite Schema Migration**:
+  - Automatically migrates existing production databases to add the `selected_tools` column on startup to avoid `OperationalError: no such column: characters.selected_tools` failures.
+- **Production Container Self-Updating**:
+  - Installed `git` package in the final stage of the `Dockerfile` to enable self-updating capabilities within production Docker deployments.
+
+### Added
+
+- **Premium Click-To-Update Flow**:
+  - Implemented real-time self-updating (`POST /api/update/run`) using Server-Sent Events (SSE) to pull from GitHub, stash local changes, sync package dependencies, and restart.
+  - Designed a premium fullscreen update screen with a smooth-sailing fish logo, glowing progress bar, status notifications, and auto-reload countdowns.
+  - Added an Easter Egg trigger (clicking the settings gear icon in Software Update card 10 times) to run a simulated update flow for developer testing.
+
 ## [v5.0.2] - 2026-06-10
 
 ### Fixed

@@ -126,7 +126,7 @@ async def mcp_pool_tools():
     return [t["function"]["name"] for t in td]
 
 
-@router.get("/pool/tools/detailed", name="mcp_pool_tools_detailed")
+@router.get("/pool/tools-detailed", name="mcp_pool_tools_detailed")
 async def mcp_pool_tools_detailed():
     """Return list of all tool definitions currently loaded in the MCP pool, with their server IDs."""
     from app.mcp import get_pool_tools, _pool

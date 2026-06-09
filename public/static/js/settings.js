@@ -23,6 +23,11 @@ function settingsApp() {
         showUpdateNotes: false,
         profileModalOpen: false,
         profileNameEdit: '',
+        showUpdateScreen: false,
+        updateStatus: '',
+        updateProgress: 0,
+        updateVersionText: '',
+        updateClicks: 0,
         charSelectedTools: [],
         allPoolTools: [],
         prefs: {
@@ -619,6 +624,96 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
             } finally {
                 this.updateChecking = false;
             }
+        },
+
+        async runUpdate() {
+            this.showUpdateScreen = true;
+            this.updateStatus = 'Initializing update...';
+            this.updateProgress = 0;
+            this.updateVersionText = this.updateInfo ? this.updateInfo.latestVersion : 'latest version';
+            
+            try {
+                const response = await fetch('/api/update/run', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error('Update server returned ' + response.status);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    
+                    // Keep the last partial line in the buffer
+                    buffer = lines.pop();
+                    
+                    for (const line of lines) {
+                        if (line.trim().startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.trim().substring(6));
+                                if (data.status) this.updateStatus = data.status;
+                                if (data.progress !== undefined) this.updateProgress = data.progress;
+                                if (data.error) {
+                                    alert('Update error: ' + data.error);
+                                    this.showUpdateScreen = false;
+                                    return;
+                                }
+                            } catch (e) {
+                                console.error('Failed to parse SSE data:', e);
+                            }
+                        }
+                    }
+                }
+                
+                // Wait 3 seconds to let uvicorn reload/restart then refresh page
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+                
+            } catch (err) {
+                console.error('Update execution failed:', err);
+                alert('Update execution failed: ' + err.message);
+                this.showUpdateScreen = false;
+            }
+        },
+
+        devClick() {
+            this.updateClicks++;
+            if (this.updateClicks >= 10) {
+                this.updateClicks = 0;
+                this.playTestUpdate();
+            }
+        },
+
+        async playTestUpdate() {
+            this.showUpdateScreen = true;
+            this.updateStatus = 'Initializing update simulation...';
+            this.updateProgress = 0;
+            this.updateVersionText = 'v5.0.2 (Test Build)';
+            
+            const steps = [
+                { status: 'Stashing any local edits safely...', progress: 15 },
+                { status: 'Connecting to github.com/danish-mar/kokomi...', progress: 35 },
+                { status: 'Pulling updates (origin/main)...', progress: 55 },
+                { status: 'Synchronizing python virtual environment (uv sync)...', progress: 80 },
+                { status: 'Done! Kokomi will restart to apply changes...', progress: 100 }
+            ];
+            
+            for (const step of steps) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                this.updateStatus = step.status;
+                this.updateProgress = step.progress;
+            }
+            
+            // Warnings are visible on front-end above 90%
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
         },
 
         renderMarkdown(md) {

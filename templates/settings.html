@@ -1141,7 +1141,7 @@
                 <!-- Software Update Card (iOS/macOS Style) -->
                 <div class="glass-card" style="margin-bottom: 20px; padding: 16px; display: flex; gap: 14px; align-items: flex-start;">
                     <!-- Gears Squircle Icon -->
-                    <div style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight)); display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; box-shadow: var(--shadow-sm);">
+                    <div @click="devClick()" style="width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight)); display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; box-shadow: var(--shadow-sm); cursor: pointer;" title="Click 10 times for dev simulation">
                         <i class="fa-solid fa-gear" style="font-size: 20px;"></i>
                     </div>
 
@@ -1175,16 +1175,16 @@
 
                         <!-- Update Available State -->
                         <div x-show="!updateChecking && !updateError && updateAvailable && updateInfo">
-                            <p style="font-size:12.5px; font-weight:600; color:var(--text-primary); margin:0 0 2px 0;">Kokomi AI <span x-text="updateInfo.latestVersion"></span></p>
-                            <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 8px 0;">Update available (<span x-text="updateInfo.latestReleaseName" style="text-transform: capitalize;"></span>).</p>
+                            <p style="font-size:12.5px; font-weight:600; color:var(--text-primary); margin:0 0 2px 0;">Kokomi AI <span x-text="updateInfo?.latestVersion || ''"></span></p>
+                            <p style="font-size:12px; color:var(--text-tertiary); margin:0 0 8px 0;">Update available (<span x-text="updateInfo?.latestReleaseName || ''" style="text-transform: capitalize;"></span>).</p>
                             
                             <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-start;">
                                 <button @click="showUpdateNotes = true" style="background:none; border:none; color:var(--accent); font-size:12px; font-weight:500; cursor:pointer; padding:0; display:inline-flex; align-items:center; gap:3px;">
                                     Learn More...
                                 </button>
-                                <a href="https://github.com/danish-mar/kokomi" target="_blank" class="btn-accent" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:6px 12px; border-radius:8px; text-decoration:none; color:#fff; font-weight:600; margin-top:2px;">
-                                    <i class="fa-brands fa-github"></i> Update Now
-                                </a>
+                                <button @click="runUpdate()" class="btn-accent" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:6px 12px; border-radius:8px; text-decoration:none; color:#fff; font-weight:600; margin-top:2px; border:none; cursor:pointer; outline:none;">
+                                    <i class="fa-solid fa-cloud-arrow-down"></i> Update Now
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -2010,6 +2010,74 @@
             <!-- Actions -->
             <div style="display:flex; gap:10px; justify-content:flex-end; border-top: 1px solid var(--border); padding-top: 14px;">
                 <button @click="showUpdateNotes = false" class="btn-accent" style="padding:8px 18px; border-radius:10px; font-size:13.5px; font-weight:600; min-width:80px; justify-content:center; display:inline-flex; align-items:center;">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ FULLSCREEN PREMIUM SOFTWARE UPDATE OVERLAY ═══ -->
+    <div x-show="showUpdateScreen" x-cloak class="modal-overlay" 
+         x-transition:enter="transition ease-out duration-500" 
+         x-transition:enter-start="opacity-0" 
+         x-transition:enter-end="opacity-100" 
+         x-transition:leave="transition ease-in duration-300" 
+         x-transition:leave-start="opacity-100" 
+         x-transition:leave-end="opacity-0"
+         style="display:flex; justify-content:center; align-items:center; z-index:9999; background: #050608; backdrop-filter: blur(25px); transition: all 0.5s ease; position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
+        <style>
+            @keyframes swimFloat {
+                0% { transform: translateY(0) rotate(0deg); }
+                50% { transform: translateY(-8px) rotate(4deg); }
+                100% { transform: translateY(0) rotate(0deg); }
+            }
+            .sailing-logo {
+                animation: swimFloat 4s ease-in-out infinite;
+                filter: drop-shadow(0 0 35px var(--accent));
+                color: #ffffff;
+            }
+            .glow-bar {
+                box-shadow: 0 0 8px var(--accent);
+                transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .subtle-fade {
+                animation: subtleFade 2s ease-in-out infinite;
+            }
+            @keyframes subtleFade {
+                0%, 100% { opacity: 0.6; }
+                50% { opacity: 1; }
+            }
+        </style>
+        
+        <div x-show="showUpdateScreen"
+             x-transition:enter="transition ease-out duration-500 delay-100"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             style="text-align: center; width: 100%; max-width: 320px; display: block; margin: 0 auto;">
+            <!-- Sailing Logo (Minimalist & Floating) -->
+            <div class="sailing-logo" style="margin: 0 auto 24px auto; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px;">
+                <i class="fa-solid fa-fish-fins" style="font-size: 44px; color: #ffffff;"></i>
+            </div>
+            
+            <h2 style="font-size: 19px; font-weight: 300; color: #ffffff; margin: 0 0 6px 0; letter-spacing: -0.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center;">Kokomi AI</h2>
+            <p style="font-size: 11px; color: #666666; margin: 0 0 24px 0; letter-spacing: 0.05em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center;" class="subtle-fade">UPDATING TO <span x-text="updateVersionText" style="color: var(--accent); font-weight: 500;"></span></p>
+            
+            <!-- Sleek Minimalist Progress Bar -->
+            <div style="width: 180px; height: 2px; background: rgba(255, 255, 255, 0.08); border-radius: 1px; overflow: hidden; margin: 0 auto 16px auto;">
+                <div class="glow-bar" :style="'width: ' + updateProgress + '%; height: 100%; background: var(--accent); border-radius: 1px;'"></div>
+            </div>
+            
+            <!-- Minimalist Status Text -->
+            <div style="min-height: 20px; display: block; text-align: center; margin-bottom: 16px; width: 100%;">
+                <p style="font-size: 10px; color: #888888; margin: 0; letter-spacing: 0.05em; text-transform: uppercase; font-family: monospace; display: inline-block;" x-text="updateStatus"></p>
+            </div>
+            
+            <!-- Minimalist Restart Warning -->
+            <div style="width: 100%; min-height: 24px; display: block; text-align: center;" x-show="updateProgress >= 90">
+                <p style="font-size: 10px; color: var(--accent); margin: 0; font-weight: 400; letter-spacing: 0.02em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: inline-block;">
+                    RESTARTING TO APPLY CHANGES...
+                </p>
             </div>
         </div>
     </div>

@@ -20,7 +20,7 @@ FROM python:3.12-slim-bookworm
 # Install curl for healthcheck
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends curl
+    apt-get update && apt-get install -y --no-install-recommends curl git
 
 # Set working directory
 WORKDIR /app
