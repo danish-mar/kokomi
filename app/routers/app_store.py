@@ -5,6 +5,7 @@ import shutil
 import uuid
 import datetime
 import subprocess
+import traceback
 import requests
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -90,138 +91,164 @@ async def get_catalog():
 async def install_item(payload: InstallPayload):
     """Download and install app or persona from GitHub repository."""
     
-    # ── INSTALL APP ──────────────────────────────────────────────────
-    if payload.type == "mcp":
-        apps_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "apps"))
-        app_dest = os.path.join(apps_dir, payload.id)
-        os.makedirs(app_dest, exist_ok=True)
+    try:
+        # ── INSTALL APP ──────────────────────────────────────────────────
+        if payload.type == "mcp":
+            apps_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "apps"))
+            app_dest = os.path.join(apps_dir, payload.id)
+            os.makedirs(app_dest, exist_ok=True)
 
-        # Download manifest.json, main.py, requirements.txt
-        for filename in ["manifest.json", "main.py", "requirements.txt"]:
-            url = f"{GITHUB_RAW_BASE}/{payload.path}/{filename}"
-            try:
-                res = requests.get(url, timeout=10)
-                if res.status_code == 200:
-                    with open(os.path.join(app_dest, filename), "wb") as f:
-                        f.write(res.content)
-            except Exception as e:
-                # Clean up and fail
-                shutil.rmtree(app_dest, ignore_errors=True)
-                raise HTTPException(502, f"Failed to download {filename} from GitHub: {str(e)}")
+            # Download manifest.json, main.py, requirements.txt
+            for filename in ["manifest.json", "main.py", "requirements.txt"]:
+                url = f"{GITHUB_RAW_BASE}/{payload.path}/{filename}"
+                try:
+                    res = requests.get(url, timeout=10)
+                    if res.status_code == 200:
+                        with open(os.path.join(app_dest, filename), "wb") as f:
+                            f.write(res.content)
+                    elif filename == "requirements.txt":
+                        # requirements.txt is optional — skip gracefully
+                        continue
+                    else:
+                        shutil.rmtree(app_dest, ignore_errors=True)
+                        raise HTTPException(502, f"Failed to download {filename}: HTTP {res.status_code}")
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    # Clean up and fail
+                    shutil.rmtree(app_dest, ignore_errors=True)
+                    raise HTTPException(502, f"Failed to download {filename} from GitHub: {str(e)}")
 
-        # Install dependencies
-        req_file = os.path.join(app_dest, "requirements.txt")
-        if os.path.exists(req_file):
-            uv_bin = shutil.which("uv")
-            if uv_bin:
-                cmd = [uv_bin, "pip", "install", "-r", req_file]
-            else:
-                cmd = [sys.executable, "-m", "pip", "install", "-r", req_file]
-            
-            try:
-                subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except subprocess.CalledProcessError as err:
-                shutil.rmtree(app_dest, ignore_errors=True)
-                raise HTTPException(500, f"Failed to install dependencies: {err.stderr.decode().strip()}")
-
-        # Ensure Stdio Apps Bridge is registered in mcp_servers
-        mcp_servers = load_mcp()
-        bridge_exists = any("app/mcp_app_bridge.py" in str(s.get("args", [])) for s in mcp_servers.values())
-        if not bridge_exists:
-            sid = "appbridge"
-            mcp_servers[sid] = {
-                "id": sid,
-                "name": "Kokomi Apps Bridge",
-                "transport": "stdio",
-                "command": sys.executable,
-                "args": ["app/mcp_app_bridge.py"],
-                "env": {},  # Set env dictionary correctly instead of a string to prevent mapping errors
-                "url": "",
-                "icon": "fa-puzzle-piece",
-                "enabled": 1,
-                "created_at": datetime.datetime.utcnow().isoformat()
-            }
-            save_mcp(mcp_servers)
-
-        # Enable this app for all characters by default
-        try:
-            chars = load_chars()
-            for cid, char in chars.items():
-                if "mcp_servers" not in char:
-                    char["mcp_servers"] = []
-                if payload.id not in char["mcp_servers"]:
-                    char["mcp_servers"].append(payload.id)
-            save_chars(chars)
-        except Exception as e:
-            print(f"[App Store Manager] warning enabling app for characters: {e}")
-
-        # Refresh MCP Pool
-        try:
-            await init_pool(force=True)
-        except Exception as e:
-            print(f"[App Store Manager] warning refreshing pool: {e}")
-
-        return {"ok": True, "message": "App installed and bridge server loaded."}
-
-    # ── INSTALL PERSONA ──────────────────────────────────────────────
-    elif payload.type == "character":
-        # Download manifest and prompt
-        try:
-            manifest_res = requests.get(f"{GITHUB_RAW_BASE}/{payload.path}/manifest.json", timeout=10)
-            prompt_res = requests.get(f"{GITHUB_RAW_BASE}/{payload.path}/prompt.txt", timeout=10)
-            
-            if manifest_res.status_code != 200 or prompt_res.status_code != 200:
-                raise HTTPException(502, "Failed to download persona files from GitHub.")
+            # Install dependencies
+            req_file = os.path.join(app_dest, "requirements.txt")
+            if os.path.exists(req_file) and os.path.getsize(req_file) > 0:
+                uv_bin = shutil.which("uv")
+                if uv_bin:
+                    cmd = [uv_bin, "pip", "install", "-r", req_file]
+                else:
+                    cmd = [sys.executable, "-m", "pip", "install", "-r", req_file]
                 
-            manifest = manifest_res.json()
-            prompt_text = prompt_res.text
-        except Exception as e:
-            raise HTTPException(502, f"Failed to fetch persona: {str(e)}")
+                try:
+                    print(f"[App Store] Installing dependencies for '{payload.id}': {' '.join(cmd)}")
+                    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+                    print(f"[App Store] Dependencies installed for '{payload.id}'")
+                except subprocess.CalledProcessError as err:
+                    stderr_out = err.stderr.decode().strip() if err.stderr else "unknown error"
+                    print(f"[App Store] ❌ pip install failed for '{payload.id}': {stderr_out}")
+                    shutil.rmtree(app_dest, ignore_errors=True)
+                    raise HTTPException(500, f"Failed to install dependencies: {stderr_out}")
+                except subprocess.TimeoutExpired:
+                    print(f"[App Store] ❌ pip install timed out for '{payload.id}'")
+                    shutil.rmtree(app_dest, ignore_errors=True)
+                    raise HTTPException(500, "Dependency installation timed out (120s limit)")
 
-        # Download avatar image if present
-        avatar_path = None
-        avatar_filename = manifest.get("avatar")
-        possible_avatars = [avatar_filename] if avatar_filename else ["profile.png", "profile.jpg", "profile.jpeg", "profile.webp"]
-        
-        avatars_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "avatars"))
-        os.makedirs(avatars_dir, exist_ok=True)
-        
-        for filename in possible_avatars:
-            if not filename:
-                continue
-            avatar_dest = f"{payload.id}_{filename}"
+            # Ensure Stdio Apps Bridge is registered in mcp_servers
+            mcp_servers = load_mcp()
+            bridge_exists = any("app/mcp_app_bridge.py" in str(s.get("args", [])) for s in mcp_servers.values())
+            if not bridge_exists:
+                sid = "appbridge"
+                mcp_servers[sid] = {
+                    "id": sid,
+                    "name": "Kokomi Apps Bridge",
+                    "transport": "stdio",
+                    "command": sys.executable,
+                    "args": ["app/mcp_app_bridge.py"],
+                    "env": {},  # Set env dictionary correctly instead of a string to prevent mapping errors
+                    "url": "",
+                    "icon": "fa-puzzle-piece",
+                    "enabled": 1,
+                    "created_at": datetime.datetime.utcnow().isoformat()
+                }
+                save_mcp(mcp_servers)
+
+            # Enable this app for all characters by default
             try:
-                res = requests.get(f"{GITHUB_RAW_BASE}/{payload.path}/{filename}", timeout=10)
-                if res.status_code == 200:
-                    with open(os.path.join(avatars_dir, avatar_dest), "wb") as f:
-                        f.write(res.content)
-                    avatar_path = f"/avatars/{avatar_dest}"
-                    break
-            except Exception:
-                pass
+                chars = load_chars()
+                for cid, char in chars.items():
+                    if "mcp_servers" not in char:
+                        char["mcp_servers"] = []
+                    if payload.id not in char["mcp_servers"]:
+                        char["mcp_servers"].append(payload.id)
+                save_chars(chars)
+            except Exception as e:
+                print(f"[App Store Manager] warning enabling app for characters: {e}")
 
-        # Add to characters database
-        chars = load_chars()
-        mcp_list = ["appbridge"] if manifest.get("config", {}).get("mcp_servers") else []
-        
-        chars[payload.id] = {
-            "id": payload.id,
-            "name": manifest.get("name", "New Persona").strip(),
-            "persona": prompt_text.strip(),
-            "avatar": avatar_path,
-            "mcp_servers": mcp_list,
-            "groq_model": manifest.get("config", {}).get("groq_model", "default"),
-            "google_model": manifest.get("config", {}).get("google_model", "default"),
-            "local_model": manifest.get("config", {}).get("local_model", "default"),
-            "nvidia_model": manifest.get("config", {}).get("nvidia_model", "default"),
-            "voice": manifest.get("config", {}).get("voice", "aoede"),
-            "memory_enabled": manifest.get("config", {}).get("memory_enabled", True),
-            "created_at": datetime.datetime.utcnow().isoformat(),
-        }
-        save_chars(chars)
-        return {"ok": True, "message": "Persona installed successfully."}
+            # Refresh MCP Pool
+            try:
+                await init_pool(force=True)
+            except Exception as e:
+                print(f"[App Store Manager] warning refreshing pool: {e}")
 
-    raise HTTPException(400, "Invalid item type.")
+            return {"ok": True, "message": "App installed and bridge server loaded."}
+
+        # ── INSTALL PERSONA ──────────────────────────────────────────────
+        elif payload.type == "character":
+            # Download manifest and prompt
+            try:
+                manifest_res = requests.get(f"{GITHUB_RAW_BASE}/{payload.path}/manifest.json", timeout=10)
+                prompt_res = requests.get(f"{GITHUB_RAW_BASE}/{payload.path}/prompt.txt", timeout=10)
+                
+                if manifest_res.status_code != 200 or prompt_res.status_code != 200:
+                    raise HTTPException(502, "Failed to download persona files from GitHub.")
+                    
+                manifest = manifest_res.json()
+                prompt_text = prompt_res.text
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(502, f"Failed to fetch persona: {str(e)}")
+
+            # Download avatar image if present
+            avatar_path = None
+            avatar_filename = manifest.get("avatar")
+            possible_avatars = [avatar_filename] if avatar_filename else ["profile.png", "profile.jpg", "profile.jpeg", "profile.webp"]
+            
+            avatars_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "avatars"))
+            os.makedirs(avatars_dir, exist_ok=True)
+            
+            for filename in possible_avatars:
+                if not filename:
+                    continue
+                avatar_dest = f"{payload.id}_{filename}"
+                try:
+                    res = requests.get(f"{GITHUB_RAW_BASE}/{payload.path}/{filename}", timeout=10)
+                    if res.status_code == 200:
+                        with open(os.path.join(avatars_dir, avatar_dest), "wb") as f:
+                            f.write(res.content)
+                        avatar_path = f"/avatars/{avatar_dest}"
+                        break
+                except Exception:
+                    pass
+
+            # Add to characters database
+            chars = load_chars()
+            mcp_list = ["appbridge"] if manifest.get("config", {}).get("mcp_servers") else []
+            
+            chars[payload.id] = {
+                "id": payload.id,
+                "name": manifest.get("name", "New Persona").strip(),
+                "persona": prompt_text.strip(),
+                "avatar": avatar_path,
+                "mcp_servers": mcp_list,
+                "groq_model": manifest.get("config", {}).get("groq_model", "default"),
+                "google_model": manifest.get("config", {}).get("google_model", "default"),
+                "local_model": manifest.get("config", {}).get("local_model", "default"),
+                "nvidia_model": manifest.get("config", {}).get("nvidia_model", "default"),
+                "voice": manifest.get("config", {}).get("voice", "aoede"),
+                "memory_enabled": manifest.get("config", {}).get("memory_enabled", True),
+                "created_at": datetime.datetime.utcnow().isoformat(),
+            }
+            save_chars(chars)
+            return {"ok": True, "message": "Persona installed successfully."}
+
+        raise HTTPException(400, "Invalid item type.")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[App Store] ❌ Unhandled error in install_item: {e}")
+        traceback.print_exc()
+        raise HTTPException(500, f"Installation failed: {str(e)}")
 
 
 class TogglePayload(BaseModel):
