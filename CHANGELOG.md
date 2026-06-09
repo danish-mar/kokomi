@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.2] - 2026-06-10
+
+### Fixed
+
+- **Tool Calling Chain and Stream Reliability**:
+  - Normalized `AIMessage` history serialization to fix tool calling chain breaking on subsequent rounds for models like `openai/gpt-oss-120b` via Nvidia/Groq APIs.
+  - Resolved `UnboundLocalError: cannot access local variable 'now_iso'` in the streaming chat router when a model outputted only tool calls in its first chunk.
+
+### Added
+
+- **Configurable Tool Execution Limits**:
+  - Introduced a user-configurable `max_tool_rounds` preference (range 1-100) on the settings page to control consecutive tool execution limits.
+- **Select Tools Per Character**:
+  - Restored the select-tools-per-character feature allowing users to restrict characters to a subset of available MCP tools.
+
 ## [v5.0.1] - 2026-06-09
 
 ### Fixed

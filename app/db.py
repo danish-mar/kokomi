@@ -98,6 +98,7 @@ class CharacterRow(Base):
     nvidia_model   = Column(Text, nullable=True)
     local_model    = Column(Text, nullable=True, default="default")
     mcp_servers    = Column(Text, nullable=False, default="[]")  # JSON list
+    selected_tools = Column(Text, nullable=False, default="[]")  # JSON list
     created_at     = Column(Text, nullable=True)
 
 

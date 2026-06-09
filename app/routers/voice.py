@@ -76,6 +76,12 @@ async def voice_call(ws: WebSocket, character_id: str, space_id: str | None = No
         if pool_is_stale():
             await init_pool()
         tool_defs, tool_sessions, tool_icons, mcp_errors = get_pool_tools(mcp_sids if mcp_sids else None)
+
+        selected_tools = char.get("selected_tools", [])
+        if selected_tools:
+            tool_defs = [t for t in tool_defs if t["function"]["name"] in selected_tools]
+            tool_sessions = {k: v for k, v in tool_sessions.items() if k in selected_tools}
+            tool_icons = {k: v for k, v in tool_icons.items() if k in selected_tools}
             
         if space_id:
             from app.rag import get_space_tool

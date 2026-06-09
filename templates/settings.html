@@ -262,6 +262,18 @@
                         </button>
                     </div>
 
+                    <!-- Tool Calling Cap -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px;">Tool Loop Cap</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Maximum consecutive tool execution rounds per message (1-100).</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="number" min="1" max="100" x-model.number="prefs.max_tool_rounds" @change="savePrefs()"
+                                class="apple-field" style="width:65px; text-align:center; padding:5px 8px; border-radius:8px; height:32px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:13px; font-weight:600;" />
+                        </div>
+                    </div>
+
                     <!-- Logout Session -->
                     <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 4px;">
                         <div>
@@ -1387,6 +1399,25 @@
                                                     <p style="font-size:11px; color:var(--text-secondary); margin:2px 0 0 0;" x-text="app.description"></p>
                                                 </div>
                                             </label>
+                                            
+                                            <!-- App Tools List -->
+                                            <template x-if="charMCPServers.includes(app.id) && allPoolTools.filter(t => t.server_id === app.id).length > 0">
+                                                <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:8px; display:flex; flex-direction:column; gap:6px; padding-left:25px;">
+                                                    <div style="font-size:10px; color:var(--text-quaternary); font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">Select Enabled Tools</div>
+                                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                                        <template x-for="tool in allPoolTools.filter(t => t.server_id === app.id)" :key="tool.name">
+                                                            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:3px 0;">
+                                                                    <input type="checkbox" :checked="charSelectedTools.includes(tool.name)" @change="toggleCharTool(tool.name)"
+                                                                        style="width:13px; height:13px; margin-top:2px; border-radius:3px; accent-color:var(--accent);" />
+                                                                <div style="flex-grow:1; min-width:0;">
+                                                                    <div style="font-size:12px; font-weight:600; color:var(--text-primary);" x-text="tool.name"></div>
+                                                                    <div style="font-size:10px; color:var(--text-tertiary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" :title="tool.description" x-text="tool.description || 'No description.'"></div>
+                                                                </div>
+                                                            </label>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
                                         </div>
                                     </template>
                                 </div>
@@ -1411,6 +1442,25 @@
                                                     <p style="font-size:11px; color:var(--text-secondary); margin:2px 0 0 0;" x-text="srv.transport === 'stdio' ? srv.command : srv.url"></p>
                                                 </div>
                                             </label>
+                                            
+                                            <!-- Custom MCP Tools List -->
+                                            <template x-if="charMCPServers.includes(srv.id) && allPoolTools.filter(t => t.server_id === srv.id).length > 0">
+                                                <div style="margin-top:10px; border-top:1px solid var(--border); padding-top:8px; display:flex; flex-direction:column; gap:6px; padding-left:25px;">
+                                                    <div style="font-size:10px; color:var(--text-quaternary); font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">Select Enabled Tools</div>
+                                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                                        <template x-for="tool in allPoolTools.filter(t => t.server_id === srv.id)" :key="tool.name">
+                                                            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:3px 0;">
+                                                                    <input type="checkbox" :checked="charSelectedTools.includes(tool.name)" @change="toggleCharTool(tool.name)"
+                                                                        style="width:13px; height:13px; margin-top:2px; border-radius:3px; accent-color:var(--accent);" />
+                                                                <div style="flex-grow:1; min-width:0;">
+                                                                    <div style="font-size:12px; font-weight:600; color:var(--text-primary);" x-text="tool.name"></div>
+                                                                    <div style="font-size:10px; color:var(--text-tertiary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" :title="tool.description" x-text="tool.description || 'No description.'"></div>
+                                                                </div>
+                                                            </label>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
                                         </div>
                                     </template>
                                 </div>

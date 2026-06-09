@@ -23,6 +23,8 @@ function settingsApp() {
         showUpdateNotes: false,
         profileModalOpen: false,
         profileNameEdit: '',
+        charSelectedTools: [],
+        allPoolTools: [],
         prefs: {
             model_name: '',
             user_persona: '',
@@ -30,6 +32,7 @@ function settingsApp() {
             dynamic_suggestions: true,
             streaming_mode: true,
             inject_time: true,
+            max_tool_rounds: 8,
             whatsapp_enabled: false,
             whatsapp_character_id: 'kokomi',
             whatsapp_api_url: 'http://localhost:3013',
@@ -461,7 +464,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
 
         /* ═══ Init ═══ */
         async init() {
-            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels(), this.fetchInstalledApps()]);
+            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels(), this.fetchInstalledApps(), this.fetchPoolTools()]);
 
             // Handle resize for mobile detection
             window.addEventListener('resize', () => {
@@ -692,10 +695,12 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                     });
                 }
                 this.charMCPServers = srvs;
+                this.charSelectedTools = char.selected_tools ? [...char.selected_tools] : [];
             } else {
                 this.charEditId = null; this.charName = ''; this.charPersona = ''; this.charDescription = '';
                 this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
                 this.charVoice = 'aoede'; this.charAvatarPreview = null; this.charMCPServers = [];
+                this.charSelectedTools = [];
             }
             this.charAvatarFile = null; this.charModal = true;
         },
@@ -732,6 +737,13 @@ Return ONLY the raw JSON. No markdown. No explanation.`
                 const nameMap = {};
                 this.mcpServers.forEach(s => { nameMap[s.name.toLowerCase()] = s.id; });
                 this.charMCPServers = (parsed.mcp_servers || []).map(n => nameMap[n.toLowerCase()]).filter(Boolean);
+                this.charSelectedTools = [];
+                this.charMCPServers.forEach(sid => {
+                    const serverTools = this.allPoolTools.filter(t => t.server_id === sid).map(t => t.name);
+                    serverTools.forEach(name => {
+                        if (!this.charSelectedTools.includes(name)) this.charSelectedTools.push(name);
+                    });
+                });
                 this.charEditId = null; this.charAvatarPreview = null; this.charAvatarFile = null;
                 this.charGroqModel = 'default'; this.charGoogleModel = 'default';
                 this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
@@ -755,8 +767,25 @@ Return ONLY the raw JSON. No markdown. No explanation.`
 
         toggleCharMCP(id) {
             const i = this.charMCPServers.indexOf(id);
-            if (i >= 0) this.charMCPServers.splice(i, 1);
-            else this.charMCPServers.push(id);
+            if (i >= 0) {
+                this.charMCPServers.splice(i, 1);
+                // Also clean up selected tools for this server/app
+                const serverTools = this.allPoolTools.filter(t => t.server_id === id).map(t => t.name);
+                this.charSelectedTools = this.charSelectedTools.filter(name => !serverTools.includes(name));
+            } else {
+                this.charMCPServers.push(id);
+                // Enable all tools for this server/app by default
+                const serverTools = this.allPoolTools.filter(t => t.server_id === id).map(t => t.name);
+                serverTools.forEach(name => {
+                    if (!this.charSelectedTools.includes(name)) this.charSelectedTools.push(name);
+                });
+            }
+        },
+
+        toggleCharTool(toolName) {
+            const idx = this.charSelectedTools.indexOf(toolName);
+            if (idx >= 0) this.charSelectedTools.splice(idx, 1);
+            else this.charSelectedTools.push(toolName);
         },
 
         async fetchMCPTools(id) {
@@ -779,6 +808,7 @@ Return ONLY the raw JSON. No markdown. No explanation.`
             fd.append('local_model', this.charLocalModel); fd.append('nvidia_model', this.charNvidiaModel);
             fd.append('voice', this.charVoice);
             fd.append('mcp_servers', this.charMCPServers.join(','));
+            fd.append('selected_tools', this.charSelectedTools.join(','));
             if (this.charAvatarFile) fd.append('avatar', this.charAvatarFile);
             try {
                 const url = this.charEditId ? `/api/characters/${this.charEditId}` : '/api/characters';
@@ -800,6 +830,7 @@ Return ONLY the raw JSON. No markdown. No explanation.`
             fd.append('voice', char.voice || 'aoede');
             fd.append('memory_enabled', char.memory_enabled ? 'true' : 'false');
             fd.append('mcp_servers', (char.mcp_servers || []).join(','));
+            fd.append('selected_tools', (char.selected_tools || []).join(','));
 
             try {
                 await fetch(`/api/characters/${char.id}`, { method: 'PUT', body: fd });
@@ -844,6 +875,13 @@ Return ONLY the raw JSON. No markdown. No explanation.`
 
         async fetchMCP() {
             try { const r = await fetch('/api/mcp-servers'); if (r.ok) this.mcpServers = await r.json(); } catch(e) { console.error(e); }
+        },
+
+        async fetchPoolTools() {
+            try {
+                const r = await fetch('/api/mcp-servers/pool/tools-detailed');
+                if (r.ok) this.allPoolTools = await r.json();
+            } catch(e) { console.error(e); }
         },
 
         openMCPModal(srv = null) {

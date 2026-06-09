@@ -36,6 +36,7 @@ async def create_character(
     name: str = Form(...),
     persona: str = Form(...),
     mcp_servers: str = Form(""),
+    selected_tools: str = Form(""),
     groq_model: str = Form("default"),
     google_model: str = Form("default"),
     local_model: str = Form("default"),
@@ -56,12 +57,14 @@ async def create_character(
         avatar_path = f"/avatars/{fname}"
 
     mcp_list = [s.strip() for s in mcp_servers.split(",") if s.strip()] if mcp_servers else []
+    tools_list = [s.strip() for s in selected_tools.split(",") if s.strip()] if selected_tools else []
     chars[cid] = {
         "id": cid,
         "name": name.strip(),
         "persona": persona.strip(),
         "avatar": avatar_path,
         "mcp_servers": mcp_list,
+        "selected_tools": tools_list,
         "groq_model": groq_model.strip(),
         "google_model": google_model.strip(),
         "local_model": local_model.strip(),
@@ -80,6 +83,7 @@ async def update_character(
     name: str = Form(...),
     persona: str = Form(...),
     mcp_servers: str = Form(""),
+    selected_tools: str = Form(""),
     groq_model: str = Form("default"),
     google_model: str = Form("default"),
     local_model: str = Form("default"),
@@ -101,10 +105,12 @@ async def update_character(
         avatar_path = f"/avatars/{fname}"
 
     mcp_list = [s.strip() for s in mcp_servers.split(",") if s.strip()] if mcp_servers else []
+    tools_list = [s.strip() for s in selected_tools.split(",") if s.strip()] if selected_tools else []
     chars[cid]["name"] = name.strip()
     chars[cid]["persona"] = persona.strip()
     chars[cid]["avatar"] = avatar_path
     chars[cid]["mcp_servers"] = mcp_list
+    chars[cid]["selected_tools"] = tools_list
     chars[cid]["groq_model"] = groq_model.strip()
     chars[cid]["google_model"] = google_model.strip()
     chars[cid]["local_model"] = local_model.strip()

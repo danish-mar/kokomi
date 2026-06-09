@@ -124,3 +124,22 @@ async def mcp_pool_tools():
     from app.mcp import get_pool_tools
     td, _, _, _ = get_pool_tools()
     return [t["function"]["name"] for t in td]
+
+
+@router.get("/pool/tools/detailed", name="mcp_pool_tools_detailed")
+async def mcp_pool_tools_detailed():
+    """Return list of all tool definitions currently loaded in the MCP pool, with their server IDs."""
+    from app.mcp import get_pool_tools, _pool
+    td, _, _, _ = get_pool_tools()
+    tools_list = []
+    for t in td:
+        tname = t["function"]["name"]
+        owner = _pool.get("_tool_to_server", {}).get(tname)
+        # If it belongs to appbridge, the tool name itself is the app_id
+        actual_server_id = tname if owner == "appbridge" else owner
+        tools_list.append({
+            "name": tname,
+            "description": t["function"].get("description", ""),
+            "server_id": actual_server_id
+        })
+    return tools_list

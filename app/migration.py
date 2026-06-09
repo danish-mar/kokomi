@@ -124,6 +124,7 @@ async def auto_migrate_and_cleanup():
                     nvidia_model=char.get("nvidia_model"),
                     local_model=char.get("local_model", "default"),
                     mcp_servers=j_dumps(char.get("mcp_servers", [])),
+                    selected_tools=j_dumps(char.get("selected_tools", [])),
                     created_at=char.get("created_at"),
                 ).on_conflict_do_nothing(index_elements=["id"])
                 await sess.execute(stmt)

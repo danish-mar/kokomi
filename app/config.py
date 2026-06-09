@@ -87,6 +87,7 @@ DEFAULT_PREFS: dict = {
     "tour_completed": False,
     "groq_api_key": os.getenv("GROQ_API_KEY", ""),
     "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
-    "nvidia_api_key": os.getenv("NVIDIA_API_KEY", "")
+    "nvidia_api_key": os.getenv("NVIDIA_API_KEY", ""),
+    "max_tool_rounds": 8
 }
 

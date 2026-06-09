@@ -260,6 +260,13 @@ async def chat(req: ChatRequest):
         "\n\nCRITICAL: Always wrap your internal reasoning/thought process inside "
         "<think> and </think> tags before providing your final response."
     )
+    persona += (
+        "\n\nTOOL EXECUTION RULE: When the user's request requires MULTIPLE tool calls "
+        "(e.g., 'set budget for X AND create category Y'), you MUST execute ALL required "
+        "tool calls in sequence before providing your final text response. Do NOT respond "
+        "with a text summary between tool calls — complete ALL actions first, then summarize "
+        "all results together in one final response."
+    )
 
     lc_msgs = [SystemMessage(content=persona)]
     for m in history[-12:]:
@@ -280,6 +287,12 @@ async def chat(req: ChatRequest):
         # Get tools from the persistent pool (no per-request connections!)
         await _ensure_pool()
         tool_defs, tool_sessions, tool_icons, mcp_errors = get_pool_tools(mcp_server_ids if mcp_server_ids else None)
+
+        selected_tools = char.get("selected_tools", [])
+        if selected_tools:
+            tool_defs = [t for t in tool_defs if t["function"]["name"] in selected_tools]
+            tool_sessions = {k: v for k, v in tool_sessions.items() if k in selected_tools}
+            tool_icons = {k: v for k, v in tool_icons.items() if k in selected_tools}
 
         if mcp_errors:
             persona += "\n\n⚠️ MCP Connection Warnings:\n" + "\n".join([f"- {e}" for e in mcp_errors])
@@ -332,14 +345,30 @@ async def chat(req: ChatRequest):
             if t:
                 all_thinking.append(t)
 
+            max_rounds = max(1, min(100, int(prefs.get("max_tool_rounds", 8))))
             rounds = 0
-            while response.tool_calls and rounds < 5:
+            while response.tool_calls and rounds < max_rounds:
                 rounds += 1
-                lc_msgs.append(response)
+                
+                # Clean tool calls to guarantee valid and matching IDs in history
+                clean_tool_calls = []
                 for tc in response.tool_calls:
+                    clean_tool_calls.append({
+                        "name": tc["name"],
+                        "args": tc["args"],
+                        "id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
+                        "type": "tool_call"
+                    })
+
+                lc_msgs.append(AIMessage(
+                    content=response.content or "",
+                    tool_calls=clean_tool_calls
+                ))
+
+                for tc in clean_tool_calls:
                     tool_name = tc["name"]
                     tool_args = tc["args"]
-                    tool_call_id = tc.get("id", str(uuid.uuid4())[:8])
+                    tool_call_id = tc["id"]
                     try:
                         ui_status_text = tool_args.get("ui_status_text") if isinstance(tool_args, dict) else None
                         session = tool_sessions.get(tool_name)
@@ -507,6 +536,7 @@ async def chat_stream(req: ChatRequest):
         queue = asyncio.Queue()
 
         async def process_chat():
+            now_iso = datetime.datetime.utcnow().isoformat()
             try:
                 await queue.put(f"data: {json.dumps({'type': 'start'})}\n\n")
 
@@ -522,6 +552,20 @@ async def chat_stream(req: ChatRequest):
                 # Get tools from the persistent pool — no connections needed!
                 await _ensure_pool()
                 tool_defs, tool_sessions, tool_icons, mcp_errors = get_pool_tools(all_mcp_ids if all_mcp_ids else None)
+
+                all_selected_tools = set()
+                has_explicit_tools = False
+                for pid in pids:
+                    pc = all_chars.get(pid) or {}
+                    st = pc.get("selected_tools", [])
+                    if st:
+                        has_explicit_tools = True
+                        all_selected_tools.update(st)
+                if has_explicit_tools:
+                    tool_defs = [t for t in tool_defs if t["function"]["name"] in all_selected_tools]
+                    tool_sessions = {k: v for k, v in tool_sessions.items() if k in all_selected_tools}
+                    tool_icons = {k: v for k, v in tool_icons.items() if k in all_selected_tools}
+
                 builtin_tools = {}
                 
                 if req.space_id:
@@ -676,6 +720,13 @@ async def chat_stream(req: ChatRequest):
 
                     p_persona += (
                         "\n\nIMPORTANT: Always wrap internal reasoning inside <think>...</think> tags before your response."
+                    )
+                    p_persona += (
+                        "\n\nTOOL EXECUTION RULE: When the user's request requires MULTIPLE tool calls "
+                        "(e.g., 'set budget for X AND create category Y'), you MUST execute ALL required "
+                        "tool calls in sequence before providing your final text response. Do NOT respond "
+                        "with a text summary between tool calls — complete ALL actions first, then summarize "
+                        "all results together in one final response."
                     )
                     if mcp_warning_text:
                         p_persona += mcp_warning_text
@@ -908,14 +959,30 @@ async def chat_stream(req: ChatRequest):
                         if "<think>" in f_content and "</think>" not in f_content:
                             f_content += "\n</think>\n"
                             await queue.put(f"data: {json.dumps({'type': 'content', 'delta': '\n</think>\n', 'character_id': pid, 'model': p_active_model})}\n\n")
-                        for _ in range(3):
+                        max_rounds = max(1, min(100, int(prefs.get("max_tool_rounds", 8))))
+                        for _ in range(max_rounds):
                             if not curr_resp.tool_calls:
                                 break
-                            p_lc_msgs.append(curr_resp)
+                            
+                            # Clean tool calls to guarantee valid and matching IDs in history
+                            clean_tool_calls = []
                             for tc in curr_resp.tool_calls:
+                                clean_tool_calls.append({
+                                    "name": tc["name"],
+                                    "args": tc["args"],
+                                    "id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
+                                    "type": "tool_call"
+                                })
+
+                            p_lc_msgs.append(AIMessage(
+                                content=curr_resp.content or "",
+                                tool_calls=clean_tool_calls
+                            ))
+
+                            for tc in clean_tool_calls:
                                 tname = tc["name"]
                                 targs = tc["args"]
-                                tid = tc.get("id", str(uuid.uuid4())[:8])
+                                tid = tc["id"]
                                 ticon = tool_icons.get(tname, "fa-wrench")
                                 ui_status = targs.get("ui_status_text") if isinstance(targs, dict) else None
                                 await queue.put(f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n")
@@ -1060,7 +1127,7 @@ async def chat_stream(req: ChatRequest):
 
                             f_content += fcl
                             new_resp = reduce(add, inner_chunks) if inner_chunks else None
-                            if new_resp and getattr(new_resp, "tool_calls", None):
+                            if new_resp and getattr(new_resp, "tool_calls", None) and len(new_resp.tool_calls) > 0:
                                 curr_resp = new_resp
                                 if "<think>" in f_content and "</think>" not in f_content:
                                     f_content += "\n</think>\n"

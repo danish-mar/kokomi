@@ -69,18 +69,39 @@ async def run_agent_task(main_char_id: str, target_char_id: str, task_message: s
         await init_pool()
     tool_defs, tool_sessions, tool_icons, mcp_errors = get_pool_tools(mcp_ids if mcp_ids else None)
     
+    selected_tools = target_char.get("selected_tools", [])
+    if selected_tools:
+        tool_defs = [t for t in tool_defs if t["function"]["name"] in selected_tools]
+        tool_sessions = {k: v for k, v in tool_sessions.items() if k in selected_tools}
+
     if tool_defs:
         llm_with_tools = llm.bind_tools(tool_defs)
         response = await llm_with_tools.ainvoke(msgs)
         
+        max_rounds = max(1, min(100, int(prefs.get("max_tool_rounds", 8))))
         rounds = 0
-        while response.tool_calls and rounds < 5:
+        while response.tool_calls and rounds < max_rounds:
             rounds += 1
-            msgs.append(response)
+            
+            # Clean tool calls to guarantee valid and matching IDs in history
+            clean_tool_calls = []
             for tc in response.tool_calls:
+                clean_tool_calls.append({
+                    "name": tc["name"],
+                    "args": tc["args"],
+                    "id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
+                    "type": "tool_call"
+                })
+
+            msgs.append(AIMessage(
+                content=response.content or "",
+                tool_calls=clean_tool_calls
+            ))
+
+            for tc in clean_tool_calls:
                 tname = tc["name"]
                 targs = tc["args"]
-                tid = tc.get("id", str(uuid.uuid4())[:8])
+                tid = tc["id"]
                 
                 session = tool_sessions.get(tname)
                 if session:
@@ -195,6 +216,11 @@ async def process_whatsapp_message(char, from_jid, body):
         await init_pool()
     tool_defs, tool_sessions, tool_icons, mcp_errors = get_pool_tools(mcp_ids if mcp_ids else None)
     
+    selected_tools = char.get("selected_tools", [])
+    if selected_tools:
+        tool_defs = [t for t in tool_defs if t["function"]["name"] in selected_tools]
+        tool_sessions = {k: v for k, v in tool_sessions.items() if k in selected_tools}
+
     persona = char.get("persona", "")
     persona += "\n\nWHATSAPP MODE: You are talking directly to a user on WhatsApp. Your response will be sent to them immediately. Use tools only if necessary for tasks."
     
@@ -213,8 +239,9 @@ async def process_whatsapp_message(char, from_jid, body):
     response = await llm_with_tools.ainvoke(msgs)
     
     # Tool loop
+    max_rounds = max(1, min(100, int(prefs.get("max_tool_rounds", 8))))
     rounds = 0
-    while response.tool_calls and rounds < 5:
+    while response.tool_calls and rounds < max_rounds:
         # If AI says something BEFORE tool (e.g. "Okay, I'll ask Kokomi...")
         if response.content:
             mid_text = response.content.strip()
@@ -231,11 +258,26 @@ async def process_whatsapp_message(char, from_jid, body):
                 })
 
         rounds += 1
-        msgs.append(response)
+        
+        # Clean tool calls to guarantee valid and matching IDs in history
+        clean_tool_calls = []
         for tc in response.tool_calls:
+            clean_tool_calls.append({
+                "name": tc["name"],
+                "args": tc["args"],
+                "id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
+                "type": "tool_call"
+            })
+
+        msgs.append(AIMessage(
+            content=response.content or "",
+            tool_calls=clean_tool_calls
+        ))
+
+        for tc in clean_tool_calls:
             tname = tc["name"]
             targs = tc["args"]
-            tid = tc.get("id", str(uuid.uuid4())[:8])
+            tid = tc["id"]
             
             if tname == "deploy_agent":
                 res_txt = await deploy_agent(**targs)
