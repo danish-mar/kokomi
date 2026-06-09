@@ -293,41 +293,45 @@ async def run_update():
             os._exit(0)
 
     async def update_generator():
-        async def yield_status(status: str, progress: int, error: str = None):
+        def format_status(status: str, progress: int, error: str = None) -> str:
             data = {"status": status, "progress": progress}
             if error:
                 data["error"] = error
-            yield f"data: {json.dumps(data)}\n\n"
-            await asyncio.sleep(0.8)
+            return f"data: {json.dumps(data)}\n\n"
 
         try:
-            await yield_status("Checking local repository status...", 10)
+            yield format_status("Checking local repository status...", 10)
+            await asyncio.sleep(0.8)
             if not os.path.exists(".git"):
-                await yield_status("Error: Not a git repository.", 10, error="Not a git repository.")
+                yield format_status("Error: Not a git repository.", 10, error="Not a git repository.")
                 return
 
-            await yield_status("Stashing any uncommitted local changes...", 30)
+            yield format_status("Stashing any uncommitted local changes...", 30)
+            await asyncio.sleep(0.8)
             subprocess.run(["git", "stash"], capture_output=True, text=True, timeout=15)
 
-            await yield_status("Pulling changes from GitHub repository...", 55)
+            yield format_status("Pulling changes from GitHub repository...", 55)
+            await asyncio.sleep(0.8)
             pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
             if pull_res.returncode != 0:
                 err_msg = pull_res.stderr.strip() or "git pull failed"
-                await yield_status(f"Error pulling changes: {err_msg}", 55, error=err_msg)
+                yield format_status(f"Error pulling changes: {err_msg}", 55, error=err_msg)
                 return
 
-            await yield_status("Synchronizing dependencies & local package...", 80)
+            yield format_status("Synchronizing dependencies & local package...", 80)
+            await asyncio.sleep(0.8)
             uv_path = shutil.which("uv")
             if uv_path:
                 subprocess.run([uv_path, "sync"], capture_output=True, text=True, timeout=60)
             else:
                 subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], capture_output=True, text=True, timeout=60)
 
-            await yield_status("Done! Kokomi will restart to apply changes...", 100)
+            yield format_status("Done! Kokomi will restart to apply changes...", 100)
+            await asyncio.sleep(0.8)
             asyncio.create_task(restart_server())
 
         except Exception as e:
-            await yield_status(f"Unexpected error: {str(e)}", 100, error=str(e))
+            yield format_status(f"Unexpected error: {str(e)}", 100, error=str(e))
 
     return StreamingResponse(update_generator(), media_type="text/event-stream")
 

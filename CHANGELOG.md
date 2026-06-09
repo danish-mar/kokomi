@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.7] - 2026-06-10
+
+### Fixed
+
+- **Software Update Generator ASGI Exception**:
+  - Fixed `TypeError: 'coroutine' object is not iterable` in Starlette's `StreamingResponse` by turning `update_generator` into a proper asynchronous generator. Yields status responses directly from the top level of the generator function.
+
 ## [v5.0.6] - 2026-06-10
 
 ### Fixed
