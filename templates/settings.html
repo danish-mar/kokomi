@@ -69,8 +69,8 @@
                     Memory
                 </button>
                 <button @click="selectTab('mcp')" class="tahoe-nav-item" :class="tab === 'mcp' ? 'active' : ''">
-                    <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-obsidian), var(--swatch-indigo));"><i class="fa-solid fa-plug" style="font-size:11px;color:#fff;"></i></span>
-                    MCP Servers
+                    <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-obsidian), var(--swatch-indigo));"><i class="fa-solid fa-cubes" style="font-size:11px;color:#fff;"></i></span>
+                    Apps
                 </button>
                 <button @click="selectTab('integrations')" class="tahoe-nav-item" :class="tab === 'integrations' ? 'active' : ''">
                     <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-lavender), var(--swatch-midnight));"><i class="fa-solid fa-puzzle-piece" style="font-size:11px;color:#fff;"></i></span>
@@ -261,6 +261,17 @@
                             <div class="toggle-knob"></div>
                         </button>
                     </div>
+
+                    <!-- Logout Session -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 4px;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px; color: #ef4444;">Logout Session</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Sign out of your administrator account.</p>
+                        </div>
+                        <a href="/auth/logout" class="btn-accent" style="background:#ef4444; border-color:#ef4444; color:#fff; text-decoration:none;">
+                            <i class="fa-solid fa-right-from-bracket" style="font-size:11px; color:#fff;"></i> Logout
+                        </a>
+                    </div>
                 </div>
 
 
@@ -405,6 +416,15 @@
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">WhatsApp REST API URL</label>
                                 <input type="text" x-model="prefs.whatsapp_api_url" @blur="savePrefs()"
                                     placeholder="http://localhost:3013" class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
+                            </div>
+                            <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:14px; display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <label class="apple-label" style="margin-bottom:1px;">WhatsApp Dashboard</label>
+                                    <p style="font-size:11px; color:var(--text-quaternary);">View WhatsApp conversation logs and active triggers.</p>
+                                </div>
+                                <a href="/whatsapp" class="btn-accent" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                    <i class="fa-brands fa-whatsapp"></i> Open Dashboard
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -752,82 +772,132 @@
                 </div>
             </div>
 
-            <!-- ═══ TAB: MCP SERVERS ═══ -->
+            <!-- ═══ TAB: APPS ═══ -->
             <div x-show="tab === 'mcp'" x-transition class="tab-panel">
+                <!-- SECTION 1: INSTALLED APPS -->
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
                     <div>
-                        <h2 class="section-title">MCP Servers</h2>
-                        <p class="section-subtitle" style="margin-bottom:0;">Connect tools via the Model Context Protocol.</p>
+                        <h2 class="section-title">Installed Apps</h2>
+                        <p class="section-subtitle" style="margin-bottom:0;">Manage and configure your installed applications and tools.</p>
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <button @click="refreshMCPPool()" class="btn-ghost" :disabled="refreshingPool" style="font-size:12px; padding:6px 12px; height:32px;">
-                            <i class="fa-solid fa-sync" :class="refreshingPool ? 'fa-spin' : ''" style="font-size:10px;"></i>
-                            <span x-text="refreshingPool ? 'Refreshing...' : 'Refresh Pool'"></span>
-                        </button>
-                        <button @click="openMCPModal()" class="btn-accent" style="height:32px; padding:6px 12px; font-size:12px;">
-                            <i class="fa-solid fa-plus" style="font-size:10px;"></i> Add Server
-                        </button>
-                    </div>
+                    <button @click="refreshMCPPool()" class="btn-ghost" style="font-size:11.5px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;" :disabled="refreshingPool">
+                        <span x-show="!refreshingPool"><i class="fa-solid fa-rotate" style="font-size:10px;"></i> Refresh Pool</span>
+                        <span x-show="refreshingPool"><i class="fa-solid fa-spinner fa-spin" style="font-size:10px;"></i> Refreshing</span>
+                    </button>
                 </div>
 
-                <div class="info-banner" style="margin-bottom:14px;">
-                    <i class="fa-solid fa-circle-info" style="color:var(--accent); font-size:13px; margin-top:2px; flex-shrink:0;"></i>
-                    <div style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
-                        <p style="font-weight:600; color:var(--text-primary); margin-bottom:2px;">What are MCP Servers?</p>
-                        <p>MCP lets your AI use external tools — file systems, databases, APIs. Add a server here, then assign it to a character.</p>
+                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:32px;">
+                    <template x-for="app in installedApps" :key="app.id">
+                        <div class="mcp-row" style="display:flex; align-items:center; justify-content:space-between; padding: 14px 16px; border: 1px solid var(--border); border-radius:14px; background:var(--bg-elevated); margin-bottom: 8px;">
+                            <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:var(--accent-subtle)">
+                                <i style="font-size:14px; color:var(--accent);" :class="app.icon ? `fa-solid ${app.icon}` : 'fa-solid fa-puzzle-piece'"></i>
+                            </div>
+                            <div style="flex-grow:1; min-width:0; padding-left:14px; padding-right:14px;">
+                                <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                    <p style="font-size:13px; font-weight:700; color:var(--text-primary); margin:0;" x-text="app.name"></p>
+                                    <span class="mini-badge" style="font-size:10px; padding:2px 6px; border-radius:4px;"
+                                        :style="app.enabled ? 'background:rgba(34,197,94,0.12); color:#4ADE80;' : 'background:rgba(248,113,113,0.12); color:#f87171;'"
+                                        x-text="app.enabled ? 'Active' : 'Disabled'"></span>
+                                </div>
+                                <p style="font-size:11px; color:var(--text-secondary); margin:0 0 2px 0;" x-text="app.description"></p>
+                                <div style="display:flex; gap:12px; font-size:10.5px; color:var(--text-quaternary);">
+                                    <span x-text="'Version: ' + app.version"></span>
+                                    <span x-text="'Storage: ' + app.size_formatted"></span>
+                                    <span x-text="'Developer: ' + app.developer"></span>
+                                </div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+                                <!-- Toggle Switch -->
+                                <label style="position:relative; display:inline-block; width:36px; height:20px; cursor:pointer;">
+                                    <input type="checkbox" x-model="app.enabled" @change="toggleApp(app)" style="opacity:0; width:0; height:0;" class="toggle-checkbox">
+                                    <span style="position:absolute; inset:0; border-radius:20px; transition:0.2s; border:1px solid var(--border);"
+                                          :style="app.enabled ? 'background:var(--accent); border-color:var(--accent);' : 'background:var(--bg-input);'"></span>
+                                    <span style="position:absolute; content:''; height:14px; width:14px; left:3px; bottom:3px; background-color:#fff; transition:0.2s; border-radius:50%;"
+                                          :style="app.enabled ? 'transform:translateX(16px);' : 'transform:translateX(0);'"></span>
+                                </label>
+                                <!-- Uninstall Action Button -->
+                                <button @click="uninstallApp(app.id)" class="sm-icon-btn" style="color:#f87171; border:none; background:transparent; cursor:pointer; padding:6px; border-radius:6px; transition:0.2s;"
+                                        onmouseover="this.style.background='rgba(248,113,113,0.08)'" onmouseout="this.style.background='transparent'">
+                                    <i class="fa-solid fa-trash" style="font-size:12px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="installedApps.length === 0">
+                        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 20px; border: 1px dashed var(--border); border-radius:16px; background:rgba(134,134,172,0.02); text-align:center; gap:8px;">
+                            <div style="width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(134,134,172,0.08); color:var(--accent);">
+                                <i class="fa-solid fa-puzzle-piece" style="font-size:18px;"></i>
+                            </div>
+                            <div style="font-size:13px; font-weight:700; color:var(--text-secondary);">No Apps Installed</div>
+                            <div style="font-size:11px; color:var(--text-quaternary); max-width:300px; line-height:1.45;">
+                                Visit the App Store to browse and install applications.
+                            </div>
+                            <div style="font-size:11px; margin-top:8px;">
+                                <a href="/app-store" class="btn-accent" style="text-decoration:none; padding:6px 12px; font-size:11px;">Go to App Store</a>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- SECTION 2: CUSTOM MCP SERVERS -->
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; border-top:1px solid var(--border); padding-top:24px;">
+                    <div>
+                        <h2 class="section-title">Custom MCP Servers</h2>
+                        <p class="section-subtitle" style="margin-bottom:0;">Connect custom stdio, SSE, or Streamable HTTP servers.</p>
                     </div>
+                    <button @click="openMCPModal()" class="btn-accent" style="font-size:11.5px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-plus" style="font-size:10px;"></i> Add Server
+                    </button>
                 </div>
 
                 <div style="display:flex; flex-direction:column; gap:10px;">
-                    <template x-for="srv in mcpServers" :key="srv.id">
-                        <div class="mcp-row">
-                            <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;"
-                                :style="srv.enabled ? 'background:var(--accent-subtle)' : 'background:var(--bg-input)'">
-                                <i style="font-size:14px;"
-                                    :class="srv.icon ? `fa-solid ${srv.icon}` : (srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal')"
-                                    :style="srv.transport === 'sse' ? 'color:#60A5FA' : 'color:var(--accent)'"></i>
+                    <template x-for="srv in mcpServers.filter(s => s.id !== 'appbridge')" :key="srv.id">
+                        <div class="mcp-row" style="display:flex; align-items:center; justify-content:space-between; padding: 14px 16px; border: 1px solid var(--border); border-radius:14px; background:var(--bg-elevated); margin-bottom: 8px;">
+                            <div style="width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:var(--accent-subtle)">
+                                <i style="font-size:14px; color:var(--accent);" :class="srv.icon ? `fa-solid ${srv.icon}` : 'fa-solid fa-server'"></i>
                             </div>
-                            <div style="flex-grow:1; min-width:0;">
-                                <div style="display:flex; align-items:center; gap:7px; margin-bottom:2px;">
-                                    <p style="font-size:13px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="srv.name"></p>
-                                    <span class="mini-badge"
+                            <div style="flex-grow:1; min-width:0; padding-left:14px; padding-right:14px;">
+                                <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                    <p style="font-size:13px; font-weight:700; color:var(--text-primary); margin:0;" x-text="srv.name"></p>
+                                    <span class="mini-badge" style="font-size:10px; padding:2px 6px; border-radius:4px;"
                                         :style="srv.enabled ? 'background:rgba(34,197,94,0.12); color:#4ADE80;' : 'background:rgba(248,113,113,0.12); color:#f87171;'"
                                         x-text="srv.enabled ? 'Active' : 'Disabled'"></span>
                                 </div>
-                                <p style="font-size:10px; color:var(--text-quaternary); font-family:'SF Mono','JetBrains Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                                    x-text="srv.transport === 'stdio' ? (srv.command + ' ' + (srv.args || []).join(' ')) : srv.url"></p>
+                                <p style="font-size:11px; color:var(--text-secondary); margin:0; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" x-text="srv.transport === 'stdio' ? srv.command : srv.url"></p>
                             </div>
-                            <div class="action-btns" style="display:flex; align-items:center; gap:3px; flex-shrink:0;">
-                                <button @click="testMCP(srv.id)" :disabled="testingId === srv.id"
-                                    style="padding:4px 9px; border-radius:7px; border:none; cursor:pointer; font-size:11px; font-weight:600; color:var(--accent); background:transparent; transition:all 0.2s ease;"
-                                    onmouseover="this.style.background='var(--bg-surface-hover)'" onmouseout="this.style.background='transparent'">
-                                    <span x-show="testingId !== srv.id"><i class="fa-solid fa-bolt" style="font-size:9px;"></i> Test</span>
-                                    <span x-show="testingId === srv.id"><i class="fa-solid fa-spinner fa-spin" style="font-size:9px;"></i></span>
+                            <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+                                <!-- Test Button -->
+                                <button @click="testMCP(srv.id)" class="btn-ghost" style="font-size:11px; padding:4px 10px; border-radius:8px;" :disabled="testingId === srv.id">
+                                    <span x-show="testingId !== srv.id"><i class="fa-solid fa-vial" style="font-size:10px; margin-right:4px;"></i> Test</span>
+                                    <span x-show="testingId === srv.id"><i class="fa-solid fa-spinner fa-spin" style="font-size:10px;"></i> Testing</span>
                                 </button>
-                                <button @click="openMCPModal(srv)" class="sm-icon-btn" style="color:var(--text-tertiary);">
-                                    <i class="fa-solid fa-pen" style="font-size:10px;"></i>
+                                <!-- Edit Button -->
+                                <button @click="openMCPModal(srv)" class="sm-icon-btn" style="color:var(--text-secondary); border:none; background:transparent; cursor:pointer; padding:6px; border-radius:6px; transition:0.2s;"
+                                        onmouseover="this.style.background='rgba(134,134,172,0.08)'" onmouseout="this.style.background='transparent'">
+                                    <i class="fa-solid fa-pen" style="font-size:11px;"></i>
                                 </button>
-                                <button @click="deleteMCP(srv.id)" class="sm-icon-btn" style="color:#f87171;">
-                                    <i class="fa-solid fa-trash" style="font-size:10px;"></i>
+                                <!-- Delete Button -->
+                                <button @click="deleteMCP(srv.id)" class="sm-icon-btn" style="color:#f87171; border:none; background:transparent; cursor:pointer; padding:6px; border-radius:6px; transition:0.2s;"
+                                        onmouseover="this.style.background='rgba(248,113,113,0.08)'" onmouseout="this.style.background='transparent'">
+                                    <i class="fa-solid fa-trash" style="font-size:11px;"></i>
                                 </button>
                             </div>
                         </div>
                     </template>
-                    <template x-if="mcpServers.length === 0">
-                        <div style="display:flex; flex-direction:column; align-items:center; padding:40px 0; text-align:center;">
-                            <div style="width:50px; height:50px; border-radius:14px; background:var(--accent-subtle); display:flex; align-items:center; justify-content:center; margin-bottom:12px;">
-                                <i class="fa-solid fa-plug" style="color:var(--accent); font-size:20px;"></i>
+                    <template x-if="mcpServers.filter(s => s.id !== 'appbridge').length === 0">
+                        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px 20px; border: 1px dashed var(--border); border-radius:16px; background:rgba(134,134,172,0.02); text-align:center; gap:8px;">
+                            <div style="font-size:12px; font-weight:700; color:var(--text-secondary);">No Custom MCP Servers</div>
+                            <div style="font-size:11px; color:var(--text-quaternary); max-width:300px; line-height:1.45;">
+                                Add custom MCP servers using standard stdio commands or SSE endpoints.
                             </div>
-                            <p style="font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:3px;">No MCP Servers</p>
-                            <p style="font-size:12px; color:var(--text-tertiary);">Add your first server to give characters tool access.</p>
                         </div>
                     </template>
                 </div>
 
-                <!-- Test Result Toast -->
+                <!-- Test Connection Status Toast -->
                 <div x-show="testResult" x-transition
-                    style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:50; padding:10px 18px; border-radius:14px; font-size:13px; font-weight:500; max-width:380px; width:90%; word-break:break-word; max-height:180px; overflow-y:auto;"
-                    :style="testResult?.ok ? 'background:rgba(34,197,94,0.9); color:#fff; box-shadow:var(--shadow-lg);' : 'background:rgba(239,68,68,0.9); color:#fff; box-shadow:var(--shadow-lg);'">
+                    style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:100; padding:10px 18px; border-radius:14px; font-size:13px; font-weight:500; max-width:380px; width:90%; word-break:break-word; max-height:180px; overflow-y:auto; box-shadow: var(--shadow-lg);"
+                    :style="testResult?.ok ? 'background:rgba(34,197,94,0.9); color:#fff;' : 'background:rgba(239,68,68,0.9); color:#fff;'">
                     <template x-if="testResult?.ok">
                         <span><i class="fa-solid fa-check-circle" style="margin-right:6px;"></i> Connected! Found <span x-text="testResult.count"></span> tools</span>
                     </template>
@@ -1294,35 +1364,59 @@
                         <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;"><i class="fa-solid fa-chevron-down"></i></div>
                     </div>
                 </div>
-                <!-- MCP Servers -->
-                <div x-show="mcpServers.length > 0">
-                    <label style="display:block; font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px;">MCP Tool Access</label>
-                    <div style="display:flex; flex-direction:column; gap:7px; max-height:220px; overflow-y:auto; padding-right:3px;">
-                        <template x-for="srv in mcpServers" :key="srv.id">
-                            <div style="border-radius:12px; border:1px solid var(--border); padding:10px 12px; transition:all 0.2s ease;"
-                                 :style="charMCPServers.includes(srv.id) ? 'background:var(--accent-subtle); border-color:var(--accent)' : 'background:var(--bg-input)'">
-                                <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                                    <input type="checkbox" :value="srv.id" :checked="charMCPServers.includes(srv.id)" @change="toggleCharMCP(srv.id)"
-                                        style="width:15px; height:15px; border-radius:4px; accent-color:var(--accent);" />
-                                    <div style="flex-grow:1; min-width:0;">
-                                        <div style="display:flex; align-items:center; gap:7px;">
-                                            <span style="font-size:13px; font-weight:700; color:var(--text-primary);" x-text="srv.name"></span>
-                                            <i :class="srv.transport === 'sse' ? 'fa-solid fa-globe' : 'fa-solid fa-terminal'" style="font-size:9px; color:var(--text-tertiary);"></i>
+                <!-- App & Tool Access -->
+                <div x-show="installedApps.filter(app => app.enabled).length > 0 || mcpServers.filter(s => s.id !== 'appbridge' && s.enabled !== false).length > 0">
+                    <label style="display:block; font-size:11px; font-weight:700; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px;">App & Tool Access</label>
+                    <div style="display:flex; flex-direction:column; gap:12px; max-height:280px; overflow-y:auto; padding-right:3px;">
+                        
+                        <!-- Apps Sublist -->
+                        <template x-if="installedApps.filter(app => app.enabled).length > 0">
+                            <div>
+                                <div style="font-size:10px; color:var(--text-quaternary); text-transform:uppercase; font-weight:700; margin-bottom:5px; padding-left:2px;">Installed Apps</div>
+                                <div style="display:flex; flex-direction:column; gap:6px;">
+                                    <template x-for="app in installedApps.filter(app => app.enabled)" :key="app.id">
+                                        <div style="border-radius:12px; border:1px solid var(--border); padding:10px 12px; transition:all 0.2s ease;"
+                                             :style="charMCPServers.includes(app.id) ? 'background:var(--accent-subtle); border-color:var(--accent)' : 'background:var(--bg-input)'">
+                                            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                                <input type="checkbox" :value="app.id" :checked="charMCPServers.includes(app.id)" @change="toggleCharMCP(app.id)"
+                                                    style="width:15px; height:15px; border-radius:4px; accent-color:var(--accent);" />
+                                                <div style="flex-grow:1; min-width:0;">
+                                                    <div style="display:flex; align-items:center; gap:7px;">
+                                                        <span style="font-size:13px; font-weight:700; color:var(--text-primary);" x-text="app.name"></span>
+                                                    </div>
+                                                    <p style="font-size:11px; color:var(--text-secondary); margin:2px 0 0 0;" x-text="app.description"></p>
+                                                </div>
+                                            </label>
                                         </div>
-                                    </div>
-                                    <button type="button" @click="fetchMCPTools(srv.id)"
-                                        style="font-size:10px; font-weight:600; color:var(--accent); background:none; border:none; cursor:pointer;">Browse Tools</button>
-                                </label>
-                                <div x-show="mcpTools[srv.id]" style="margin-top:8px; padding-top:8px; border-top:1px solid var(--separator);">
-                                    <div style="font-size:10px; color:var(--text-tertiary); margin-bottom:5px; font-weight:700;">Available Tools:</div>
-                                    <div style="display:flex; flex-wrap:wrap; gap:3px;">
-                                        <template x-for="t in mcpTools[srv.id]" :key="t">
-                                            <span class="tool-pill" x-text="t"></span>
-                                        </template>
-                                    </div>
+                                    </template>
                                 </div>
                             </div>
                         </template>
+
+                        <!-- Custom MCP Servers Sublist -->
+                        <template x-if="mcpServers.filter(s => s.id !== 'appbridge' && s.enabled !== false).length > 0">
+                            <div>
+                                <div style="font-size:10px; color:var(--text-quaternary); text-transform:uppercase; font-weight:700; margin-bottom:5px; padding-left:2px; margin-top:6px;">Custom MCP Servers</div>
+                                <div style="display:flex; flex-direction:column; gap:6px;">
+                                    <template x-for="srv in mcpServers.filter(s => s.id !== 'appbridge' && s.enabled !== false)" :key="srv.id">
+                                        <div style="border-radius:12px; border:1px solid var(--border); padding:10px 12px; transition:all 0.2s ease;"
+                                             :style="charMCPServers.includes(srv.id) ? 'background:var(--accent-subtle); border-color:var(--accent)' : 'background:var(--bg-input)'">
+                                            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                                <input type="checkbox" :value="srv.id" :checked="charMCPServers.includes(srv.id)" @change="toggleCharMCP(srv.id)"
+                                                    style="width:15px; height:15px; border-radius:4px; accent-color:var(--accent);" />
+                                                <div style="flex-grow:1; min-width:0;">
+                                                    <div style="display:flex; align-items:center; gap:7px;">
+                                                        <span style="font-size:13px; font-weight:700; color:var(--text-primary);" x-text="srv.name"></span>
+                                                    </div>
+                                                    <p style="font-size:11px; color:var(--text-secondary); margin:2px 0 0 0;" x-text="srv.transport === 'stdio' ? srv.command : srv.url"></p>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
                     </div>
                 </div>
                 <!-- Buttons -->

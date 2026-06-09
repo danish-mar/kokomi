@@ -9,6 +9,7 @@ function settingsApp() {
         mobileView: 'categories', // 'categories' or 'detail'
         characters: [],
         mcpServers: [],
+        installedApps: [],
         models: [],
         toasts: [],
         diagnosticsLogs: [],
@@ -127,7 +128,7 @@ function settingsApp() {
                 appearance: 'Appearance',
                 characters: 'Characters',
                 memory: 'Memory',
-                mcp: 'MCP Servers',
+                mcp: 'Apps',
                 integrations: 'Integrations',
                 atlas: 'Atlas Settings',
                 computer: 'Computer & Docker',
@@ -460,7 +461,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
 
         /* ═══ Init ═══ */
         async init() {
-            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels()]);
+            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels(), this.fetchInstalledApps()]);
 
             // Handle resize for mobile detection
             window.addEventListener('resize', () => {
@@ -682,7 +683,15 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                 this.charGroqModel = char.groq_model || 'default'; this.charGoogleModel = char.google_model || 'default';
                 this.charLocalModel = char.local_model || 'default'; this.charNvidiaModel = char.nvidia_model || 'default';
                 this.charVoice = char.voice || 'aoede';
-                this.charAvatarPreview = char.avatar; this.charMCPServers = [...(char.mcp_servers || [])];
+                this.charAvatarPreview = char.avatar;
+                let srvs = [...(char.mcp_servers || [])];
+                if (srvs.includes("appbridge")) {
+                    srvs = srvs.filter(s => s !== "appbridge");
+                    this.installedApps.forEach(app => {
+                        if (!srvs.includes(app.id)) srvs.push(app.id);
+                    });
+                }
+                this.charMCPServers = srvs;
             } else {
                 this.charEditId = null; this.charName = ''; this.charPersona = ''; this.charDescription = '';
                 this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
@@ -879,6 +888,50 @@ Return ONLY the raw JSON. No markdown. No explanation.`
                 setTimeout(() => (this.testResult = null), 4000);
             } catch { this.testResult = { ok: false, error: 'Network error' }; setTimeout(() => (this.testResult = null), 4000); }
             finally { this.testingId = null; }
+        },
+        async fetchInstalledApps() {
+            try {
+                const r = await fetch('/api/app-store/installed-apps');
+                if (r.ok) {
+                    this.installedApps = await r.json();
+                }
+            } catch(e) {
+                console.error("Failed to fetch installed apps:", e);
+            }
+        },
+
+        async toggleApp(app) {
+            try {
+                const r = await fetch('/api/app-store/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: app.id, enabled: app.enabled })
+                });
+                if (r.ok) {
+                    this.showToast('App status updated!', 'success');
+                } else {
+                    this.showToast('Failed to toggle app', 'error');
+                }
+            } catch(e) {
+                console.error("Failed to toggle app:", e);
+                this.showToast('Failed to toggle app', 'error');
+            }
+        },
+
+        async uninstallApp(appId) {
+            if (!confirm('Are you sure you want to uninstall this app?')) return;
+            try {
+                const r = await fetch(`/api/app-store/uninstall/${appId}`, { method: 'DELETE' });
+                if (r.ok) {
+                    this.showToast('App uninstalled successfully!', 'success');
+                    await this.fetchInstalledApps();
+                } else {
+                    this.showToast('Failed to uninstall app', 'error');
+                }
+            } catch(e) {
+                console.error("Failed to uninstall app:", e);
+                this.showToast('Failed to uninstall app', 'error');
+            }
         },
     };
 }

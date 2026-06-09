@@ -90,7 +90,7 @@ def get_pool_tools(server_ids: list | None = None):
         tname = tdef["function"]["name"]
         if tname in _pool["tool_sessions"]:
             owner = _pool["_tool_to_server"].get(tname)
-            if owner is None or owner in server_ids:
+            if owner is None or owner in server_ids or (owner == "appbridge" and (tname in server_ids or "appbridge" in server_ids)):
                 td.append(tdef)
                 ts[tname] = _pool["tool_sessions"][tname]
                 ti[tname] = _pool["tool_icons"].get(tname, "fa-plug")

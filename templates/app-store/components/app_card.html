@@ -1,0 +1,63 @@
+<!-- ═══ COMPONENT: App Card ═══ -->
+<div class="app-card" @click="openAppDetails(app)" x-data="{ confirmState: false, imgFailed: false }">
+    <div class="app-card-icon" style="position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 22%;">
+        <template x-if="app.type === 'character' && !imgFailed">
+            <img :src="catalogBaseUrl + '/' + app.path + '/profile.png'" 
+                 class="app-card-image"
+                 style="width: 100%; height: 100%; object-fit: cover; border-radius: 22%;"
+                 @error="imgFailed = true" />
+        </template>
+        <template x-if="app.type !== 'character' || imgFailed">
+            <i :class="app.icon.startsWith('fa-') ? 'fa-solid ' + app.icon : app.icon"></i>
+        </template>
+    </div>
+    <div class="app-card-details">
+        <span class="app-card-category" x-text="app.category"></span>
+        <h3 class="app-card-name" x-text="app.name"></h3>
+        <p class="app-card-tagline" x-text="app.tagline"></p>
+    </div>
+    <div class="app-card-action" @click.stop style="display: flex; gap: 8px; align-items: center;">
+        <template x-if="loadingId === app.id">
+            <button class="store-btn installed-btn" style="cursor: default; padding: 6px 14px;" disabled>
+                <span><i class="fa-solid fa-spinner fa-spin"></i></span>
+            </button>
+        </template>
+        
+        <template x-if="loadingId !== app.id">
+            <div style="display: flex; align-items: center;">
+                <!-- GET Button if NOT installed -->
+                <template x-if="!isInstalled(app.id)">
+                    <button @click="installApp(app)" class="store-btn get-btn" style="cursor: pointer; padding: 6px 14px;">
+                        Get
+                    </button>
+                </template>
+                
+                <!-- Bin-to-Confirm cycle if installed -->
+                <template x-if="isInstalled(app.id)">
+                    <div style="display: flex; align-items: center;">
+                        <!-- Initial Bin Button -->
+                        <template x-if="!confirmState">
+                            <button @click="confirmState = true" 
+                                    class="store-btn get-btn" 
+                                    style="background: rgba(255,59,48,0.1); color: #ff3b30; border: none; cursor: pointer; padding: 6px 14px;"
+                                    title="Uninstall/Remove">
+                                <i class="fa-regular fa-trash-can" style="font-size: 13px;"></i>
+                            </button>
+                        </template>
+                        
+                        <!-- Confirm/Remove Button -->
+                        <template x-if="confirmState">
+                            <button @click="executeUninstallDirect(app)" 
+                                    @mouseleave="confirmState = false"
+                                    class="store-btn" 
+                                    style="background: #ff3b30; color: #fff; border: none; cursor: pointer; padding: 6px 14px; font-size: 11px; font-weight: 700;"
+                                    x-text="app.type === 'character' ? 'Remove' : 'Confirm'">
+                            </button>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+</div>
+

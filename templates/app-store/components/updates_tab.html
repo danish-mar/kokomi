@@ -1,0 +1,34 @@
+<!-- ═══ COMPONENT: Updates Tab ═══ -->
+<div class="store-tab-content" x-show="sidebarTab === 'updates'">
+    <div class="store-header">
+        <div class="store-title-area">
+            <h1>Updates</h1>
+            <p>Recent changes, enhancements, and platform release notes.</p>
+        </div>
+    </div>
+
+    <section class="store-section" style="max-width: 800px; margin: 0 auto 48px;">
+        <template x-for="update in getFilteredUpdates()" :key="update.id">
+            <div class="update-row">
+                <div class="update-header">
+                    <div class="update-icon">
+                        <i :class="update.icon.startsWith('fa-') ? 'fa-solid ' + update.icon : update.icon"></i>
+                    </div>
+                    <div class="update-meta">
+                        <h3 x-text="update.name"></h3>
+                        <p x-text="update.version"></p>
+                    </div>
+                    <div class="update-release-date" x-text="update.date"></div>
+                </div>
+                <p class="update-description" x-text="update.description"></p>
+            </div>
+        </template>
+        
+        <template x-if="getFilteredUpdates().length === 0">
+            <div style="text-align: center; padding: 48px; color: var(--text-tertiary);">
+                <i class="fa-solid fa-magnifying-glass" style="font-size: 32px; margin-bottom: 16px; display: block; opacity: 0.5;"></i>
+                <p style="font-size: 15px; margin: 0;">No updates found matching "<span x-text="searchQ"></span>"</p>
+            </div>
+        </template>
+    </section>
+</div>

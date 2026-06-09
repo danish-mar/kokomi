@@ -11,8 +11,8 @@ try:
         VERSION = _pyproject_data["project"]["version"]
         RELEASE_NAME = _pyproject_data["project"].get("release-name", "")
 except Exception:
-    VERSION = "4.1.0"
-    RELEASE_NAME = "springlit splendor"
+    VERSION = "5.0.0"
+    RELEASE_NAME = "everlasting moonglow"
 
 # ── API Keys ────────────────────────────────────────────────────────
 GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")

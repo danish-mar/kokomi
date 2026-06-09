@@ -1,0 +1,29 @@
+<!-- ═══ COMPONENT: Hero Banner (Featured App) ═══ -->
+<template x-if="featuredApp">
+    <div class="hero-banner" @click="openAppDetails(featuredApp)">
+        <!-- Cover Overlay -->
+        <div class="hero-image-overlay"></div>
+        <div style="position:absolute; inset:0; background: url('/images/image.png') center/cover no-repeat; opacity:0.15;"></div>
+        
+        <div class="hero-content">
+            <div class="hero-info">
+                <div class="hero-tag" x-text="featuredApp.category">Featured App</div>
+                <h2 class="hero-title" x-text="featuredApp.name"></h2>
+                <p class="hero-desc" x-text="featuredApp.tagline"></p>
+            </div>
+            <div class="hero-action">
+                <button @click.stop="installApp(featuredApp)" 
+                    class="store-btn"
+                    :class="isInstalled(featuredApp.id) ? 'installed-btn' : 'get-btn'"
+                    :disabled="isInstalled(featuredApp.id) || loadingId === featuredApp.id">
+                    <template x-if="loadingId === featuredApp.id">
+                        <span><i class="fa-solid fa-spinner fa-spin"></i> GETTING</span>
+                    </template>
+                    <template x-if="loadingId !== featuredApp.id">
+                        <span x-text="isInstalled(featuredApp.id) ? 'Installed' : 'Get'"></span>
+                    </template>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>

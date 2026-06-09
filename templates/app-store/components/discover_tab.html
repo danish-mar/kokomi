@@ -1,0 +1,75 @@
+<!-- ═══ COMPONENT: Discover Tab ═══ -->
+<div class="store-tab-content" x-show="sidebarTab === 'discover'">
+    <!-- When Search Query is active -->
+    <template x-if="searchQ.trim() !== ''">
+        <div>
+            <div class="store-header">
+                <div class="store-title-area">
+                    <h1>Search Results</h1>
+                    <p x-text="'Found ' + getFilteredApps().length + ' results for \'' + searchQ + '\''"></p>
+                </div>
+            </div>
+            
+            <div class="store-section">
+                <div class="apps-grid">
+                    <template x-for="app in getFilteredApps()" :key="app.id">
+                        {% include "app-store/components/app_card.html" %}
+                    </template>
+                </div>
+                <template x-if="getFilteredApps().length === 0">
+                    <div style="text-align: center; padding: 48px; color: var(--text-tertiary);">
+                        <i class="fa-solid fa-magnifying-glass" style="font-size: 32px; margin-bottom: 16px; display: block; opacity: 0.5;"></i>
+                        <p style="font-size: 15px; margin: 0;">No apps found matching "<span x-text="searchQ"></span>"</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Normal Discover view when no search active -->
+    <template x-if="searchQ.trim() === ''">
+        <div>
+            <!-- Header -->
+            <div class="store-header">
+                <div class="store-title-area">
+                    <h1>Discover</h1>
+                    <p>Handpicked selections, custom personas, and apps.</p>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-tertiary);">
+                    Kokomi AI Developer Program
+                </div>
+            </div>
+
+            <!-- Featured Hero Banner -->
+            {% include "app-store/components/hero_banner.html" %}
+
+            <!-- Apps Catalog Section -->
+            <section class="store-section">
+                <div class="section-header">
+                    <h2>Apps</h2>
+                    <a href="#" @click.prevent="sidebarTab = 'mcp'" class="see-all">See All</a>
+                </div>
+                
+                <div class="apps-grid">
+                    <template x-for="app in apps.filter(a => a.type === 'mcp').slice(0, 3)" :key="app.id">
+                        {% include "app-store/components/app_card.html" %}
+                    </template>
+                </div>
+            </section>
+
+            <!-- Personas Catalog Section -->
+            <section class="store-section">
+                <div class="section-header">
+                    <h2>Personas</h2>
+                    <a href="#" @click.prevent="sidebarTab = 'personas'" class="see-all">See All</a>
+                </div>
+                
+                <div class="apps-grid">
+                    <template x-for="app in apps.filter(a => a.type === 'character').slice(0, 3)" :key="app.id">
+                        {% include "app-store/components/app_card.html" %}
+                    </template>
+                </div>
+            </section>
+        </div>
+    </template>
+</div>

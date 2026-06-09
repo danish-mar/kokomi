@@ -1,0 +1,136 @@
+<!-- ═══ COMPONENT: App Details Modal ═══ -->
+<div class="store-modal-overlay" x-show="modalOpen" x-cloak>
+    <!-- Backdrop -->
+    <div class="store-modal-backdrop" @click="closeModal()"></div>
+    
+    <!-- Modal container -->
+    <div class="store-modal-container" 
+         x-show="modalOpen"
+         x-transition:enter="transition ease-out duration-250"
+         x-transition:enter-start="opacity-0 scale-95 translate-y-6"
+         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+         x-transition:leave-end="opacity-0 scale-95 translate-y-6">
+        
+        <!-- Close button -->
+        <button class="store-modal-close" @click="closeModal()">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <!-- Header -->
+        <div class="store-modal-header" x-show="selectedApp" x-data="{ modalConfirmState: false }">
+            <div class="store-modal-icon" style="position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 22%;">
+                <template x-if="selectedApp && selectedApp.type === 'character' && !modalImgFailed">
+                    <img :src="catalogBaseUrl + '/' + selectedApp.path + '/profile.png'" 
+                          class="app-card-image"
+                          style="width: 100%; height: 100%; object-fit: cover; border-radius: 22%;"
+                          @error="modalImgFailed = true" />
+                </template>
+                <template x-if="!selectedApp || selectedApp.type !== 'character' || modalImgFailed">
+                    <i :class="selectedApp && selectedApp.icon.startsWith('fa-') ? 'fa-solid ' + selectedApp.icon : (selectedApp ? selectedApp.icon : '')"></i>
+                </template>
+            </div>
+            <div class="store-modal-meta">
+                <h3 class="store-modal-name" x-text="selectedApp && selectedApp.name"></h3>
+                <p class="store-modal-developer" x-text="selectedApp && ('Developer: ' + selectedApp.developer)"></p>
+                
+                <div style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; color:var(--text-secondary);">
+                    <span style="font-weight:700; color:var(--accent);" x-text="selectedApp && selectedApp.rating"></span>
+                    <span style="color:var(--text-quaternary);">
+                        <i class="fa-solid fa-star" style="color:var(--accent); font-size:10px;"></i>
+                    </span>
+                    <span style="color:var(--text-quaternary);" x-text="selectedApp && ('(' + selectedApp.reviews + ' reviews)')"></span>
+                </div>
+            </div>
+            <div style="margin-left:auto; padding-right:24px; display: flex; gap: 8px; align-items: center;">
+                <template x-if="selectedApp && loadingId === selectedApp.id">
+                    <button class="store-btn installed-btn" style="cursor: default;" disabled>
+                        <span><i class="fa-solid fa-spinner fa-spin"></i> GETTING</span>
+                    </button>
+                </template>
+                
+                <template x-if="selectedApp && loadingId !== selectedApp.id">
+                    <div>
+                        <!-- Get button if not installed -->
+                        <template x-if="!isInstalled(selectedApp.id)">
+                            <button @click="installApp(selectedApp)" class="store-btn get-btn" style="cursor: pointer; padding: 6px 16px;">
+                                Get
+                            </button>
+                        </template>
+                        
+                        <!-- If installed, handle bin/confirm cycle -->
+                        <template x-if="isInstalled(selectedApp.id)">
+                            <div style="display: flex; align-items: center;">
+                                <!-- Initial Bin Button -->
+                                <template x-if="!modalConfirmState">
+                                    <button @click="modalConfirmState = true" 
+                                            class="store-btn get-btn" 
+                                            style="background: rgba(255,59,48,0.1); color: #ff3b30; border: none; cursor: pointer; padding: 6px 14px;"
+                                            title="Uninstall/Remove">
+                                        <i class="fa-regular fa-trash-can" style="font-size: 13px;"></i>
+                                    </button>
+                                </template>
+                                
+                                <!-- Confirm/Remove Button -->
+                                <template x-if="modalConfirmState">
+                                    <button @click="executeUninstallDirect(selectedApp); modalConfirmState = false;" 
+                                            @mouseleave="modalConfirmState = false"
+                                            class="store-btn" 
+                                            style="background: #ff3b30; color: #fff; border: none; cursor: pointer; padding: 6px 14px; font-size: 11px; font-weight: 700;"
+                                            x-text="selectedApp.type === 'character' ? 'Remove' : 'Confirm'">
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Scrollable content -->
+        <div class="store-modal-body" x-show="selectedApp">
+            <!-- Mock Screenshot Gallery -->
+            <div class="store-modal-gallery">
+                <div class="store-modal-gallery-item">
+                    <i class="fa-solid fa-desktop" style="font-size:18px; margin-right:8px; opacity:0.5;"></i> Overview Preview
+                </div>
+                <div class="store-modal-gallery-item">
+                    <i class="fa-solid fa-terminal" style="font-size:18px; margin-right:8px; opacity:0.5;"></i> Execution Logs
+                </div>
+                <div class="store-modal-gallery-item">
+                    <i class="fa-solid fa-gears" style="font-size:18px; margin-right:8px; opacity:0.5;"></i> Configuration Settings
+                </div>
+            </div>
+
+            <!-- Description -->
+            <h4 style="font-size:14px; font-weight:700; color:var(--text-primary); margin:0 0 10px 0;">Description</h4>
+            <p class="store-modal-description" x-text="selectedApp && selectedApp.description"></p>
+
+            <!-- Deployment Specs/Instructions -->
+            <template x-if="selectedApp && selectedApp.type === 'mcp'">
+                <div>
+                    <h4 style="font-size:14px; font-weight:700; color:var(--text-primary); margin:0 0 10px 0;">Deployment Arguments</h4>
+                    <pre style="background:var(--bg-input); border:1px solid var(--border); padding:10px 14px; border-radius:10px; font-family:'SF Mono',monospace; font-size:11px; overflow-x:auto; color:var(--text-secondary); margin-bottom:24px;"
+                         x-text="selectedApp && JSON.stringify(selectedApp.installData, null, 2)"></pre>
+                </div>
+            </template>
+
+            <!-- Specs Grid -->
+            <div class="store-modal-specs" x-show="selectedApp">
+                <div class="spec-item">
+                    <span class="spec-label">Compatibility</span>
+                    <span class="spec-value" x-text="selectedApp && selectedApp.specs.compatibility"></span>
+                </div>
+                <div class="spec-item">
+                    <span class="spec-label">Size</span>
+                    <span class="spec-value" x-text="selectedApp && selectedApp.specs.size"></span>
+                </div>
+                <div class="spec-item" style="grid-column: span 2;">
+                    <span class="spec-label">Developer Group</span>
+                    <span class="spec-value" x-text="selectedApp && (selectedApp.developer + ' © 2026')"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

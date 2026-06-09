@@ -49,6 +49,12 @@ async def whatsapp_page(request: Request):
         return RedirectResponse(url="/onboarding")
     return templates.TemplateResponse(request, "whatsapp.html", {"request": request})
 
+@router.get("/app-store")
+async def app_store_page(request: Request):
+    if not check_setup():
+        return RedirectResponse(url="/onboarding")
+    return templates.TemplateResponse(request, "app-store/index.html", {"request": request})
+
 @router.get("/insights")
 async def insights_page(request: Request):
     if not check_setup():

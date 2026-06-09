@@ -1,7 +1,7 @@
 [project]
 name = "kokomi"
-version = "4.5.0"
-release-name = "springlit splendor"
+version = "5.0.0"
+release-name = "everlasting moonglow"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"

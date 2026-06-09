@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.0] - 2026-06-09
+
+### Added
+
+- **Integrated App Store & Persona Store**:
+  - Implemented backend and frontend interfaces to install, toggle, and uninstall apps and characters directly from the online GitHub store.
+  - Added a premium, inline click-to-confirm uninstallation workflow (bin icon transitions to a confirmation button).
+  - Supported automatic character profile/avatar download from repositories, falling back gracefully to UI icons.
+- **MCP App Bridge**:
+  - Added an stdio-based MCP bridge (`app/mcp_app_bridge.py`) that lists, configures, and runs local applications as tools dynamically.
+  - Extracts and exposes structured parameter typing (`inputSchema`) from `manifest.json` files for tool-calling models.
+- **Reasoning Handling Refinements**:
+  - Fortified `parse_thinking` to extract multiple, nested, or unclosed `<think>`/`<thought>` tag contents from reasoning models.
+- **Lifecycle Integration**:
+  - Integrated pool refresh triggers upon deleting or creating MCP servers to dynamically synchronize available tools.
+
 ## [v4.5.0] - 2026-06-02
 
 ### Added

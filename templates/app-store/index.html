@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}App Store — Kokomi AI{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/app-store.css?v=0.0.4">
+<script src="/static/js/app-store.js?v=0.0.4"></script>
+{% endblock %}
+
+{% block body %}
+<div class="app-store-page" x-data="appStoreApp()" x-cloak>
+    <div class="store-layout">
+        
+        <!-- Left Sidebar -->
+        <aside class="store-sidebar">
+            <!-- Sidebar Header with back link to Chat -->
+            <div class="sidebar-header" style="padding: 24px 20px 16px; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 18px; font-weight: 800; tracking: -0.02em; color: var(--text-primary);">App Store</span>
+                <a href="/" style="color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                    <i class="fa-solid fa-chevron-left" style="font-size: 10px;"></i> Chat
+                </a>
+            </div>
+
+            <!-- Fuzzy Search Input Box -->
+            <div class="store-sidebar-search">
+                <div class="store-sidebar-search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" x-model="searchQ" placeholder="Search">
+                </div>
+            </div>
+
+            <!-- Navigation List -->
+            <nav class="store-sidebar-nav">
+                <button @click="sidebarTab = 'discover'" class="store-sidebar-nav-item" :class="sidebarTab === 'discover' ? 'active' : ''">
+                    <i class="fa-solid fa-compass"></i>
+                    <span>Discover</span>
+                </button>
+                <button @click="sidebarTab = 'personas'" class="store-sidebar-nav-item" :class="sidebarTab === 'personas' ? 'active' : ''">
+                    <i class="fa-solid fa-user-astronaut"></i>
+                    <span>Personas</span>
+                </button>
+                <button @click="sidebarTab = 'mcp'" class="store-sidebar-nav-item" :class="sidebarTab === 'mcp' ? 'active' : ''">
+                    <i class="fa-solid fa-server"></i>
+                    <span>Apps</span>
+                </button>
+                <button @click="sidebarTab = 'updates'" class="store-sidebar-nav-item" :class="sidebarTab === 'updates' ? 'active' : ''">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Updates</span>
+                </button>
+            </nav>
+
+            <!-- Profile Widget at the bottom -->
+            <div class="store-profile-widget">
+                <div class="store-profile-avatar">
+                    <template x-if="prefs.user_avatar">
+                        <img :src="prefs.user_avatar" alt="Avatar">
+                    </template>
+                    <template x-if="!prefs.user_avatar">
+                        <span x-text="(prefs.user_name || 'U').charAt(0).toUpperCase()"></span>
+                    </template>
+                </div>
+                <div class="store-profile-info">
+                    <p class="store-profile-name" x-text="prefs.user_name || 'User'"></p>
+                    <p class="store-profile-sub">Kokomi AI Account</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Main Content Panel -->
+        <main class="store-main" style="position: relative;">
+            
+            <!-- Mobile Chat Back Button -->
+            <a href="/" class="store-mobile-back-btn">
+                <i class="fa-solid fa-chevron-left"></i>
+                <span>Chat</span>
+            </a>
+
+            <!-- Mobile Header (iOS HIG Style) -->
+            <header class="store-mobile-header">
+                <div class="ios-header-top">
+                    <span class="ios-date" x-show="sidebarTab === 'discover'" x-text="getIosDate()"></span>
+                    <div class="ios-title-row">
+                        <h1 class="ios-large-title" x-text="sidebarTab === 'discover' ? 'Today' : (sidebarTab === 'personas' ? 'Personas' : (sidebarTab === 'mcp' ? 'Apps' : 'Updates'))"></h1>
+                        
+                        <!-- Profile/Avatar on the right -->
+                        <div class="ios-profile-avatar">
+                            <template x-if="prefs.user_avatar">
+                                <img :src="prefs.user_avatar" alt="Avatar">
+                            </template>
+                            <template x-if="!prefs.user_avatar">
+                                <span x-text="(prefs.user_name || 'U').charAt(0).toUpperCase()"></span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Search bar below the title on mobile (all tabs except updates) -->
+                <div class="ios-search-bar" x-show="sidebarTab !== 'updates'">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" x-model="searchQ" placeholder="Search apps, personas...">
+                </div>
+            </header>
+
+            <!-- Save/Install Loader Spinner -->
+            <div x-show="loadingId" x-transition style="position: absolute; top: 24px; right: 48px; display:flex; align-items:center; gap:8px; background:var(--bg-elevated); border:1px solid var(--border); padding:8px 16px; border-radius:20px; box-shadow: var(--shadow-sm); z-index: 10;">
+                <i class="fa-solid fa-circle-notch fa-spin" style="font-size:12px;color:var(--accent);"></i>
+                <span style="font-size:12px;color:var(--text-secondary);font-weight:500;">Installing App…</span>
+            </div>
+
+            <!-- Tab Content Sheets -->
+            {% include "app-store/components/discover_tab.html" %}
+            {% include "app-store/components/mcp_tab.html" %}
+            {% include "app-store/components/personas_tab.html" %}
+            {% include "app-store/components/updates_tab.html" %}
+
+        </main>
+    </div>
+
+    <!-- App Details Modal -->
+    {% include "app-store/components/app_modal.html" %}
+
+    <!-- Global Toast Notifications -->
+    <div class="toast-container" x-show="toast.show" x-transition style="display:none;">
+        <div class="toast-notification" :class="toast.type">
+            <i class="fa-solid" :class="toast.type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'"></i>
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}

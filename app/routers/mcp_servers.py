@@ -40,6 +40,10 @@ async def create_mcp_server(config: MCPServerCreate):
         "created_at": datetime.datetime.utcnow().isoformat(),
     }
     save_mcp(servers)
+    try:
+        await init_pool(force=True)
+    except Exception as e:
+        print(f"[MCP Server Manager] warning refreshing pool: {e}")
     return servers[sid]
 
 
@@ -50,6 +54,10 @@ async def update_mcp_server(sid: str, config: MCPServerCreate):
         raise HTTPException(404, "Not found")
     servers[sid].update(config.model_dump())
     save_mcp(servers)
+    try:
+        await init_pool(force=True)
+    except Exception as e:
+        print(f"[MCP Server Manager] warning refreshing pool: {e}")
     return servers[sid]
 
 
@@ -67,6 +75,11 @@ async def delete_mcp_server(sid: str):
         if sid in c.get("mcp_servers", []):
             c["mcp_servers"].remove(sid)
     save_chars(chars)
+
+    try:
+        await init_pool(force=True)
+    except Exception as e:
+        print(f"[MCP Server Manager] warning refreshing pool: {e}")
     return {"ok": True}
 
 

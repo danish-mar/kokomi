@@ -1,0 +1,24 @@
+<!-- ═══ COMPONENT: MCP Servers Tab ═══ -->
+<div class="store-tab-content" x-show="sidebarTab === 'mcp'">
+    <div class="store-header">
+        <div class="store-title-area">
+            <h1>Apps</h1>
+            <p>Powerful tools and integrations to extend AI capabilities with external data &amp; execution.</p>
+        </div>
+    </div>
+
+    <section class="store-section">
+        <div class="apps-grid">
+            <template x-for="app in getFilteredApps('mcp')" :key="app.id">
+                {% include "app-store/components/app_card.html" %}
+            </template>
+        </div>
+        
+        <template x-if="getFilteredApps('mcp').length === 0">
+            <div style="text-align: center; padding: 48px; color: var(--text-tertiary);">
+                <i class="fa-solid fa-magnifying-glass" style="font-size: 32px; margin-bottom: 16px; display: block; opacity: 0.5;"></i>
+                <p style="font-size: 15px; margin: 0;">No apps found matching "<span x-text="searchQ"></span>"</p>
+            </div>
+        </template>
+    </section>
+</div>

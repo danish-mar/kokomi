@@ -769,6 +769,7 @@ async def chat_stream(req: ChatRequest):
                         p_active_model = _normalize_model(char_model)
 
                     f_content = ""
+                    f_reasoning = ""
                     collected_chunks = []
                     skipped = False
                     char_tool_calls_log: list = []
@@ -791,9 +792,11 @@ async def chat_stream(req: ChatRequest):
 
                         if hasattr(chunk, "reasoning_content") and chunk.reasoning_content:
                             if ts_first is None: ts_first = time.time()
+                            f_reasoning += chunk.reasoning_content
                             await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.reasoning_content, 'character_id': pid, 'model': p_active_model})}\n\n")
                         elif chunk.additional_kwargs and "reasoning_content" in chunk.additional_kwargs:
                             if ts_first is None: ts_first = time.time()
+                            f_reasoning += chunk.additional_kwargs["reasoning_content"]
                             await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': chunk.additional_kwargs['reasoning_content'], 'character_id': pid, 'model': p_active_model})}\n\n")
 
                         if chunk.content:
@@ -902,6 +905,9 @@ async def chat_stream(req: ChatRequest):
 
                     if full_response and getattr(full_response, "tool_calls", None) and tool_defs:
                         curr_resp = full_response
+                        if "<think>" in f_content and "</think>" not in f_content:
+                            f_content += "\n</think>\n"
+                            await queue.put(f"data: {json.dumps({'type': 'content', 'delta': '\n</think>\n', 'character_id': pid, 'model': p_active_model})}\n\n")
                         for _ in range(3):
                             if not curr_resp.tool_calls:
                                 break
@@ -961,8 +967,10 @@ async def chat_stream(req: ChatRequest):
                             async for c in target_llm.astream(p_lc_msgs):
                                 inner_chunks.append(c)
                                 if hasattr(c, "reasoning_content") and c.reasoning_content:
+                                    f_reasoning += c.reasoning_content
                                     await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': c.reasoning_content, 'character_id': pid})}\n\n")
                                 elif c.additional_kwargs and "reasoning_content" in c.additional_kwargs:
+                                    f_reasoning += c.additional_kwargs["reasoning_content"]
                                     await queue.put(f"data: {json.dumps({'type': 'reasoning', 'delta': c.additional_kwargs['reasoning_content'], 'character_id': pid})}\n\n")
                                 if c.content:
                                     fcl += c.content
@@ -1054,6 +1062,8 @@ async def chat_stream(req: ChatRequest):
                             new_resp = reduce(add, inner_chunks) if inner_chunks else None
                             if new_resp and getattr(new_resp, "tool_calls", None):
                                 curr_resp = new_resp
+                                if "<think>" in f_content and "</think>" not in f_content:
+                                    f_content += "\n</think>\n"
                             else:
                                 break
                     
@@ -1067,8 +1077,12 @@ async def chat_stream(req: ChatRequest):
                              await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pending_buffer, 'character_id': pid, 'model': p_active_model})}\n\n")
                         pending_buffer = ""
 
-                    frw, thk = parse_thinking(f_content)
-                    cleaned = frw.strip()
+                    if f_reasoning.strip():
+                        thk = f_reasoning.strip()
+                        cleaned = f_content.strip()
+                    else:
+                        frw, thk = parse_thinking(f_content)
+                        cleaned = frw.strip()
                     # Strip Artifact blocks but leave a small anchor placeholder
                     def art_repl(m):
                         aid = re.search(r'id="([^"]*)"', m.group(0))

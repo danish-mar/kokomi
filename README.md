@@ -67,6 +67,14 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
 - **Thread-Safe Workspace Isolation**: All compiled documents are saved dynamically inside the active workflow storage folder (`active_storage_dir`) for a clean project structure rather than general common uploads.
 - **Dynamic Allowed Tools UI**: Added a dynamically populated router system that decouples Alpine.js templates from hardcoded lists, automatically fetching active Model Context Protocol (MCP) server tools on load.
 
+### 🛒 Integrated App & Persona Store (New)
+
+- **One-Click Installation**: Discover, install, toggle, and uninstall advanced tools and characters directly from a remote GitHub app catalog.
+- **MCP App Bridge**: Stdio-based MCP server wrapper (`app/mcp_app_bridge.py`) that reads schemas from local app manifests (`manifest.json`) and exposes them dynamically to the LLM.
+- **Inline Confirmation Workflows**: Sleek, iOS-style bin-to-confirm pattern for clean uninstallation.
+- **Auto-Avatar Scraper**: Downloads profile images directly from remote repos, falling back seamlessly to visual glyphs if missing.
+
+
 ### 📚 RAG & Knowledge Spaces
 
 - **Vector Orchestration**: Documents are automatically chunked and vectorized using `gemini-embedding-2` and stored in **Qdrant**.

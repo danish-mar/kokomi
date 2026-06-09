@@ -129,11 +129,12 @@ app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 # Register all routers
-from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, workflows, insights  # noqa: E402
+from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, workflows, insights, app_store  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(pages.router)
 app.include_router(prefs.router)
+app.include_router(app_store.router)
 app.include_router(mcp_servers.router)
 app.include_router(characters.router)
 app.include_router(conversations.router)

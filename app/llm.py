@@ -212,11 +212,35 @@ def resolve_character_model(char: dict, provider: str) -> str:
 
 
 def parse_thinking(raw: str):
-    """Extract <think>…</think> block from raw LLM output."""
-    m = re.search(r"<think>(.*?)</think>", raw, re.DOTALL)
-    if m:
-        return raw[: m.start()].strip() + raw[m.end():].strip(), m.group(1).strip()
-    return raw.strip(), None
+    """Extract all <think>…</think> blocks from raw LLM output, combining them if multiple exist.
+    Also handles unclosed <think> tag at the end.
+    """
+    thinking_parts = []
+    content_parts = []
+    
+    current = raw
+    while True:
+        m = re.search(r"<think>(.*?)</think>", current, re.DOTALL)
+        if m:
+            content_parts.append(current[:m.start()])
+            thinking_parts.append(m.group(1))
+            current = current[m.end():]
+        else:
+            break
+            
+    # Check if there is an unclosed <think> tag in the remaining text
+    if "<think>" in current:
+        parts = current.split("<think>", 1)
+        content_parts.append(parts[0])
+        thinking_parts.append(parts[1])
+    else:
+        content_parts.append(current)
+        
+    cleaned_content = "".join(content_parts).strip()
+    thinking_content = "\n\n".join([p.strip() for p in thinking_parts if p.strip()]).strip()
+    
+    return cleaned_content, (thinking_content if thinking_content else None)
+
 
 
 # ── LLM factory ───────────────────────────────────────────────────────
