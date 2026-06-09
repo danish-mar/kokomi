@@ -271,19 +271,15 @@ def _boost_accessed(hits):
                 "last_accessed": now,
                 "access_count": hit.payload.get("access_count", 0) + 1,
             }
-            points_to_update.append(PointStruct(
-                id=hit.id,
-                vector=hit.vector if hit.vector else None,
-                payload=updated
-            ))
+            points_to_update.append((hit.id, updated))
         
         if points_to_update:
             # Use set_payload for efficiency (no vector re-upload needed)
-            for pt in points_to_update:
+            for pid, payload in points_to_update:
                 qdrant.set_payload(
                     collection_name=MEMORY_COLLECTION,
-                    payload=pt.payload,
-                    points=[pt.id]
+                    payload=payload,
+                    points=[pid]
                 )
     except Exception as e:
         print(f"Access boost error (non-fatal): {e}")

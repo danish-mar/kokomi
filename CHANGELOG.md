@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.6] - 2026-06-10
+
+### Fixed
+
+- **Memory Search Access Boost validation error**:
+  - Resolved `PointStruct` validation error on production when accessing `_boost_accessed`. Avoids initializing `PointStruct` when updating payloads via `qdrant.set_payload`, eliminating non-fatal Pydantic validation failures.
+
 ## [v5.0.5] - 2026-06-10
 
 ### Fixed
