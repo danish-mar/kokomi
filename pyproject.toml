@@ -1,12 +1,13 @@
 [project]
 name = "kokomi"
-version = "5.0.0"
+version = "5.0.1"
 release-name = "everlasting moonglow"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.3",
+    "pip",
     "jinja2>=3.1.6",
     "langchain>=1.2.15",
     "langchain-groq>=1.1.2",

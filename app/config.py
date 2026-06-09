@@ -11,7 +11,7 @@ try:
         VERSION = _pyproject_data["project"]["version"]
         RELEASE_NAME = _pyproject_data["project"].get("release-name", "")
 except Exception:
-    VERSION = "5.0.0"
+    VERSION = "5.0.1"
     RELEASE_NAME = "everlasting moonglow"
 
 # ── API Keys ────────────────────────────────────────────────────────

@@ -126,6 +126,15 @@ async def install_item(payload: InstallPayload):
                 if uv_bin:
                     cmd = [uv_bin, "pip", "install", "-r", req_file]
                 else:
+                    # check if pip is available, otherwise bootstrap it via ensurepip
+                    try:
+                        import pip
+                    except ImportError:
+                        print("[App Store] pip not found, trying to bootstrap it via ensurepip...")
+                        try:
+                            subprocess.run([sys.executable, "-m", "ensurepip", "--default-pip"], check=True)
+                        except Exception as ep:
+                            print(f"[App Store] Failed to bootstrap pip: {ep}")
                     cmd = [sys.executable, "-m", "pip", "install", "-r", req_file]
                 
                 try:

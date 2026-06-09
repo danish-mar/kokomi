@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.1] - 2026-06-09
+
+### Fixed
+
+- **Hardened App Store Installation**:
+  - Added traceback logging for installation handler exceptions.
+  - Implemented 120-second execution timeouts on dependency installs.
+  - Gracefully handles empty files and 404 responses for missing `requirements.txt` assets.
+
+### Changed
+
+- **CI Workflow and Build Optimization**:
+  - Added `workflow_dispatch` to allow manual workflow triggering via CLI or UI.
+  - Switched Docker image builds from GHA cache to GHCR registry caching (`type=registry`) for faster build layer uploads/downloads.
+  - Enabled Buildx cache mounts for `uv` package sync and `apt` package manager in the `Dockerfile`.
+  - Disabled SLSA provenance generation to eliminate attestation overhead.
+
 ## [v5.0.0] - 2026-06-09
 
 ### Added
