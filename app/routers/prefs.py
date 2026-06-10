@@ -308,11 +308,21 @@ async def run_update():
 
             yield format_status("Stashing any uncommitted local changes...", 30)
             await asyncio.sleep(0.8)
-            subprocess.run(["git", "stash"], capture_output=True, text=True, timeout=15)
+            subprocess.run([
+                "git",
+                "-c", "safe.directory=*",
+                "stash"
+            ], capture_output=True, text=True, timeout=15)
 
             yield format_status("Pulling changes from GitHub repository...", 55)
             await asyncio.sleep(0.8)
-            pull_res = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
+            pull_res = subprocess.run([
+                "git",
+                "-c", "safe.directory=*",
+                "-c", "credential.helper=",
+                "-c", "http.extraHeader=",
+                "pull", "https://github.com/danish-mar/kokomi.git", "main"
+            ], capture_output=True, text=True, timeout=30)
             if pull_res.returncode != 0:
                 err_msg = pull_res.stderr.strip() or "git pull failed"
                 yield format_status(f"Error pulling changes: {err_msg}", 55, error=err_msg)

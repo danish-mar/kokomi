@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.9] - 2026-06-10
+
+### Fixed
+
+- **Software Update Git Authentication Prompt Error**:
+  - Overrode the `git pull` and `git stash` subprocess execution to use `safe.directory=*` and disable credential helpers/expired GitHub Actions headers (`-c credential.helper= -c http.extraHeader=`).
+  - Forces Git to pull anonymously and directly from the public HTTPS GitHub URL, preventing credential prompts and crashes inside production Docker containers.
+
 ## [v5.0.8] - 2026-06-10
 
 ### Fixed
