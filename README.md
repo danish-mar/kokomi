@@ -60,6 +60,13 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
   - **Paste-to-Attach**: Support for `Ctrl+V` pasting of screenshots and files directly into the chat bar.
 - **Cinematic UI DNA**: Seamless cross-fade transitions between the Welcome Screen and active chats, powered by Alpine.js for a fluid OS-like experience.
 
+### 📈 Live Data Visualization — Charts & Diagrams (New)
+
+- **AI-Generated Charts (Chart.js)**: The assistant renders quantitative data inline as a special artifact (`<Artifact type="chart">`). Supports bar, line, pie, doughnut, radar, and polar-area charts — and the AI never picks colors: every chart is **auto-themed** to your active accent and light/dark mode, re-theming live when you toggle.
+- **AI-Generated Diagrams (Mermaid)**: Processes, architectures, and relationships render inline as themed diagrams (`<Artifact type="mermaid">`) — flowcharts, sequence, ER, class, gantt, and mindmaps — sanitized under Mermaid's strict security mode.
+- **Expand & Export**: Every chart and diagram has a full-screen **Expand** view and a one-click **Export PNG** that composites onto a solid, theme-matched background (no transparent surprises).
+- **Offline-First**: Chart.js and Mermaid are vendored locally and fetched on first boot — no runtime CDN dependency.
+
 ### 📁 Multi-Agent Document & Slide Deck Exporter Suite (New)
 
 - **Universal Document Compiler**: Integrated tools (`pdf_export`, `docx_export`, `pptx_export`, `excel_export`) to compile rich research reports into publication-grade assets including PDFs, Word Documents, PowerPoint slide decks, and Excel spreadsheets.
@@ -105,6 +112,7 @@ Kokomi AI is a high-fidelity, autonomous agentic platform designed to orchestrat
 | **Database**      | SQLite + SQLAlchemy  | Async-native relational database (WAL mode) replacing blocking JSON. |
 | **Vector Store**  | Qdrant               | Used for RAG knowledge spaces and long-term memory retrieval.        |
 | **Frontend**      | Alpine.js + Tailwind | Lightweight, reactive UI with premium Apple-inspired styling.        |
+| **Visualization** | Chart.js + Mermaid   | Inline, auto-themed AI-generated charts and diagrams (vendored offline). |
 | **Deployment**    | Docker + UV          | Containerized environment with Astral's `uv` for 10x faster builds.  |
 | **Communication** | REST / SSE           | Real-time streaming to WebUI and RESTful bridge to WhatsApp.         |
 

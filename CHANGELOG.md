@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.2.0] - 2026-06-11
+
+### Added
+
+- **Live AI Charts (Chart.js)**: The assistant can now render quantitative data inline as a special artifact (`<Artifact type="chart">`). Charts are auto-themed to the active color scheme, support `bar`/`line`/`pie`/`doughnut`/`radar`/`polarArea`, and stream in with a shimmer placeholder. Each chart has **Expand** (full-screen interactive view) and **Export PNG** actions.
+- **Live AI Diagrams (Mermaid)**: The assistant can render diagrams inline (`<Artifact type="mermaid">`) — flowcharts, sequence, ER, class, gantt, mindmap — themed to the app palette, with the same Expand and Export PNG actions. Rendered under `securityLevel: 'strict'` to sanitize model-authored labels.
+- **Offline Vendoring**: Chart.js 4.4.6 and Mermaid 11.4.1 are added to the CDN asset manifest and fetched on first boot, keeping the app fully offline-capable.
+
+### Changed
+
+- **Chat Router Modularized**: The ~2,000-line `app/routers/chat.py` was split into a focused `app/routers/chat/` package (conversation, uploads, workflows, files, templates, sockets, schedules) with no behavioral change — route order and precedence preserved.
+
+### Fixed
+
+- **Docker In-Container Updates**: The published image baked an expired GitHub Actions `http.<host>.extraheader` credential into `.git/config` (because `.git` ships in the image), causing every in-app update to fail with `could not read Username for 'https://github.com': terminal prompts disabled`. The updater now strips any persisted `extraheader` before pulling, and CI checkout no longer persists credentials, so future images ship a clean `.git`.
+- **Chart PNG Export Transparency**: Exports now composite onto a guaranteed-opaque surface color (forcing alpha to 1), fixing see-through PNGs caused by the glassmorphism (translucent) theme surfaces.
+- **Diagram Theming on Modern Color Themes**: Mermaid theme colors are now resolved to concrete `rgb()`/`rgba()` via canvas before use, fixing `Unsupported color format` crashes when the active theme defines variables with `color-mix()`/`oklch()`.
+- **Diagram Robustness**: Markdown code fences accidentally emitted around Mermaid source are stripped before rendering, and render failures now show the actual error plus the diagram source instead of a generic message.
+
 ## [v5.1.2] - 2026-06-10
 
 ### Fixed

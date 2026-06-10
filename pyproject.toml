@@ -1,7 +1,7 @@
 [project]
 name = "kokomi"
-version = "5.1.2"
-release-name = "everlasting moonglow"
+version = "5.2.0"
+release-name = "celestial cartography"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -466,11 +466,20 @@ export function getChatActions() {
         },
 
         renderArtifactCard(art) {
+            // Charts and diagrams are special artifact types rendered live on the frontend.
+            const atype = (art.type || '').toLowerCase();
+            if (atype === 'chart') {
+                return this.renderChartCard(art);
+            }
+            if (atype === 'mermaid' || atype === 'diagram') {
+                return this.renderDiagramCard(art);
+            }
+
             const icon = art.icon || 'fa-solid fa-file-code';
             const title = art.title || 'Untitled Artifact';
             const type = art.type || 'file';
             const content = art.content || '';
-            
+
             return `
                 <div class="artifact-box mt-4 mb-2" data-art-id="${art.id}">
                     <div class="artifact-header">
@@ -499,9 +508,607 @@ export function getChatActions() {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        },
+
+        renderChartCard(art) {
+            const title = art.title || 'Chart';
+            const raw = (art.content || '').trim();
+
+            // While streaming (or before the JSON is complete/valid) show a shimmer
+            // placeholder. The real canvas only appears once the spec parses, so the
+            // chart manager never tries to render a half-streamed object.
+            let spec = null;
+            if (!art.streaming && raw) {
+                try { spec = JSON.parse(raw); } catch (e) { spec = null; }
+            }
+
+            if (!spec) {
+                return `
+                <div class="kokomi-chart kokomi-chart--loading mt-4 mb-2">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon"><i class="fa-solid fa-chart-column"></i></div>
+                            <div>
+                                <p class="artifact-title">${this.escapeHtml(title)}</p>
+                                <p class="artifact-meta uppercase tracking-wider">chart</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-spinner fa-spin text-[11px] text-4"></i>
+                    </div>
+                    <div class="kokomi-chart-shimmer"></div>
+                </div>`;
+            }
+
+            // Store the validated spec in an attribute; the manager hydrates the canvas
+            // after this HTML is injected into the DOM (survives re-render).
+            return `
+                <div class="kokomi-chart mt-4 mb-2" data-chart-id="${art.id}" data-spec="${window.KokomiCharts.escapeAttr(raw)}">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon"><i class="fa-solid fa-chart-column"></i></div>
+                            <div>
+                                <p class="artifact-title">${this.escapeHtml(title)}</p>
+                                <p class="artifact-meta uppercase tracking-wider">${this.escapeHtml((spec.type || 'bar'))} chart</p>
+                            </div>
+                        </div>
+                        <div class="kokomi-chart-actions">
+                            <button class="kokomi-chart-btn" title="Expand"
+                                    onclick="window.KokomiCharts.expand('${art.id}', this)">
+                                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                            </button>
+                            <button class="kokomi-chart-btn" title="Export as PNG"
+                                    onclick="window.KokomiCharts.exportPNG('${art.id}', this)">
+                                <i class="fa-solid fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="kokomi-chart-canvas-wrap"><canvas></canvas></div>
+                </div>`;
+        },
+
+        renderDiagramCard(art) {
+            const title = art.title || 'Diagram';
+            const code = window.KokomiDiagrams.clean(art.content || '');
+
+            // Show a shimmer until the diagram fully streams in; only then hand the
+            // (complete) Mermaid source to the manager to render.
+            if (art.streaming || !code) {
+                return `
+                <div class="kokomi-diagram kokomi-diagram--loading mt-4 mb-2">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon"><i class="fa-solid fa-diagram-project"></i></div>
+                            <div>
+                                <p class="artifact-title">${this.escapeHtml(title)}</p>
+                                <p class="artifact-meta uppercase tracking-wider">diagram</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-spinner fa-spin text-[11px] text-4"></i>
+                    </div>
+                    <div class="kokomi-chart-shimmer"></div>
+                </div>`;
+            }
+
+            return `
+                <div class="kokomi-diagram mt-4 mb-2" data-diagram-id="${art.id}" data-diagram="${window.KokomiCharts.escapeAttr(code)}">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon"><i class="fa-solid fa-diagram-project"></i></div>
+                            <div>
+                                <p class="artifact-title">${this.escapeHtml(title)}</p>
+                                <p class="artifact-meta uppercase tracking-wider">diagram</p>
+                            </div>
+                        </div>
+                        <div class="kokomi-chart-actions">
+                            <button class="kokomi-chart-btn" title="Expand"
+                                    onclick="window.KokomiDiagrams.expand('${art.id}', this)">
+                                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+                            </button>
+                            <button class="kokomi-chart-btn" title="Export as PNG"
+                                    onclick="window.KokomiDiagrams.exportPNG('${art.id}', this)">
+                                <i class="fa-solid fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="kokomi-diagram-host"></div>
+                </div>`;
         }
     };
     return actions;
+}
+
+/**
+ * KokomiCharts — module-level manager that turns chart-type artifacts into themed
+ * Chart.js canvases. Because message bubbles are re-rendered from HTML strings on
+ * every streamed token, we can't bind charts reactively; instead a debounced
+ * MutationObserver re-hydrates any un-rendered chart card after the DOM settles,
+ * and re-themes existing charts when the app's light/dark/accent theme changes.
+ */
+const KokomiCharts = {
+    instances: {},          // chartId -> { chart, canvas, specStr }
+    _observersReady: false,
+
+    escapeAttr(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    },
+
+    theme() {
+        const css = getComputedStyle(document.documentElement);
+        const get = (v, fallback) => (css.getPropertyValue(v).trim() || fallback);
+        const isDark = document.documentElement.classList.contains('dark');
+        const accent = get('--accent', '#505081');
+        const text = get('--text-tertiary', get('--text-quaternary', isDark ? '#9ca3af' : '#6b7280'));
+        const grid = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+        const palette = [accent, '#4ADE80', '#FBBF24', '#F87171', '#A78BFA', '#2DD4BF', '#60A5FA', '#F472B6'];
+        return { isDark, accent, text, grid, palette };
+    },
+
+    _hexToRgba(hex, a) {
+        const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex).trim());
+        if (!m) return hex;
+        return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
+    },
+
+    buildConfig(spec, t) {
+        const allowed = ['bar', 'line', 'pie', 'doughnut', 'radar', 'polarArea'];
+        const type = allowed.includes(spec.type) ? spec.type : 'bar';
+        const isCircular = ['pie', 'doughnut', 'polarArea'].includes(type);
+
+        const datasets = (spec.datasets || []).map((ds, i) => {
+            const color = t.palette[i % t.palette.length];
+            if (isCircular) {
+                return {
+                    label: ds.label || '',
+                    data: ds.data || [],
+                    backgroundColor: (ds.data || []).map((_, j) => t.palette[j % t.palette.length]),
+                    borderColor: t.isDark ? 'rgba(0,0,0,0.25)' : '#fff',
+                    borderWidth: 2
+                };
+            }
+            if (type === 'line') {
+                return {
+                    label: ds.label || '',
+                    data: ds.data || [],
+                    borderColor: color,
+                    backgroundColor: this._hexToRgba(color, 0.15),
+                    pointBackgroundColor: color,
+                    pointRadius: 3,
+                    borderWidth: 2,
+                    tension: 0.35,
+                    fill: true
+                };
+            }
+            return {
+                label: ds.label || '',
+                data: ds.data || [],
+                backgroundColor: type === 'radar' ? this._hexToRgba(color, 0.2) : color,
+                borderColor: color,
+                borderWidth: type === 'radar' ? 2 : 0,
+                borderRadius: type === 'bar' ? 6 : 0
+            };
+        });
+
+        const scales = isCircular ? {} : (type === 'radar' ? {
+            r: { angleLines: { color: t.grid }, grid: { color: t.grid }, pointLabels: { color: t.text }, ticks: { color: t.text, backdropColor: 'transparent' } }
+        } : {
+            x: { stacked: !!spec.stacked, ticks: { color: t.text }, grid: { color: t.grid } },
+            y: { stacked: !!spec.stacked, ticks: { color: t.text }, grid: { color: t.grid }, beginAtZero: true }
+        });
+
+        return {
+            type,
+            data: { labels: spec.labels || [], datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 600, easing: 'easeOutQuart' },
+                plugins: {
+                    legend: {
+                        display: datasets.length > 1 || isCircular,
+                        labels: { color: t.text, usePointStyle: true, boxWidth: 8, padding: 14 }
+                    },
+                    title: spec.title ? { display: true, text: spec.title, color: t.text } : { display: false },
+                    tooltip: { intersect: false, mode: isCircular ? 'nearest' : 'index' }
+                },
+                scales
+            }
+        };
+    },
+
+    renderOne(card) {
+        if (!window.Chart) return;                 // Chart.js not loaded — leave card as-is
+        const id = card.getAttribute('data-chart-id');
+        const specStr = card.getAttribute('data-spec') || '';
+        const canvas = card.querySelector('canvas');
+        if (!canvas) return;
+
+        const prev = this.instances[id];
+        // Skip if this exact canvas already shows this exact spec (avoids churn).
+        if (prev && prev.canvas === canvas && prev.specStr === specStr) return;
+        if (prev && prev.chart) { try { prev.chart.destroy(); } catch (e) {} }
+
+        let spec;
+        try { spec = JSON.parse(specStr); } catch (e) { return; }
+
+        try {
+            const chart = new window.Chart(canvas.getContext('2d'), this.buildConfig(spec, this.theme()));
+            this.instances[id] = { chart, canvas, specStr };
+        } catch (e) {
+            console.error('[KokomiCharts] render failed:', e);
+        }
+    },
+
+    hydrate() {
+        document.querySelectorAll('.kokomi-chart[data-spec]').forEach((card) => this.renderOne(card));
+    },
+
+    rethemeAll() {
+        // Re-render every live chart with fresh theme colors, keeping its spec.
+        Object.values(this.instances).forEach(({ canvas, specStr }) => {
+            if (canvas && canvas.isConnected) {
+                const card = canvas.closest('.kokomi-chart');
+                if (card) { this.instances[card.getAttribute('data-chart-id')] = null; this.renderOne(card); }
+            }
+        });
+    },
+
+    // Resolve a guaranteed-OPAQUE background color for export. The UI is glassy, so
+    // surfaces are often translucent (rgba with alpha < 1) — exporting with that alpha
+    // yields a see-through PNG. Walk up from the chart to the first surface that has
+    // any fill, then force its alpha to 1 so the PNG is solid.
+    _exportBg(el) {
+        let node = el;
+        while (node && node.nodeType === 1) {
+            const c = getComputedStyle(node).backgroundColor || '';
+            const m = c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)$/);
+            if (m) {
+                const alpha = m[4] === undefined ? 1 : parseFloat(m[4]);
+                if (alpha > 0.01) return `rgb(${m[1]}, ${m[2]}, ${m[3]})`;  // drop alpha → opaque
+            }
+            node = node.parentElement;
+        }
+        return document.documentElement.classList.contains('dark') ? '#16161a' : '#ffffff';
+    },
+
+    // Composite the (transparent) chart canvas onto an opaque themed background and
+    // trigger a PNG download. Shared by the inline card and the expanded modal.
+    _downloadCanvas(canvas, title, bgEl) {
+        if (!canvas) return;
+        const tmp = document.createElement('canvas');
+        tmp.width = canvas.width;
+        tmp.height = canvas.height;
+        const ctx = tmp.getContext('2d');
+        ctx.fillStyle = this._exportBg(bgEl || canvas);
+        ctx.fillRect(0, 0, tmp.width, tmp.height);
+        ctx.drawImage(canvas, 0, 0);
+        const name = String(title || 'chart')
+            .replace(/[^a-z0-9\-_]+/gi, '_').toLowerCase().replace(/^_+|_+$/g, '') || 'chart';
+        const a = document.createElement('a');
+        a.download = name + '.png';
+        a.href = tmp.toDataURL('image/png');
+        a.click();
+    },
+
+    exportPNG(id, btn) {
+        const card = btn ? btn.closest('.kokomi-chart') : document.querySelector(`.kokomi-chart[data-chart-id="${id}"]`);
+        const inst = this.instances[id];
+        let canvas = inst && inst.canvas;
+        if ((!canvas || !canvas.isConnected) && card) canvas = card.querySelector('canvas');
+        const title = (card && card.querySelector('.artifact-title') && card.querySelector('.artifact-title').textContent) || 'chart';
+        this._downloadCanvas(canvas, title, card);
+    },
+
+    expand(id, btn) {
+        const card = btn ? btn.closest('.kokomi-chart') : document.querySelector(`.kokomi-chart[data-chart-id="${id}"]`);
+        if (!card || !window.Chart) return;
+        let spec;
+        try { spec = JSON.parse(card.getAttribute('data-spec') || ''); } catch (e) { return; }
+        const titleEl = card.querySelector('.artifact-title');
+        const title = (titleEl && titleEl.textContent || 'Chart').trim();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'kokomi-chart-overlay';
+        const titleHtml = title.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        overlay.innerHTML = `
+            <div class="kokomi-chart-modal">
+                <div class="kokomi-chart-modal-head">
+                    <span class="kokomi-chart-modal-title"><i class="fa-solid fa-chart-column"></i> ${titleHtml}</span>
+                    <div class="kokomi-chart-actions">
+                        <button class="kokomi-chart-btn" data-act="export" title="Export as PNG"><i class="fa-solid fa-download"></i></button>
+                        <button class="kokomi-chart-btn" data-act="close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+                <div class="kokomi-chart-modal-body"><canvas></canvas></div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const canvas = overlay.querySelector('canvas');
+        const chart = new window.Chart(canvas.getContext('2d'), this.buildConfig(spec, this.theme()));
+        // The modal lays out after append; force a resize on the next frame so the
+        // chart fills the full modal body instead of its initial (small) size.
+        requestAnimationFrame(() => { try { chart.resize(); } catch (e) {} });
+
+        const close = () => {
+            try { chart.destroy(); } catch (e) {}
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+        };
+        const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        overlay.querySelector('[data-act="close"]').onclick = close;
+        overlay.querySelector('[data-act="export"]').onclick = () => this._downloadCanvas(canvas, title, overlay.querySelector('.kokomi-chart-modal'));
+        document.addEventListener('keydown', onKey);
+    },
+
+    setupObservers() {
+        if (this._observersReady) return;
+        this._observersReady = true;
+
+        let t = null;
+        const obs = new MutationObserver(() => {
+            clearTimeout(t);
+            t = setTimeout(() => this.hydrate(), 120);
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+
+        // Re-theme charts when the app toggles dark mode / accent (class on <html>).
+        let tt = null;
+        const themeObs = new MutationObserver(() => {
+            clearTimeout(tt);
+            tt = setTimeout(() => this.rethemeAll(), 150);
+        });
+        themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+
+        this.hydrate();
+    }
+};
+
+window.KokomiCharts = KokomiCharts;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => KokomiCharts.setupObservers());
+} else {
+    KokomiCharts.setupObservers();
+}
+
+/**
+ * KokomiDiagrams — renders chart-style "mermaid" artifacts into themed Mermaid SVGs.
+ * Mirrors KokomiCharts: a debounced MutationObserver hydrates un-rendered diagram
+ * cards, results are cached by id+source so bubble re-renders re-inject instantly,
+ * and a theme observer re-renders everything when light/dark/accent changes.
+ */
+const KokomiDiagrams = {
+    cache: {},              // diagramId -> { code, svg }
+    _seq: 0,
+    _observersReady: false,
+
+    // Models frequently wrap Mermaid in a ```mermaid fence despite instructions, which
+    // makes the parser fail with "No diagram type detected". Strip a leading/trailing fence.
+    clean(s) {
+        let c = String(s || '').trim();
+        c = c.replace(/^```[a-zA-Z0-9]*[ \t]*\r?\n?/, '').replace(/\r?\n?```\s*$/, '').trim();
+        return c;
+    },
+
+    _esc(s) {
+        const d = document.createElement('div');
+        d.textContent = String(s);
+        return d.innerHTML;
+    },
+
+    // Resolve any CSS color (incl. color-mix()/oklch()/named) to a concrete rgb()/rgba()
+    // string. Mermaid's color lib (khroma) can't parse modern color functions, but a
+    // 1x1 canvas rasterizes them, and reading the pixel gives a safe, concrete value.
+    _resolveColor(val, fb) {
+        const v = (val || '').trim();
+        if (!v) return fb;
+        if (/^#([0-9a-f]{3,8})$/i.test(v) || /^rgb\(/i.test(v)) return v;   // already safe
+        if (window.CSS && CSS.supports && !CSS.supports('color', v)) return fb;
+        try {
+            const c = document.createElement('canvas');
+            c.width = c.height = 1;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = v;
+            ctx.fillRect(0, 0, 1, 1);
+            const d = ctx.getImageData(0, 0, 1, 1).data;
+            return d[3] === 255
+                ? `rgb(${d[0]}, ${d[1]}, ${d[2]})`
+                : `rgba(${d[0]}, ${d[1]}, ${d[2]}, ${(d[3] / 255).toFixed(3)})`;
+        } catch (e) { return fb; }
+    },
+
+    _config() {
+        const css = getComputedStyle(document.documentElement);
+        const col = (v, f) => this._resolveColor(css.getPropertyValue(v).trim(), f);
+        const isDark = document.documentElement.classList.contains('dark');
+        const accent = col('--accent', '#505081');
+        const accentText = col('--accent-text', '#ffffff');
+        const text = col('--text-primary', isDark ? '#e5e7eb' : '#1f2937');
+        const line = col('--text-quaternary', isDark ? '#6b7280' : '#9ca3af');
+        return {
+            startOnLoad: false,
+            securityLevel: 'strict',           // sanitize AI-authored labels
+            theme: 'base',
+            fontFamily: 'inherit',
+            flowchart: { htmlLabels: false, curve: 'basis' },
+            themeVariables: {
+                primaryColor: accent,
+                primaryTextColor: accentText,
+                primaryBorderColor: accent,
+                lineColor: line,
+                textColor: text,
+                secondaryColor: '#4ADE80',
+                tertiaryColor: isDark ? '#2a2a30' : '#f3f4f6',
+                background: 'transparent',
+                fontSize: '14px'
+            }
+        };
+    },
+
+    async render(card) {
+        if (!window.mermaid) return;
+        const id = card.getAttribute('data-diagram-id');
+        const code = card.getAttribute('data-diagram') || '';
+        const host = card.querySelector('.kokomi-diagram-host');
+        if (!host || !code) return;
+
+        if (host.getAttribute('data-rendered-code') === code && host.querySelector('svg')) return;
+
+        // Cached SVG for the same source → inject synchronously (cheap re-render).
+        const cached = this.cache[id];
+        if (cached && cached.code === code) {
+            host.innerHTML = cached.svg;
+            host.setAttribute('data-rendered-code', code);
+            return;
+        }
+
+        try {
+            window.mermaid.initialize(this._config());
+            const renderId = 'mmd-' + String(id).replace(/[^a-z0-9]/gi, '') + '-' + (++this._seq);
+            const { svg } = await window.mermaid.render(renderId, code);
+            this.cache[id] = { code, svg };
+            // The bubble may have re-rendered during the await; target the live host.
+            const liveHost = document.querySelector(`.kokomi-diagram[data-diagram-id="${id}"] .kokomi-diagram-host`);
+            if (liveHost) {
+                liveHost.innerHTML = svg;
+                liveHost.setAttribute('data-rendered-code', code);
+            }
+        } catch (e) {
+            const liveHost = document.querySelector(`.kokomi-diagram[data-diagram-id="${id}"] .kokomi-diagram-host`);
+            if (liveHost) {
+                const msg = (e && e.message) ? e.message : String(e);
+                liveHost.innerHTML = `
+                    <div class="kokomi-diagram-err">
+                        <div class="kokomi-diagram-err-head"><i class="fa-solid fa-triangle-exclamation"></i> Couldn't render this diagram</div>
+                        <div class="kokomi-diagram-err-msg">${this._esc(msg)}</div>
+                        <details><summary>View Mermaid source</summary><pre>${this._esc(code)}</pre></details>
+                    </div>`;
+            }
+            console.error('[KokomiDiagrams] render failed:', e);
+        }
+    },
+
+    hydrate() {
+        if (!window.mermaid) return;
+        document.querySelectorAll('.kokomi-diagram[data-diagram]').forEach((card) => this.render(card));
+    },
+
+    rethemeAll() {
+        this.cache = {};
+        document.querySelectorAll('.kokomi-diagram[data-diagram] .kokomi-diagram-host')
+            .forEach((h) => h.removeAttribute('data-rendered-code'));
+        this.hydrate();
+    },
+
+    _svgFor(id, card) {
+        const code = card.getAttribute('data-diagram') || '';
+        if (this.cache[id] && this.cache[id].code === code) return this.cache[id].svg;
+        const host = card.querySelector('.kokomi-diagram-host');
+        return host ? host.innerHTML : '';
+    },
+
+    // Rasterize a rendered Mermaid <svg> to an opaque PNG and download it.
+    _svgToPng(svgEl, title, bgEl) {
+        if (!svgEl) return;
+        const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+        const rect = svgEl.getBoundingClientRect();
+        const w = Math.ceil((vb && vb.width) || rect.width || 900);
+        const h = Math.ceil((vb && vb.height) || rect.height || 600);
+        const clone = svgEl.cloneNode(true);
+        clone.setAttribute('width', w);
+        clone.setAttribute('height', h);
+        const xml = new XMLSerializer().serializeToString(clone);
+        const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+        const scale = 2;
+        const img = new Image();
+        img.onload = () => {
+            const c = document.createElement('canvas');
+            c.width = w * scale;
+            c.height = h * scale;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = window.KokomiCharts._exportBg(bgEl || svgEl.parentElement);
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(img, 0, 0, c.width, c.height);
+            const name = String(title || 'diagram').replace(/[^a-z0-9\-_]+/gi, '_').toLowerCase().replace(/^_+|_+$/g, '') || 'diagram';
+            const a = document.createElement('a');
+            a.download = name + '.png';
+            a.href = c.toDataURL('image/png');
+            a.click();
+        };
+        img.onerror = (e) => console.error('[KokomiDiagrams] PNG export failed:', e);
+        img.src = url;
+    },
+
+    exportPNG(id, btn) {
+        const card = btn ? btn.closest('.kokomi-diagram') : document.querySelector(`.kokomi-diagram[data-diagram-id="${id}"]`);
+        if (!card) return;
+        const svgEl = card.querySelector('.kokomi-diagram-host svg');
+        const titleEl = card.querySelector('.artifact-title');
+        this._svgToPng(svgEl, (titleEl && titleEl.textContent) || 'diagram', card);
+    },
+
+    expand(id, btn) {
+        const card = btn ? btn.closest('.kokomi-diagram') : document.querySelector(`.kokomi-diagram[data-diagram-id="${id}"]`);
+        if (!card) return;
+        const svg = this._svgFor(id, card);
+        if (!svg) return;
+        const titleEl = card.querySelector('.artifact-title');
+        const title = (titleEl && titleEl.textContent || 'Diagram').trim();
+        const titleHtml = title.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+        const overlay = document.createElement('div');
+        overlay.className = 'kokomi-chart-overlay';
+        overlay.innerHTML = `
+            <div class="kokomi-chart-modal">
+                <div class="kokomi-chart-modal-head">
+                    <span class="kokomi-chart-modal-title"><i class="fa-solid fa-diagram-project"></i> ${titleHtml}</span>
+                    <div class="kokomi-chart-actions">
+                        <button class="kokomi-chart-btn" data-act="export" title="Export as PNG"><i class="fa-solid fa-download"></i></button>
+                        <button class="kokomi-chart-btn" data-act="close" title="Close (Esc)"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+                <div class="kokomi-chart-modal-body kokomi-diagram-modal-body">${svg}</div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+        const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        overlay.querySelector('[data-act="close"]').onclick = close;
+        overlay.querySelector('[data-act="export"]').onclick = () =>
+            this._svgToPng(overlay.querySelector('svg'), title, overlay.querySelector('.kokomi-chart-modal'));
+        document.addEventListener('keydown', onKey);
+    },
+
+    setupObservers() {
+        if (this._observersReady) return;
+        this._observersReady = true;
+
+        let t = null;
+        new MutationObserver(() => {
+            clearTimeout(t);
+            t = setTimeout(() => this.hydrate(), 140);
+        }).observe(document.body, { childList: true, subtree: true });
+
+        let tt = null;
+        new MutationObserver(() => {
+            clearTimeout(tt);
+            tt = setTimeout(() => this.rethemeAll(), 200);
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+
+        this.hydrate();
+    }
+};
+
+window.KokomiDiagrams = KokomiDiagrams;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => KokomiDiagrams.setupObservers());
+} else {
+    KokomiDiagrams.setupObservers();
 }
 
 // Global helper for inline artifact cards
