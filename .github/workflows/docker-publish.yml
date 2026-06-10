@@ -20,6 +20,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Do NOT write the ephemeral GITHUB_TOKEN into .git/config as an
+          # http.extraheader. .git is shipped inside the image (the in-app updater
+          # needs it for `git pull`), so a persisted token would bake in an expired
+          # credential and break every future update with a credential prompt.
+          persist-credentials: false
 
       # Set up Docker Buildx for multi-platform support (optional but recommended)
       - name: Set up Docker Buildx

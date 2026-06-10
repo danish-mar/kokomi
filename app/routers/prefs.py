@@ -314,6 +314,29 @@ async def run_update():
                 "stash"
             ], capture_output=True, text=True, timeout=15)
 
+            # GitHub Actions' checkout bakes an expired auth header into .git/config
+            # (http.https://github.com/.extraheader). Because .git ships inside the
+            # Docker image, every subsequent `git pull` then sends that dead token,
+            # GitHub answers 401, and git falls back to prompting for a username —
+            # which fails as "terminal prompts disabled". Strip any such header so the
+            # pull goes out anonymously against the public repo and succeeds.
+            yield format_status("Clearing stale CI credentials...", 45)
+            await asyncio.sleep(0.4)
+            try:
+                hdrs = subprocess.run([
+                    "git", "-c", "safe.directory=*",
+                    "config", "--local", "--get-regexp", "extraheader"
+                ], capture_output=True, text=True, timeout=10)
+                for line in hdrs.stdout.splitlines():
+                    key = line.split(" ", 1)[0].strip()
+                    if key:
+                        subprocess.run([
+                            "git", "-c", "safe.directory=*",
+                            "config", "--local", "--unset-all", key
+                        ], capture_output=True, text=True, timeout=10)
+            except Exception:
+                pass
+
             yield format_status("Pulling changes from GitHub repository...", 55)
             await asyncio.sleep(0.8)
             env = os.environ.copy()
@@ -323,6 +346,8 @@ async def run_update():
                 "-c", "safe.directory=*",
                 "-c", "credential.helper=",
                 "-c", "credential.https://github.com.helper=",
+                # Override the key inline too, in case it lingers under a different URL form.
+                "-c", "http.https://github.com/.extraheader=",
                 "pull"
             ], env=env, capture_output=True, text=True, timeout=30)
             if pull_res.returncode != 0:
