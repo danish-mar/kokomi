@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.0.8] - 2026-06-10
+
+### Fixed
+
+- **Local CDN Self-Hosting for Pyodide**:
+  - Configured `loadPyodide` to initialize with `indexURL` set to `/static/vendor/` to allow completely offline browser-side Python execution.
+  - Bundled matching `pyodide.asm.js`, `pyodide.asm.wasm`, `pyodide-lock.json`, and `python_stdlib.zip` into the local CDN caching dictionary to avoid loading dynamic modules from external CDNs.
+  - Localized all compatible wheel files for `numpy`, `matplotlib`, `pandas`, and their dependencies inside the offline bundle mapping.
+
 ## [v5.0.7] - 2026-06-10
 
 ### Fixed

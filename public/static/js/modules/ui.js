@@ -288,7 +288,7 @@ export function getUiActions() {
             try {
                 // Initialize Pyodide if not already done
                 if (!window._pyodide) {
-                    window._pyodide = await loadPyodide();
+                    window._pyodide = await loadPyodide({ indexURL: "/static/vendor/" });
                 }
                 
                 // Clear output for fresh run

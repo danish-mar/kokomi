@@ -22,8 +22,27 @@ ASSETS = {
     "webfonts/fa-brands-400.woff2": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/webfonts/fa-brands-400.woff2",
     "webfonts/fa-v4compatibility.woff2": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/webfonts/fa-v4compatibility.woff2",
     
-    # Pyodide
+    # Pyodide Core
     "pyodide.js": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js",
+    "pyodide.asm.js": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.asm.js",
+    "pyodide.asm.wasm": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.asm.wasm",
+    "python_stdlib.zip": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/python_stdlib.zip",
+    "pyodide-lock.json": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide-lock.json",
+    
+    # Pyodide Packages (matplotlib, numpy, pandas & dependencies)
+    "cycler-0.12.1-py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/cycler-0.12.1-py3-none-any.whl",
+    "fonttools-4.51.0-py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/fonttools-4.51.0-py3-none-any.whl",
+    "kiwisolver-1.4.5-cp312-cp312-pyodide_2024_0_wasm32.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/kiwisolver-1.4.5-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "matplotlib-3.5.2-cp312-cp312-pyodide_2024_0_wasm32.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/matplotlib-3.5.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "matplotlib_pyodide-0.2.2-py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/matplotlib_pyodide-0.2.2-py3-none-any.whl",
+    "numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/numpy-1.26.4-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "packaging-23.2-py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/packaging-23.2-py3-none-any.whl",
+    "pandas-2.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pandas-2.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "pillow-10.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pillow-10.2.0-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "pyparsing-3.1.2-py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyparsing-3.1.2-py3-none-any.whl",
+    "python_dateutil-2.9.0.post0-py2.py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+    "pytz-2024.1-py2.py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pytz-2024.1-py2.py3-none-any.whl",
+    "six-1.16.0-py2.py3-none-any.whl": "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/six-1.16.0-py2.py3-none-any.whl",
     
     # Marked
     "marked.min.js": "https://cdn.jsdelivr.net/npm/marked/marked.min.js",
