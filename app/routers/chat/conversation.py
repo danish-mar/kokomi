@@ -1,3 +1,4 @@
+"""The core conversational endpoints: blocking `/chat` and streaming `/chat/stream`."""
 import asyncio
 import datetime
 import json
@@ -8,201 +9,24 @@ import base64
 from functools import reduce
 from operator import add
 
-from app.mcp import MCP_TOOL_CALL_TIMEOUT
-
-from fastapi import APIRouter, HTTPException, File, UploadFile, WebSocket, WebSocketDisconnect
-import shutil
+from fastapi import APIRouter, HTTPException
 import os
 
-router = APIRouter(prefix="/api")
-
-@router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """Upload a file to the data/uploads directory."""
-    try:
-        file_id = f"{uuid.uuid4()}_{file.filename}"
-        file_path = os.path.join("data/uploads", file_id)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        return {
-            "id": file_id,
-            "filename": file.filename,
-            "size": os.path.getsize(file_path),
-            "content_type": file.content_type,
-            "url": f"/uploads/{file_id}"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 from pypdf import PdfReader
-from app.workflow import is_complex_workflow, MultiAgentWorkflowEngine, load_workflows
-
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
-from langchain_core.tools import tool
 
-from app.config import GROQ_API_KEY
+from app.mcp import MCP_TOOL_CALL_TIMEOUT, get_pool_tools
 from app.llm import get_llm, generate_title, parse_thinking, _normalize_model, resolve_character_model
-from app.mcp import get_pool_tools, init_pool, pool_is_stale
 from app.models import ChatRequest
 from app.storage import load_prefs, load_chars, load_convos, save_convos
 from app.insights import log_generation
 from app.memory import save_memory, search_memories, summarize_conversation
 from app.tools.memory_tool import get_memory_tool
 
+from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _ensure_pool
 
-@tool
-def open_url(url: str) -> str:
-    """Open a specified URL or URI scheme in a new browser tab or trigger a native app action.
-    This supports standard web links (http/https) and native URI schemes:
-    - tel:+91XXXXXXXXXX (Phone dialer)
-    - mailto:you@gmail.com (Email client)
-    - sms:+91XXXXXXXXXX (SMS app)
-    - whatsapp://send?phone=91XXXXXXXXXX (WhatsApp)
-    - youtube://watch?v=ID (YouTube app)
-    - maps:?q=Location (Maps app)
-    Use this immediately when the user asks to "call", "mail", "sms", "play", or "open" something.
-    """
-    return f"Successfully triggered opening of {url}"
-
-
-def _get_tavily_tool(prefs: dict):
-    """Build a search tool (Tavily or SearxNG) from prefs, or None if not configured."""
-    try:
-        if not prefs.get("web_search_enabled"):
-            return None
-            
-        provider = prefs.get("search_provider") or "tavily"
-        
-        if provider == "searxng":
-            from langchain_core.tools import tool
-            import httpx
-            import json
-            
-            searxng_url = prefs.get("searxng_url") or "http://localhost:8080"
-            searxng_url = searxng_url.rstrip("/")
-            
-            @tool("web_search")
-            def searxng_search_tool(query: str, max_results: int = 5) -> str:
-                """Search the web for up-to-date facts on a specific query, specifying the number of results desired (max_results)."""
-                try:
-                    resp = httpx.get(
-                        f"{searxng_url}/",
-                        params={"q": query, "format": "json"},
-                        timeout=10.0
-                    )
-                    if resp.status_code != 200:
-                        resp = httpx.get(
-                            f"{searxng_url}/search",
-                            params={"q": query, "format": "json"},
-                            timeout=10.0
-                        )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        raw_results = data.get("results", [])
-                        formatted_results = []
-                        for r in raw_results[:max_results]:
-                            formatted_results.append({
-                                "title": r.get("title") or "",
-                                "url": r.get("url") or "",
-                                "content": r.get("content") or r.get("snippet") or ""
-                            })
-                        return json.dumps(formatted_results)
-                    else:
-                        return f"SearxNG query failed with status code {resp.status_code}."
-                except Exception as e:
-                    return f"SearxNG query failed: {str(e)}."
-            
-            return searxng_search_tool
-            
-        from langchain_core.tools import tool
-        from langchain_community.tools.tavily_search import TavilySearchResults
-        import json
-        
-        api_key = prefs.get("tavily_api_key") or ""
-        if not api_key:
-            return None
-        import os
-        os.environ["TAVILY_API_KEY"] = api_key
-        
-        @tool("web_search")
-        def tavily_search_tool(query: str, max_results: int = 5) -> str:
-            """Search the web for up-to-date facts on a specific query, specifying the number of results desired (max_results)."""
-            try:
-                tavily = TavilySearchResults(max_results=max_results, tavily_api_key=api_key)
-                res = tavily.invoke(query)
-                return json.dumps(res)
-            except Exception as e:
-                return f"Tavily search failed: {str(e)}"
-                
-        return tavily_search_tool
-    except Exception:
-        return None
-
-def _get_scrape_tool(prefs: dict):
-    """Build a scrape_page tool from prefs, or None if not configured."""
-    try:
-        if not prefs.get("web_scrape_enabled"):
-            return None
-            
-        from langchain_core.tools import tool
-        import httpx
-        from html.parser import HTMLParser
-        
-        @tool("scrape_page")
-        def scrape_page_tool(url: str) -> str:
-            """Scrape a webpage and return clean text content, stripped of JavaScript, CSS, and HTML tags."""
-            class TextExtractor(HTMLParser):
-                def __init__(self):
-                    super().__init__()
-                    self.text_parts = []
-                    self.in_ignored_tag = False
-                    self.ignored_tags = {"script", "style", "head", "meta", "link", "noscript", "svg"}
-
-                def handle_starttag(self, tag, attrs):
-                    if tag in self.ignored_tags:
-                        self.in_ignored_tag = True
-
-                def handle_endtag(self, tag):
-                    if tag in self.ignored_tags:
-                        self.in_ignored_tag = False
-
-                def handle_data(self, data):
-                    if not self.in_ignored_tag:
-                        clean_data = data.strip()
-                        if clean_data:
-                            self.text_parts.append(clean_data)
-
-                def get_text(self):
-                    return "\n".join(self.text_parts)
-
-            try:
-                headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                }
-                resp = httpx.get(url, headers=headers, follow_redirects=True, timeout=15.0)
-                if resp.status_code == 200:
-                    parser = TextExtractor()
-                    parser.feed(resp.text)
-                    text = parser.get_text()
-                    if len(text) > 12000:
-                        text = text[:12000] + "\n\n[Content truncated due to length limits...]"
-                    return text if text.strip() else "Webpage returned no extractable text content."
-                else:
-                    return f"Failed to retrieve page content. Status code: {resp.status_code}"
-            except Exception as e:
-                return f"Error occurred while scraping the page: {str(e)}"
-                
-        return scrape_page_tool
-    except Exception:
-        return None
-
-async def _ensure_pool():
-    """Lazily initialize the MCP pool if it's stale or not ready."""
-    if pool_is_stale():
-        await init_pool()
+router = APIRouter(prefix="/api")
 
 
 # ── Non-streaming chat ───────────────────────────────────────────────
@@ -329,7 +153,7 @@ async def chat(req: ChatRequest):
                 "\n\nYou have access to a web scraping tool called 'scrape_page'. "
                 "USE it to extract clean text from any URL when you need to read page contents."
             )
-        
+
         if prefs.get("browser_redirect_enabled", True):
             tool_defs.append(open_url)
             builtin_tools[open_url.name] = open_url
@@ -349,7 +173,7 @@ async def chat(req: ChatRequest):
             rounds = 0
             while response.tool_calls and rounds < max_rounds:
                 rounds += 1
-                
+
                 # Clean tool calls to guarantee valid and matching IDs in history
                 clean_tool_calls = []
                 for tc in response.tool_calls:
@@ -395,9 +219,9 @@ async def chat(req: ChatRequest):
                     except Exception as e:
                         res_txt = f"Error: {e}"
                     tool_calls_log.append({
-                        "name": tool_name, 
-                        "args": tool_args, 
-                        "result": res_txt, 
+                        "name": tool_name,
+                        "args": tool_args,
+                        "result": res_txt,
                         "icon": tool_icons.get(tool_name, "fa-wrench"),
                         "description": ui_status_text
                     })
@@ -433,15 +257,15 @@ async def chat(req: ChatRequest):
         conv_id = str(uuid.uuid4())[:12]
         title = await generate_title(req.message, content)
         convos[conv_id] = {
-            "title": title, 
-            "character_id": char_id, 
-            "messages": history, 
+            "title": title,
+            "character_id": char_id,
+            "messages": history,
             "updated_at": now,
             "is_anonymous": req.is_anonymous
         }
     else:
         convos[conv_id].update({
-            "messages": history, 
+            "messages": history,
             "updated_at": now,
             "is_anonymous": req.is_anonymous
         })
@@ -460,23 +284,23 @@ async def chat(req: ChatRequest):
             usage = response.usage
         elif hasattr(response, "response_metadata"):
             usage = response.response_metadata.get("token_usage", {})
-        
+
         prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or usage.get("prompt_token_count")
         completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens") or usage.get("candidates_token_count")
         total_tokens = usage.get("total_tokens") or usage.get("total_token_count")
-        
+
         # Fallback: estimate from character count
         if not prompt_tokens and req.message:
             prompt_tokens = len(req.message) // 4
         if not completion_tokens and content:
             completion_tokens = len(content) // 4
-        
+
         if not total_tokens and prompt_tokens and completion_tokens:
             total_tokens = prompt_tokens + completion_tokens
-        
+
         gen_time = time.time() - t0
         tps = (completion_tokens / gen_time) if (completion_tokens and gen_time > 0) else None
-        
+
         asyncio.create_task(log_generation({
             "timestamp": datetime.datetime.utcnow().isoformat(),
             "model": active_model,
@@ -567,7 +391,7 @@ async def chat_stream(req: ChatRequest):
                     tool_icons = {k: v for k, v in tool_icons.items() if k in all_selected_tools}
 
                 builtin_tools = {}
-                
+
                 if req.space_id:
                     from app.rag import get_space_tool
                     space_tool = get_space_tool(req.space_id)
@@ -591,7 +415,7 @@ async def chat_stream(req: ChatRequest):
 
                 for err in mcp_errors:
                     await queue.put(f"data: {json.dumps({'type': 'warning', 'message': err})}\n\n")
-                
+
                 mcp_warning_text = ""
                 if mcp_errors:
                     mcp_warning_text = "\n\n⚠️ MCP Connection Warnings:\n" + "\n".join([f"- {e}" for e in mcp_errors])
@@ -620,15 +444,15 @@ async def chat_stream(req: ChatRequest):
                                 try:
                                     # Signal start
                                     await queue.put(f"data: {json.dumps({'type': 'tool_start', 'character_id': char_id, 'name': 'memory_search', 'icon': 'fa-brain', 'description': 'Searching memory...'})}\n\n")
-                                    
+
                                     # Perform the actual search (blocking call run in thread pool if needed, but search_memories is usually fast enough)
                                     # For now, we'll keep it simple as search_memories is I/O bound
                                     mems = search_memories(char_id, req.message)
-                                    
+
                                     # Signal end
                                     res_text = f"Found {len(mems)} relevant past interactions" if mems else "No relevant memories found"
                                     await queue.put(f"data: {json.dumps({'type': 'tool_end', 'character_id': char_id, 'name': 'memory_search', 'result': res_text})}\n\n")
-                                    
+
                                     return char_id, mems
                                 except Exception as e:
                                     print(f"Parallel memory retrieval failed for {char_id}: {e}")
@@ -649,7 +473,7 @@ async def chat_stream(req: ChatRequest):
 
                     char_name = p_char.get("name", pid)
                     p_persona = p_char.get("persona", "")
-                    
+
                     # Add pre-retrieved memory context
                     if pid in memory_contexts:
                         p_persona += memory_contexts[pid]
@@ -745,17 +569,49 @@ async def chat_stream(req: ChatRequest):
                         )
                         p_persona = (artifact_instr + "\n\n") * 15 + p_persona
 
+                        # Chart capability: charts are a special artifact type rendered
+                        # live with Chart.js on the frontend (auto-themed — do NOT specify
+                        # colors). Added once (no multiplier) to keep the prompt lean.
+                        chart_instr = (
+                            "[CHARTS ENABLED]\n"
+                            "To visualize quantitative data, emit a CHART as a special artifact: "
+                            "<Artifact id=\"unique_id\" title=\"Chart Title\" type=\"chart\">{...json...}</Artifact>.\n"
+                            "The body MUST be a single valid JSON object (no markdown, no comments) with this schema:\n"
+                            "{\"type\": \"bar\"|\"line\"|\"pie\"|\"doughnut\"|\"radar\"|\"polarArea\", "
+                            "\"labels\": [\"A\",\"B\",...], "
+                            "\"datasets\": [{\"label\": \"Series name\", \"data\": [1,2,...]}], "
+                            "\"stacked\": false}\n"
+                            "Do NOT set colors or styling — the UI themes the chart to match the app automatically. "
+                            "Use a chart only when it genuinely aids understanding; otherwise answer normally.\n"
+                            "[/CHARTS ENABLED]"
+                        )
+                        p_persona = chart_instr + "\n\n" + p_persona
+
+                        # Diagram capability: Mermaid diagrams rendered live & themed on
+                        # the frontend. Added once (no multiplier).
+                        diagram_instr = (
+                            "[DIAGRAMS ENABLED]\n"
+                            "To show processes, architectures, relationships, or timelines, emit a DIAGRAM "
+                            "as a special artifact: <Artifact id=\"unique_id\" title=\"Diagram Title\" type=\"mermaid\">...mermaid code...</Artifact>.\n"
+                            "The body MUST be valid Mermaid syntax (e.g. 'graph TD', 'sequenceDiagram', 'erDiagram', "
+                            "'flowchart LR', 'gantt', 'mindmap', 'classDiagram'). No markdown fences, no extra prose inside.\n"
+                            "Do NOT set colors/themes — the UI themes the diagram to match the app automatically. "
+                            "Use a diagram only when it genuinely clarifies; otherwise answer normally.\n"
+                            "[/DIAGRAMS ENABLED]"
+                        )
+                        p_persona = diagram_instr + "\n\n" + p_persona
+
                     # Process attachments for the prompt (Vision + Text)
                     text_parts = [req.message]
                     image_blocks = []
-                    
+
                     if req.attachments:
                         for att in req.attachments:
                             filename = att.get("filename")
                             file_id = att.get("id")
                             file_path = os.path.join("data/uploads", file_id)
                             ext = filename.lower().split('.')[-1]
-                            
+
                             try:
                                 if os.path.exists(file_path):
                                     if ext in ["jpg", "jpeg", "png", "webp"]:
@@ -781,7 +637,7 @@ async def chat_stream(req: ChatRequest):
                                             text_parts.append(f"\n\n[Attached File: {filename}]\n{content}")
                             except Exception as e:
                                 text_parts.append(f"\n\n[Error reading {filename}: {e}]")
-                    
+
                     # Construct Multimodal Human Message
                     human_content = [{"type": "text", "text": "\n".join(text_parts)}]
                     human_content.extend(image_blocks)
@@ -796,19 +652,19 @@ async def chat_stream(req: ChatRequest):
                                 p_lc_msgs.append(AIMessage(content=m["content"]))
                             else:
                                 p_lc_msgs.append(HumanMessage(content=f"({sender} said): {m['content']}"))
-                    
+
                     # Add current multimodal message
                     p_lc_msgs.append(HumanMessage(content=human_content))
 
 
                     char_model = resolve_character_model(p_char, provider)
                     char_llm = get_llm(prefs, streaming=True, model_override=char_model)
-                    
+
                     # Bind tools including memory tool if enabled
                     char_tool_defs = tool_defs.copy()
                     if p_char.get("memory_enabled", True) and prefs.get("memory_enabled", True):
                         char_tool_defs.append(get_memory_tool(pid))
-                        
+
                     target_llm = char_llm.bind_tools(char_tool_defs) if char_tool_defs else char_llm
 
                     ts_start = time.time()
@@ -963,7 +819,7 @@ async def chat_stream(req: ChatRequest):
                         for _ in range(max_rounds):
                             if not curr_resp.tool_calls:
                                 break
-                            
+
                             # Clean tool calls to guarantee valid and matching IDs in history
                             clean_tool_calls = []
                             for tc in curr_resp.tool_calls:
@@ -1043,7 +899,7 @@ async def chat_stream(req: ChatRequest):
                                     fcl += c.content
                                     if is_debug:
                                         print(c.content, end="", flush=True)
-                                    
+
                                     # Periodic stats update
                                     now_iso = datetime.datetime.utcnow().isoformat()
                                     now = time.time()
@@ -1078,7 +934,7 @@ async def chat_stream(req: ChatRequest):
                                                         art_id = attrs.get("id", str(uuid.uuid4())[:8])
                                                         art_meta = attrs
                                                         art_content = ""
-                                                        
+
                                                         await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
                                                         pending_buffer = pending_buffer[tag_end_idx+1:]
                                                         continue
@@ -1119,7 +975,7 @@ async def chat_stream(req: ChatRequest):
 
                             if is_debug:
                                 print("\n[DEBUG] Inner chunk generation finished.")
-                            
+
                             # Final flush of pending_buffer for this tool response cycle
                             if pending_buffer:
                                 await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pending_buffer, 'character_id': pid, 'model': p_active_model})}\n\n")
@@ -1133,7 +989,7 @@ async def chat_stream(req: ChatRequest):
                                     f_content += "\n</think>\n"
                             else:
                                 break
-                    
+
                     # FINAL FINAL flush
                     if pending_buffer:
                         if art_active:
@@ -1155,9 +1011,9 @@ async def chat_stream(req: ChatRequest):
                         aid = re.search(r'id="([^"]*)"', m.group(0))
                         aid_str = aid.group(1) if aid else str(uuid.uuid4())[:8]
                         return f"\n\n[[ARTIFACT:{aid_str}]]\n\n"
-                    
+
                     cleaned = re.sub(r'<Artifact.*?>.*?(</Artifact>|$)', art_repl, cleaned, flags=re.DOTALL).strip()
-                    
+
                     for prefix_pattern in [f"[{char_name}]:", f"{char_name}:", f"[{char_name}] "]:
                         while cleaned.startswith(prefix_pattern):
                             cleaned = cleaned[len(prefix_pattern):].strip()
@@ -1182,24 +1038,24 @@ async def chat_stream(req: ChatRequest):
                                 usage = full_response.usage
                             elif hasattr(full_response, "response_metadata"):
                                 usage = full_response.response_metadata.get("token_usage", {})
-                        
+
                         p_prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or usage.get("prompt_token_count")
                         p_completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens") or usage.get("candidates_token_count")
                         p_total_tokens = usage.get("total_tokens") or usage.get("total_token_count")
-                        
+
                         # Fallback: estimate from character count
                         if not p_prompt_tokens and req.message:
                             p_prompt_tokens = len(req.message) // 4
                         if not p_completion_tokens and cleaned:
                             p_completion_tokens = len(cleaned) // 4
-                        
+
                         if not p_total_tokens and p_prompt_tokens and p_completion_tokens:
                             p_total_tokens = p_prompt_tokens + p_completion_tokens
-                        
+
                         p_gen_time = time.time() - ts_start
                         p_tps = (p_completion_tokens / p_gen_time) if (p_completion_tokens and p_gen_time > 0) else None
                         p_ttft = (ts_first - ts_start) * 1000 if (ts_first and ts_start) else None
-                        
+
                         asyncio.create_task(log_generation({
                             "timestamp": datetime.datetime.utcnow().isoformat(),
                             "model": p_active_model,
@@ -1220,7 +1076,7 @@ async def chat_stream(req: ChatRequest):
                                         save_memory(char_id, item["fact"], importance=item.get("importance", 3.0))
                                     else:
                                         save_memory(char_id, str(item))
-                            
+
                             # Summarize the last few turns to extract new facts
                             asyncio.create_task(background_memory_task(history[-4:], pid, prefs))
 
@@ -1238,8 +1094,8 @@ async def chat_stream(req: ChatRequest):
                     }
                 else:
                     convos[conv_id].update({
-                        "messages": history, 
-                        "updated_at": now_iso, 
+                        "messages": history,
+                        "updated_at": now_iso,
                         "participants": pids,
                         "is_anonymous": req.is_anonymous
                     })
@@ -1247,8 +1103,8 @@ async def chat_stream(req: ChatRequest):
                 save_convos(convos)
 
                 await queue.put(f"data: {json.dumps({
-                    'type': 'done', 
-                    'conversation_id': conv_id, 
+                    'type': 'done',
+                    'conversation_id': conv_id,
                     'title': title,
                     'metrics': {
                         'tps': round(p_tps, 1) if p_tps else None,
@@ -1269,12 +1125,12 @@ async def chat_stream(req: ChatRequest):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                
+
                 err_msg = str(e)
-                if hasattr(e, "exceptions"): 
+                if hasattr(e, "exceptions"):
                     msgs = [str(ex) for ex in e.exceptions]
                     err_msg = "Multiple errors: " + " | ".join(msgs)
-                
+
                 await queue.put(f"data: {json.dumps({'type': 'error', 'message': err_msg})}\n\n")
                 await queue.put("data: [DONE]\n\n")
             finally:
@@ -1301,738 +1157,3 @@ async def chat_stream(req: ChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
-
-
-# ── Workflow API Endpoints ───────────────────────────────────────────
-
-@router.get("/workflows")
-async def get_workflows():
-    """Retrieve all multi-agent LangGraph workflow execution runs."""
-    return load_workflows()
-
-@router.get("/workflows/{run_id}")
-async def get_workflow_details(run_id: str):
-    """Retrieve the high-fidelity state graph for a specific workflow run."""
-    db = load_workflows()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-    return db[run_id]
-
-@router.post("/workflows")
-async def create_workflow_run(payload: dict):
-    """Directly launch a new multi-agent LangGraph workflow execution run."""
-    query = payload.get("message")
-    if not query:
-        raise HTTPException(status_code=400, detail="Query message is required")
-    run_id = await MultiAgentWorkflowEngine.create_run(query)
-    asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-    return {"run_id": run_id, "status": "pending"}
-
-@router.post("/workflows/{run_id}/chat")
-async def chat_with_workflow_supervisor(run_id: str, payload: dict):
-    """Send a collaborative instruction/message directly to the active workflow's supervisor."""
-    from app.workflow import load_workflows, save_workflows, load_prefs, MultiAgentWorkflowEngine
-    from app.llm import get_atlas_llm
-    from langchain_core.messages import SystemMessage, HumanMessage
-    import json
-    
-    query = payload.get("message")
-    if not query:
-        raise HTTPException(status_code=400, detail="Query message is required")
-        
-    db = load_workflows()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-        
-    state = db[run_id]
-    
-    # Record user message
-    state["notifications"].append(f"💬 User: {query}")
-    state["debug_logs"].append(f"Received interactive instruction: {query}")
-    state.setdefault("collaborative_chat", []).append({
-        "role": "user",
-        "sender": "User",
-        "message": query,
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
-    
-    # Auto-start execution if the user request is a start/resume command
-    query_lower = query.lower().strip(" .!?,")
-    start_keywords = ["start", "run", "execute", "go", "launch", "kick off", "begin", "resume", "play", "start it"]
-    if any(k in query_lower for k in start_keywords) and state.get("status") not in ["running"]:
-        state["status"] = "pending"
-        state["notifications"].append("🤖 Supervisor: Starting/Resuming workflow execution as requested.")
-        state.setdefault("collaborative_chat", []).append({
-            "role": "assistant",
-            "sender": "Supervisor",
-            "message": "Understood! I am launching the workflow execution engine now.",
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
-        db[run_id] = state
-        save_workflows(db)
-        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-        return {"status": "started", "response": "Launching workflow execution engine."}
-    
-    # Load LLM
-    prefs = load_prefs()
-    llm = get_atlas_llm(prefs, streaming=False)
-    
-    # Context summary
-    tasks_summary = []
-    for t in state["tasks"]:
-        out_summary = "None"
-        if t.get("output"):
-            out_summary = json.dumps(t["output"])[:300] + "..." if len(json.dumps(t["output"])) > 300 else json.dumps(t["output"])
-        tasks_summary.append({
-            "task_id": t["task_id"],
-            "title": t["title"],
-            "worker_type": t["worker_type"],
-            "status": t["status"],
-            "output_summary": out_summary
-        })
-        
-    prompt = (
-        "You are the Top-Level Workflow Supervisor. The user is collaborating with you on an active workflow.\n"
-        f"Workflow Goal: {state['plan'].get('goal')}\n"
-        f"Active Tasks State:\n{json.dumps(tasks_summary, indent=2)}\n\n"
-        f"User's Instruction: {query}\n\n"
-        "You have two options to respond:\n"
-        "1. CONVERSATION: If the user is asking a question, asking for status, or requesting a simple clarification, answer them directly. "
-        "Format your answer as a clear markdown explanation.\n"
-        "2. APPEND_TASKS: If the user is requesting new actions, modifications, or additions that require specialized worker execution (e.g. searching, writing, exporting PDF, emailing, executing shell commands), define the new task nodes to be appended to the workflow.\n\n"
-        "Respond ONLY with a valid JSON matching this schema:\n"
-        "{\n"
-        '  "response_type": "conversation" or "append_tasks",\n'
-        '  "conversation_text": "Your markdown answer (if response_type is conversation)",\n'
-        '  "new_tasks": [\n'
-        "    {\n"
-        '      "task_id": "t_new_1",\n'
-        '      "title": "Task title",\n'
-        '      "description": "Specific dynamic details for this worker",\n'
-        '      "worker_type": "researcher" or "writer" or "pdf_worker" or "email_worker" or "code_worker",\n'
-        '      "depends_on": [],  # Specify dependencies. You can depend on existing tasks like \"t1\", \"t2\", etc.\n'
-        '      "allowed_tools": ["web_search"],\n'
-        '      "success_criteria": "Criteria"\n'
-        "    }\n"
-        "  ]\n"
-        "}"
-    )
-    
-    try:
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
-        raw_text = response.content.strip()
-        # Strip <think> tags from reasoning models if present
-        if "<think>" in raw_text:
-            import re as _re_think
-            raw_text = _re_think.sub(r'<think>.*?</think>', '', raw_text, flags=_re_think.DOTALL).strip()
-            
-        clean_text = raw_text
-        if "```json" in clean_text:
-            clean_text = clean_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in clean_text:
-            clean_text = clean_text.split("```")[1].split("```")[0].strip()
-            
-        try:
-            res = json.loads(clean_text)
-        except Exception:
-            # Fall back gracefully to conversation mode if parsing fails!
-            res = {
-                "response_type": "conversation",
-                "conversation_text": raw_text
-            }
-        
-        if res.get("response_type") == "conversation":
-            text = res.get("conversation_text", "")
-            state["notifications"].append(f"🤖 Supervisor: {text}")
-            state.setdefault("collaborative_chat", []).append({
-                "role": "assistant",
-                "sender": "Supervisor",
-                "message": text,
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            if state.get("final_result"):
-                state["final_result"] = state["final_result"] + "\n\n---\n\n" + text
-            else:
-                state["final_result"] = text
-            db[run_id] = state
-            save_workflows(db)
-            return {"status": "conversation", "response": text}
-            
-        elif res.get("response_type") == "append_tasks" and res.get("new_tasks"):
-            new_tasks = res["new_tasks"]
-            start_num = len(state["tasks"]) + 1
-            for idx, nt in enumerate(new_tasks):
-                nt["task_id"] = f"t{start_num + idx}"
-                nt["status"] = "pending"
-                nt["retries"] = 0
-                nt["artifacts"] = []
-                state["tasks"].append(nt)
-                state["notifications"].append(f"➕ Supervisor added new task: '{nt['title']}' ({nt['worker_type']})")
-            
-            state.setdefault("collaborative_chat", []).append({
-                "role": "assistant",
-                "sender": "Supervisor",
-                "message": f"Successfully planned and appended {len(new_tasks)} new specialized execution tasks to the pipeline.",
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-            
-            # Reset workflow status to pending to execute new tasks!
-            state["status"] = "pending"
-            db[run_id] = state
-            save_workflows(db)
-            
-            asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-            return {"status": "tasks_appended", "count": len(new_tasks)}
-            
-    except Exception as e:
-        state["notifications"].append(f"⚠️ Supervisor error processing instruction: {str(e)}")
-        db[run_id] = state
-        save_workflows(db)
-        raise HTTPException(status_code=500, detail=str(e))
-        
-    return {"status": "ignored"}
-
-@router.post("/workflows/{run_id}/stop")
-async def stop_workflow(run_id: str):
-    from app.workflow import load_workflows as _lw, save_workflows as _sw, MultiAgentWorkflowEngine
-    db = _lw()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    if db[run_id]["status"] == "running":
-        db[run_id]["status"] = "failed"
-        db[run_id]["final_result"] = "Workflow manually stopped by user."
-        db[run_id].setdefault("debug_logs", []).append(f"[{datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}] 🛑 Workflow manually stopped")
-        _sw(db)
-        
-    # Cancel active asyncio Task if running
-    active_task = MultiAgentWorkflowEngine.active_tasks.get(run_id)
-    if active_task:
-        active_task.cancel()
-        print(f"🛑 [STOP] Forcefully cancelled active asyncio task for workflow {run_id}")
-        
-    return {"status": "stopped"}
-
-@router.post("/workflows/{run_id}/restart")
-async def restart_workflow(run_id: str):
-    from app.workflow import load_workflows as _lw, save_workflows as _sw, MultiAgentWorkflowEngine
-    db = _lw()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    state = db[run_id]
-    if state["status"] in ["failed", "completed"]:
-        # Restart all incomplete/failed tasks
-        failed_set = set(state.get("failed_tasks", []))
-        for t in state.get("tasks", []):
-            if t["task_id"] in failed_set or t["status"] not in ["completed"]:
-                t["status"] = "pending"
-                t["retries"] = 0
-        state["failed_tasks"] = []
-        state["status"] = "pending"
-        state["final_result"] = None
-        state.setdefault("debug_logs", []).append(f"[{datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}] 🔄 Workflow restarted")
-        _sw(db)
-        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-    return {"status": "restarted"}
-
-@router.post("/workflows/{run_id}/recreate")
-async def recreate_workflow(run_id: str):
-    from app.workflow import load_workflows as _lw, MultiAgentWorkflowEngine
-    db = _lw()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    state = db[run_id]
-    prompt = state.get("user_request", "")
-    if not prompt:
-        raise HTTPException(status_code=400, detail="Original prompt not found for this workflow")
-        
-    new_run_id = await MultiAgentWorkflowEngine.create_run(prompt)
-    asyncio.create_task(MultiAgentWorkflowEngine.execute_run(new_run_id))
-    return {"run_id": new_run_id, "status": "pending"}
-
-@router.delete("/workflows/{run_id}")
-async def delete_workflow(run_id: str):
-    """Delete a workflow run and its storage directory."""
-    from app.workflow import load_workflows as _lw, save_workflows as _sw
-    db = _lw()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    wf = db.pop(run_id)
-    _sw(db)
-    
-    # Cleanup Docker sandbox container if present
-    try:
-        from app.container import SandboxManager
-        SandboxManager.stop_container(run_id)
-    except Exception:
-        pass
-    # Clean storage dir
-    sdir = wf.get("storage_dir")
-    if sdir and os.path.isdir(sdir):
-        import shutil as _shutil
-        _shutil.rmtree(sdir, ignore_errors=True)
-    return {"status": "deleted"}
-
-@router.post("/workflows/{run_id}/restart-node")
-async def restart_workflow_node(run_id: str, payload: dict):
-    from app.workflow import load_workflows, save_workflows, MultiAgentWorkflowEngine
-    task_id = payload.get("task_id")
-    if not task_id:
-        raise HTTPException(status_code=400, detail="Task ID is required")
-        
-    db = load_workflows()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-        
-    state = db[run_id]
-    
-    # Reset target task node
-    target_task = None
-    for t in state["tasks"]:
-        if t["task_id"] == task_id:
-            target_task = t
-            break
-            
-    if not target_task:
-        raise HTTPException(status_code=404, detail="Task node not found in this workflow")
-        
-    # Reset the task attributes
-    target_task["status"] = "pending"
-    target_task["retries"] = 0
-    target_task.pop("error", None)
-    
-    # Remove from lists safely
-    if task_id in state.get("failed_tasks", []):
-        state["failed_tasks"].remove(task_id)
-    if task_id in state.get("completed_tasks", []):
-        state["completed_tasks"].remove(task_id)
-    if task_id in state.get("running_tasks", []):
-        state["running_tasks"].remove(task_id)
-        
-    # Reset overall workflow state status to allow running again
-    state["status"] = "running"
-    state["final_result"] = None
-    state.setdefault("notifications", []).append(f"🔄 Restarting task node '{target_task['title']}'...")
-    state.setdefault("debug_logs", []).append(f"User requested restart of task node '{target_task['title']}' ({task_id})")
-    
-    db[run_id] = state
-    save_workflows(db)
-    
-    # Launch execution background loop again to continue the run!
-    asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
-    
-    return {"ok": True, "status": "running"}
-
-
-# ── Workflow File Explorer ───────────────────────────────────────────
-
-# ── Workflow File Explorer ───────────────────────────────────────────
-
-@router.get("/workflows/{run_id}/files")
-async def list_workflow_files(run_id: str, path: str = ""):
-    """List all files and subdirectories in a workflow's storage directory relative to path."""
-    from app.config import DATA_DIR
-    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
-    if not os.path.isdir(base_dir):
-        os.makedirs(base_dir, exist_ok=True)
-        
-    # Resolve target directory cleanly
-    target_dir = os.path.abspath(os.path.join(base_dir, path.strip("/")))
-    if not target_dir.startswith(os.path.abspath(base_dir)):
-        raise HTTPException(status_code=400, detail="Directory traversal detected")
-        
-    if not os.path.isdir(target_dir):
-        os.makedirs(target_dir, exist_ok=True)
-        
-    items = []
-    for f in os.listdir(target_dir):
-        fpath = os.path.join(target_dir, f)
-        is_dir = os.path.isdir(fpath)
-        items.append({
-            "name": f,
-            "is_dir": is_dir,
-            "size": 0 if is_dir else os.path.getsize(fpath),
-            "modified": datetime.datetime.fromtimestamp(os.path.getmtime(fpath)).isoformat()
-        })
-    return items
-
-@router.post("/workflows/{run_id}/upload")
-async def upload_workflow_file(run_id: str, path: str = "", file: UploadFile = File(...)):
-    """Upload a file to a workflow's storage directory or subdirectory."""
-    from app.config import DATA_DIR
-    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
-    target_dir = os.path.abspath(os.path.join(base_dir, path.strip("/")))
-    if not target_dir.startswith(os.path.abspath(base_dir)):
-        raise HTTPException(status_code=400, detail="Invalid path")
-        
-    os.makedirs(target_dir, exist_ok=True)
-    fpath = os.path.join(target_dir, file.filename)
-    with open(fpath, "wb") as buf:
-        shutil.copyfileobj(file.file, buf)
-    return {"name": file.filename, "size": os.path.getsize(fpath)}
-
-@router.get("/workflows/{run_id}/download")
-async def download_workflow_file(run_id: str, filepath: str):
-    """Download a file from a workflow's storage directory or subdirectory."""
-    from app.config import DATA_DIR
-    from fastapi.responses import FileResponse
-    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
-    
-    # 1. Primary check inside isolated base_dir
-    fpath = os.path.abspath(os.path.join(base_dir, filepath.lstrip("/")))
-    if fpath.startswith(os.path.abspath(base_dir)) and os.path.isfile(fpath):
-        return FileResponse(fpath, filename=os.path.basename(fpath))
-
-    # 2. Resilient check in DATA_DIR, public uploads folder, or relative project path
-    proj_root = os.path.abspath(os.path.dirname(os.path.abspath(DATA_DIR)))
-    candidates = [
-        filepath,
-        os.path.join(DATA_DIR, filepath.lstrip("/")),
-        os.path.join(DATA_DIR, "uploads", os.path.basename(filepath)),
-        os.path.join(DATA_DIR, "workflows", run_id, "uploads", os.path.basename(filepath))
-    ]
-    for candidate in candidates:
-        cand_abs = os.path.abspath(candidate)
-        if cand_abs.startswith(proj_root) and os.path.isfile(cand_abs):
-            return FileResponse(cand_abs, filename=os.path.basename(cand_abs))
-
-    raise HTTPException(status_code=404, detail=f"File not found: {filepath}")
-
-@router.get("/workflows/{run_id}/download_zip")
-async def download_workflow_zip(run_id: str):
-    """Download the entire workflow storage directory as a zip file."""
-    from app.config import DATA_DIR
-    from fastapi.responses import FileResponse
-    import shutil
-    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
-    if not os.path.exists(base_dir):
-        raise HTTPException(status_code=404, detail="Workflow directory not found")
-        
-    zip_path = os.path.join(DATA_DIR, f"{run_id}_export.zip")
-    shutil.make_archive(zip_path.replace('.zip', ''), 'zip', base_dir)
-    
-    return FileResponse(zip_path, media_type="application/zip", filename=f"{run_id}_workspace.zip")
-
-@router.post("/workflows/{run_id}/mkdir")
-async def make_workflow_dir(run_id: str, data: dict):
-    """Create a new folder inside the workflow's storage folder."""
-    from app.config import DATA_DIR
-    path = data.get("path", "")
-    folder_name = data.get("name", "").strip()
-    if not folder_name:
-        raise HTTPException(status_code=400, detail="Folder name is required")
-        
-    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
-    target_dir = os.path.abspath(os.path.join(base_dir, path.strip("/"), folder_name))
-    if not target_dir.startswith(os.path.abspath(base_dir)):
-        raise HTTPException(status_code=400, detail="Invalid path")
-        
-    os.makedirs(target_dir, exist_ok=True)
-    return {"status": "success", "path": path}
-
-@router.post("/workflows/{run_id}/touch")
-async def touch_workflow_file(run_id: str, data: dict):
-    """Create an empty file inside the workflow's storage folder."""
-    from app.config import DATA_DIR
-    path = data.get("path", "")
-    filename = data.get("name", "").strip()
-    if not filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-        
-    base_dir = os.path.join(DATA_DIR, "workflows", run_id)
-    target_file = os.path.abspath(os.path.join(base_dir, path.strip("/"), filename))
-    if not target_file.startswith(os.path.abspath(base_dir)):
-        raise HTTPException(status_code=400, detail="Invalid path")
-        
-    os.makedirs(os.path.dirname(target_file), exist_ok=True)
-    with open(target_file, "w") as f:
-        f.write("")
-    return {"status": "success", "path": path}
-
-
-# ── Agent Templates API Endpoints ────────────────────────────────────
-
-@router.get("/workflow/tools")
-async def get_available_tools():
-    """Retrieve all available system tools dynamically from the backend."""
-    tools = [
-        {"id": "web_search", "name": "Web Search", "description": "Search the web using Tavily API for general public information."},
-        {"id": "scrape_page", "name": "Scrape Page", "description": "Scrape raw text and table contents from web page URLs."},
-        {"id": "fetch_url", "name": "Fetch URL", "description": "Read content directly from standard HTTP URLs."},
-        {"id": "memory_search", "name": "Memory Search", "description": "Semantic search inside the active memory space vector databases."},
-        {"id": "artifact_read", "name": "Artifact Read", "description": "Read content of existing file drafts in the working directories."},
-        {"id": "file_write", "name": "File Write", "description": "Write final output contents or chapters to disk files."},
-        {"id": "directory_create", "name": "Directory Create", "description": "Create isolated working folders for data compilation."},
-        {"id": "pdf_export", "name": "PDF Export", "description": "Compile markdown contents into ReportLab-styled high-fidelity PDF booklets."},
-        {"id": "docx_export", "name": "DOCX Export", "description": "Render structured markdown text into styled Word DOCX documents."},
-        {"id": "pptx_export", "name": "PPTX Export", "description": "Compile markdowns into curated, minimalist PowerPoint presentation slides."},
-        {"id": "excel_export", "name": "Excel Export", "description": "Convert tabular JSON or CSV dataset tables into styled Excel spreadsheets."},
-        {"id": "send_email", "name": "Send Email", "description": "Send summary files, PDFs, or compiled doc suites to the user's inbox."},
-        {"id": "browser_automation", "name": "Browser Automation", "description": "Execute browser automation tasks and navigation flows."},
-        {"id": "shell_exec", "name": "Shell Exec", "description": "Execute sandboxed CLI calculations or python commands."}
-    ]
-    
-    try:
-        from app.mcp import get_pool_tools
-        pool_tools, _, _, _ = get_pool_tools()
-        for t in pool_tools:
-            tname = t["function"]["name"]
-            tdesc = t["function"].get("description") or "MCP-registered external service tool."
-            tools.append({
-                "id": tname,
-                "name": f"MCP: {tname.replace('_', ' ').title()}",
-                "description": tdesc
-            })
-    except Exception as e:
-        print(f"[Dynamic Tools] Could not load MCP pool tools: {e}")
-        
-    return tools
-
-
-@router.get("/workflow/templates")
-async def get_agent_templates():
-    """Retrieve all customized worker templates."""
-    from app.workflow import load_templates
-    return load_templates()
-
-@router.post("/workflow/templates")
-async def create_agent_template(payload: dict):
-    """Add a new custom worker template dynamically."""
-    from app.workflow import load_templates, save_templates
-    name = payload.get("name")
-    worker_id = payload.get("id")
-    purpose = payload.get("purpose")
-    system_prompt = payload.get("system_prompt_template")
-    allowed_tools = payload.get("allowed_tools", [])
-    
-    if not name or not worker_id or not purpose or not system_prompt:
-        raise HTTPException(status_code=400, detail="Missing required template properties")
-        
-    templates = load_templates()
-    templates[worker_id] = {
-        "name": name,
-        "purpose": purpose,
-        "allowed_tools": allowed_tools,
-        "system_prompt_template": system_prompt,
-        "expected_output_schema": payload.get("expected_output_schema", {"result": "string"}),
-        "timeout": int(payload.get("timeout", 60)),
-        "retry_limit": int(payload.get("retry_limit", 2))
-    }
-    save_templates(templates)
-    return {"status": "success", "template_id": worker_id}
-
-@router.delete("/workflow/templates/{template_id}")
-async def delete_agent_template(template_id: str):
-    """Delete a custom worker template."""
-    from app.workflow import load_templates, save_templates
-    templates = load_templates()
-    if template_id not in templates:
-        raise HTTPException(status_code=404, detail="Template not found")
-    del templates[template_id]
-    save_templates(templates)
-    return {"status": "deleted"}
-
-@router.post("/workflow/templates/generate")
-async def ai_generate_template(payload: dict):
-    """Use the active LLM to generate a worker template from a natural language description."""
-    description = payload.get("description", "")
-    if not description:
-        raise HTTPException(status_code=400, detail="Description is required")
-    
-    from app.llm import get_llm
-    from app.storage import load_prefs
-    from langchain_core.messages import HumanMessage
-    
-    prefs = load_prefs()
-    llm = get_llm(prefs, streaming=False)
-    
-    prompt = (
-        "Generate a JSON worker agent template for a multi-agent workflow system.\n"
-        f"User description: {description}\n\n"
-        "Available tools: web_search, fetch_url, memory_search, artifact_read, file_write, pdf_export, send_email, browser_automation, shell_exec\n\n"
-        "Respond ONLY with valid JSON (no markdown fencing):\n"
-        '{"id": "snake_case_id", "name": "Human Name", "purpose": "one-liner", '
-        '"system_prompt_template": "You are... Task-specific context: {task_description}", '
-        '"allowed_tools": ["tool1"], "expected_output_schema": {"result": "string"}, "timeout": 90, "retry_limit": 2}'
-    )
-    
-    try:
-        resp = await llm.ainvoke([HumanMessage(content=prompt)])
-        raw = resp.content.strip()
-        if "```" in raw:
-            raw = raw.split("```")[1].split("```")[0].strip()
-            if raw.startswith("json"):
-                raw = raw[4:].strip()
-        return json.loads(raw)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
-
-@router.websocket("/ws/workflows")
-async def ws_workflows_summary(websocket: WebSocket):
-    await websocket.accept()
-    last_hash = None
-    try:
-        while True:
-            db = load_workflows()
-            
-            summary = []
-            for rid, wf in db.items():
-                summary.append({
-                    "run_id": rid,
-                    "run_title": wf.get("run_title", rid),
-                    "status": wf.get("status", "pending"),
-                    "created_at": wf.get("created_at", "")
-                })
-            
-            summary.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-            
-            import json
-            current_hash = hash(json.dumps(summary, sort_keys=True))
-            if current_hash != last_hash:
-                await websocket.send_json({
-                    "type": "workflows_list",
-                    "workflows": summary
-                })
-                last_hash = current_hash
-            
-            await asyncio.sleep(0.5)
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
-
-@router.websocket("/ws/workflows/{run_id}")
-async def ws_workflow_detail(websocket: WebSocket, run_id: str):
-    await websocket.accept()
-    last_hash = None
-    try:
-        while True:
-            db = load_workflows()
-            if run_id not in db:
-                await websocket.send_json({"type": "error", "message": "Workflow not found"})
-                await asyncio.sleep(2)
-                continue
-            
-            wf = db[run_id]
-            payload = {
-                "run_id": run_id,
-                "run_title": wf.get("run_title", ""),
-                "status": wf.get("status", "pending"),
-                "plan": wf.get("plan", None),
-                "tasks": wf.get("tasks", []),
-                "artifacts": wf.get("artifacts", []),
-                "final_result": wf.get("final_result", ""),
-                "notifications": wf.get("notifications", []),
-                "collaborative_chat": wf.get("collaborative_chat", []),
-                "debug_logs": wf.get("debug_logs", []),
-
-                "run_icon": wf.get("run_icon", ""),
-                "created_at": wf.get("created_at", None),
-                "started_at": wf.get("started_at", None),
-                "completed_at": wf.get("completed_at", None)
-            }
-            
-            import json
-            current_hash = hash(json.dumps(payload, default=str, sort_keys=True))
-            if current_hash != last_hash:
-                await websocket.send_json({
-                    "type": "workflow_detail",
-                    "run_id": run_id,
-                    "workflow": payload
-                })
-                last_hash = current_hash
-            
-            await asyncio.sleep(0.5)
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        pass
-
-
-# ── Workflow Scheduling Endpoints ────────────────────────────────────
-
-@router.get("/workflows/schedules")
-async def get_all_schedules():
-    """Retrieve all active and inactive recurring workflow triggers."""
-    from app.scheduler import load_schedules
-    return list(load_schedules().values())
-
-@router.post("/workflows/{run_id}/schedule")
-async def schedule_workflow_run(run_id: str, payload: dict):
-    """Schedule a specific workflow run to repeat periodically."""
-    from app.workflow import load_workflows
-    from app.scheduler import load_schedules, save_schedules, calculate_next_run
-    
-    db = load_workflows()
-    if run_id not in db:
-        raise HTTPException(status_code=404, detail="Workflow run not found")
-        
-    wf = db[run_id]
-    repeat_mode = payload.get("repeat_mode", "re_execute")
-    interval = payload.get("interval", "daily")
-    cron_str = payload.get("cron")
-    
-    schedules = load_schedules()
-    schedule_id = f"sched_{uuid.uuid4().hex[:8]}"
-    
-    next_ts = calculate_next_run(interval, cron_str)
-    
-    sched_entry = {
-        "id": schedule_id,
-        "run_title": wf.get("run_title", "Scheduled Workflow"),
-        "original_prompt": wf.get("user_request", ""),
-        "source_run_id": run_id,
-        "repeat_mode": repeat_mode,
-        "interval": interval,
-        "cron": cron_str,
-        "next_run_ts": next_ts,
-        "last_run_ts": None,
-        "last_run_status": None,
-        "created_at": datetime.datetime.now().isoformat(),
-        "active": True
-    }
-    
-    schedules[schedule_id] = sched_entry
-    save_schedules(schedules)
-    return sched_entry
-
-@router.put("/workflows/schedules/{schedule_id}")
-async def update_schedule(schedule_id: str, payload: dict):
-    """Update or toggle an existing workflow schedule."""
-    from app.scheduler import load_schedules, save_schedules, calculate_next_run
-    
-    schedules = load_schedules()
-    if schedule_id not in schedules:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-        
-    sched = schedules[schedule_id]
-    
-    if "active" in payload:
-        sched["active"] = bool(payload["active"])
-    if "interval" in payload:
-        sched["interval"] = payload["interval"]
-    if "repeat_mode" in payload:
-        sched["repeat_mode"] = payload["repeat_mode"]
-    if "cron" in payload:
-        sched["cron"] = payload["cron"]
-        
-    # Recalculate next execution time if changed or toggled on
-    if sched["active"]:
-        sched["next_run_ts"] = calculate_next_run(sched["interval"], sched.get("cron"))
-        
-    schedules[schedule_id] = sched
-    save_schedules(schedules)
-    return sched
-
-@router.delete("/workflows/schedules/{schedule_id}")
-async def delete_schedule(schedule_id: str):
-    """Delete a workflow schedule."""
-    from app.scheduler import load_schedules, save_schedules
-    
-    schedules = load_schedules()
-    if schedule_id not in schedules:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-        
-    del schedules[schedule_id]
-    save_schedules(schedules)
-    return {"ok": True}
-

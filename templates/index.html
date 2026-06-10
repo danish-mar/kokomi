@@ -186,6 +186,76 @@
     }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
+    /* ── Inline AI charts (Chart.js) ─────────────────── */
+    .kokomi-chart {
+        margin: 12px 0; border: 1px solid var(--border); border-radius: 18px;
+        background: var(--bg-elevated); overflow: hidden;
+        box-shadow: var(--shadow-md); border-left: 4px solid var(--accent);
+    }
+    .kokomi-chart .artifact-icon { background: var(--accent); color: var(--accent-text); }
+    .kokomi-chart-canvas-wrap {
+        position: relative; height: 320px; padding: 16px 14px 14px;
+    }
+    .kokomi-chart-canvas-wrap canvas { width: 100% !important; }
+    .kokomi-chart-shimmer {
+        height: 220px; margin: 14px; border-radius: 12px;
+        background: linear-gradient(90deg, var(--bg-canvas), rgba(128,128,128,0.12), var(--bg-canvas));
+        background-size: 200% 100%; animation: shimmer 1.6s infinite;
+    }
+    .kokomi-chart-actions { display: flex; align-items: center; gap: 6px; }
+    .kokomi-chart-btn {
+        width: 30px; height: 30px; border-radius: 9px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; font-size: 12px;
+        color: var(--text-tertiary); background: transparent;
+        border: 1px solid var(--border); transition: all 0.18s ease;
+    }
+    .kokomi-chart-btn:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); transform: translateY(-1px); }
+
+    /* Expanded chart modal */
+    @keyframes kokomiFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .kokomi-chart-overlay {
+        position: fixed; inset: 0; z-index: 10000;
+        background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
+        display: flex; align-items: center; justify-content: center; padding: 24px;
+        animation: kokomiFadeIn 0.18s ease;
+    }
+    .kokomi-chart-modal {
+        width: min(1100px, 95vw); height: 85vh; display: flex; flex-direction: column;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        border-radius: 22px; box-shadow: var(--shadow-lg); overflow: hidden;
+        animation: tooltipPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .kokomi-chart-modal-head {
+        flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .kokomi-chart-modal-title { font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+    .kokomi-chart-modal-title i { color: var(--accent); }
+    .kokomi-chart-modal-body { position: relative; flex: 1 1 auto; min-height: 0; padding: 24px; }
+
+    /* ── Inline AI diagrams (Mermaid) ────────────────── */
+    .kokomi-diagram {
+        margin: 12px 0; border: 1px solid var(--border); border-radius: 18px;
+        background: var(--bg-elevated); overflow: hidden;
+        box-shadow: var(--shadow-md); border-left: 4px solid var(--accent);
+    }
+    .kokomi-diagram .artifact-icon { background: var(--accent); color: var(--accent-text); }
+    .kokomi-diagram-host {
+        padding: 18px 16px; display: flex; justify-content: center; overflow-x: auto;
+    }
+    .kokomi-diagram-host svg { max-width: 100%; height: auto; }
+    .kokomi-diagram-err { padding: 16px; font-size: 12px; color: var(--text-tertiary); display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .kokomi-diagram-err-head { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-secondary); }
+    .kokomi-diagram-err-head i { color: #F87171; }
+    .kokomi-diagram-err-msg { font-family: var(--font-mono); font-size: 11px; color: #F87171; word-break: break-word; }
+    .kokomi-diagram-err details summary { cursor: pointer; color: var(--text-quaternary); font-size: 11px; }
+    .kokomi-diagram-err pre { margin-top: 8px; padding: 10px; background: rgba(0,0,0,0.04); border-radius: 8px; font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; }
+    .dark .kokomi-diagram-err pre { background: rgba(0,0,0,0.25); }
+    /* Expanded diagram: let big graphs scroll instead of squashing into a fixed canvas */
+    .kokomi-diagram-modal-body { display: flex; align-items: center; justify-content: center; overflow: auto; }
+    .kokomi-diagram-modal-body svg { max-width: 100%; height: auto; }
+
     .meta-tooltip {
         position: absolute;
         bottom: calc(100% + 12px);

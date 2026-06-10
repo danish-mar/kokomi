@@ -12,3 +12,9 @@ wheels/
 data/
 .agents/
 public/static/vendor/
+
+# claude specific files 
+
+memory/
+
+CLAUDE.md

@@ -46,7 +46,13 @@ ASSETS = {
     
     # Marked
     "marked.min.js": "https://cdn.jsdelivr.net/npm/marked/marked.min.js",
-    
+
+    # Chart.js — AI-generated inline charts in chat
+    "chartjs/chart.umd.min.js": "https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js",
+
+    # Mermaid — AI-generated inline diagrams in chat
+    "mermaid/mermaid.min.js": "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js",
+
     # Highlight.js
     "highlight/github-dark.min.css": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css",
     "highlight/highlight.min.js": "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js",
