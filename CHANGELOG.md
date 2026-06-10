@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.1] - 2026-06-10
+
+### Fixed
+
+- **Software Update Git Authentication Helper Crash**: Bypassed host-specific git credential helpers (specifically `gh auth git-credential` which is absent in Docker) and disabled interactive prompts (`GIT_TERMINAL_PROMPT=0`) to allow successful anonymous pulling of public repositories.
+
 ## [v5.1.0] - 2026-06-10
 
 ### Added

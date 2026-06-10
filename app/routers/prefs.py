@@ -316,13 +316,15 @@ async def run_update():
 
             yield format_status("Pulling changes from GitHub repository...", 55)
             await asyncio.sleep(0.8)
+            env = os.environ.copy()
+            env["GIT_TERMINAL_PROMPT"] = "0"
             pull_res = subprocess.run([
                 "git",
                 "-c", "safe.directory=*",
                 "-c", "credential.helper=",
-                "-c", "http.extraHeader=",
-                "pull", "https://github.com/danish-mar/kokomi.git", "main"
-            ], capture_output=True, text=True, timeout=30)
+                "-c", "credential.https://github.com.helper=",
+                "pull"
+            ], env=env, capture_output=True, text=True, timeout=30)
             if pull_res.returncode != 0:
                 err_msg = pull_res.stderr.strip() or "git pull failed"
                 yield format_status(f"Error pulling changes: {err_msg}", 55, error=err_msg)
