@@ -57,5 +57,16 @@ export function getInitialState() {
             { icon: 'fa-solid fa-pen-nib',    label: 'Draft',       text: 'Write a professional follow-up email for a job application.' },
             { icon: 'fa-solid fa-chart-line', label: 'Analyze',     text: 'What are the best practices for data visualization?' },
         ],
+
+        // Spotlight Search
+        spotlightOpen: false,
+        spotlightQuery: '',
+        spotlightResults: [],
+        spotlightSuggestions: [],
+        spotlightSelectedId: null,
+        spotlightPreview: null,
+        spotlightLoading: false,
+        spotlightGlowing: false,
+        _spotlightDebounceTimer: null,
     };
 }

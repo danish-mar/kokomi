@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.2] - 2026-06-10
+
+### Fixed
+
+- **Sidebar Masonry Card Grid Ordering**: Restructured the cards into left and right columns using index filtering, ensuring that the newest conversations always display at the top of the columns rather than flowing top-to-bottom first.
+- **Staggered Masonry Aesthetics**: Added an intentional top padding offset (`pt-4`) to the right column container to establish a consistent, premium staggered card alignment.
+- **Timezone Discrepancies**: Patched the JavaScript time parsing logic to treat naive server ISO strings as UTC, displaying accurate local times in the browser.
+
 ## [v5.1.1] - 2026-06-10
 
 ### Fixed

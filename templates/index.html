@@ -293,15 +293,15 @@
         margin-right: auto !important;
     }
 
-    /* ═══ MASONRY/PINTEREST WIDGET SIDEBAR STYLES ═══ */
     .widget-masonry {
-        column-count: 2;
-        column-gap: 8px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
         padding: 4px 8px;
+        align-items: start;
     }
     .widget-card {
-        break-inside: avoid;
-        display: inline-block;
+        display: block;
         width: 100%;
         margin-bottom: 8px;
         background: #ffffff;
@@ -369,8 +369,16 @@
         display: block;
         transition: transform 0.25s ease;
     }
-    .widget-card:hover .widget-image {
-        transform: scale(1.02);
+    @keyframes spotlightGlow {
+        0% {
+            box-shadow: 0 0 35px 12px color-mix(in srgb, var(--accent, #505081) 85%, transparent);
+        }
+        100% {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+        }
+    }
+    .spotlight-glow-active {
+        animation: spotlightGlow 1000ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 </style>
 {% endblock %}
@@ -538,51 +546,102 @@
                                 </div>
                                 <div x-show="isFolderOpen(folder.id)" x-collapse class="px-2 pt-1 pb-2">
                                     <div class="widget-masonry">
-                                        <template x-for="conv in conversationsByFolder[folder.id]" :key="conv._id">
-                                            <div class="relative group" x-data="{ menuOpen: false }">
-                                                <!-- Card Widget -->
-                                                <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
-                                                    <div class="widget-meta">
-                                                        <template x-if="currentConvId === conv._id">
-                                                            <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                        <!-- Column 1 (Even) -->
+                                        <div class="flex flex-col gap-2">
+                                            <template x-for="conv in (conversationsByFolder[folder.id] || []).filter((_, idx) => idx % 2 === 0)" :key="conv._id">
+                                                <div class="relative group" x-data="{ menuOpen: false }">
+                                                    <!-- Card Widget -->
+                                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
+                                                        <div class="widget-meta">
+                                                            <template x-if="currentConvId === conv._id">
+                                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                            </template>
+                                                            <span x-text="formatConvTime(conv.updated_at)"></span>
+                                                        </div>
+                                                        <span class="widget-title" x-text="conv.title"></span>
+                                                        <template x-if="conv.preview">
+                                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
                                                         </template>
-                                                        <span x-text="formatConvTime(conv.updated_at)"></span>
+                                                        <template x-if="shouldShowConvImage(conv)">
+                                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
+                                                        </template>
+                                                        <span @click.stop="menuOpen = !menuOpen"
+                                                            class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
+                                                            <i class="fa-solid fa-ellipsis"></i>
+                                                        </span>
                                                     </div>
-                                                    <span class="widget-title" x-text="conv.title"></span>
-                                                    <template x-if="conv.preview">
-                                                        <p class="widget-preview" x-text="conv.preview"></p>
-                                                    </template>
-                                                    <template x-if="getCharById(conv.character_id) && getCharById(conv.character_id).avatar">
-                                                        <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
-                                                    </template>
-                                                    <span @click.stop="menuOpen = !menuOpen"
-                                                        class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
-                                                        <i class="fa-solid fa-ellipsis"></i>
-                                                    </span>
-                                                </div>
-                                                <!-- Dropdown Menu -->
-                                                <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
-                                                    class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
-                                                    <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Move</div>
-                                                    <template x-for="f in folders" :key="f.id">
-                                                        <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                                    <!-- Dropdown Menu -->
+                                                    <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+                                                        class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
+                                                        <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Move</div>
+                                                        <template x-for="f in folders" :key="f.id">
+                                                            <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                                                class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
+                                                                <i :class="f.icon" class="opacity-50 text-[10px]"></i>
+                                                                <span x-text="f.name"></span>
+                                                            </button>
+                                                        </template>
+                                                        <button @click="assignToFolder(conv._id, null); menuOpen = false"
                                                             class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
-                                                            <i :class="f.icon" class="opacity-50 text-[10px]"></i>
-                                                            <span x-text="f.name"></span>
+                                                            <i class="fa-solid fa-xmark opacity-50 text-[10px]"></i> Ungroup
                                                         </button>
-                                                    </template>
-                                                    <button @click="assignToFolder(conv._id, null); menuOpen = false"
-                                                        class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
-                                                        <i class="fa-solid fa-xmark opacity-50 text-[10px]"></i> Ungroup
-                                                    </button>
-                                                    <div class="my-1 border-t border-themed opacity-30"></div>
-                                                    <button @click="deleteConversation(conv._id); menuOpen = false"
-                                                        class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
-                                                        <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
-                                                    </button>
+                                                        <div class="my-1 border-t border-themed opacity-30"></div>
+                                                        <button @click="deleteConversation(conv._id); menuOpen = false"
+                                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
+                                                            <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </template>
+                                            </template>
+                                        </div>
+                                        <!-- Column 2 (Odd) -->
+                                        <div class="flex flex-col gap-2 pt-4">
+                                            <template x-for="conv in (conversationsByFolder[folder.id] || []).filter((_, idx) => idx % 2 === 1)" :key="conv._id">
+                                                <div class="relative group" x-data="{ menuOpen: false }">
+                                                    <!-- Card Widget -->
+                                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
+                                                        <div class="widget-meta">
+                                                            <template x-if="currentConvId === conv._id">
+                                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                            </template>
+                                                            <span x-text="formatConvTime(conv.updated_at)"></span>
+                                                        </div>
+                                                        <span class="widget-title" x-text="conv.title"></span>
+                                                        <template x-if="conv.preview">
+                                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
+                                                        </template>
+                                                        <template x-if="shouldShowConvImage(conv)">
+                                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
+                                                        </template>
+                                                        <span @click.stop="menuOpen = !menuOpen"
+                                                            class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
+                                                            <i class="fa-solid fa-ellipsis"></i>
+                                                        </span>
+                                                    </div>
+                                                    <!-- Dropdown Menu -->
+                                                    <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+                                                        class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
+                                                        <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Move</div>
+                                                        <template x-for="f in folders" :key="f.id">
+                                                            <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                                                class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
+                                                                <i :class="f.icon" class="opacity-50 text-[10px]"></i>
+                                                                <span x-text="f.name"></span>
+                                                            </button>
+                                                        </template>
+                                                        <button @click="assignToFolder(conv._id, null); menuOpen = false"
+                                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
+                                                            <i class="fa-solid fa-xmark opacity-50 text-[10px]"></i> Ungroup
+                                                        </button>
+                                                        <div class="my-1 border-t border-themed opacity-30"></div>
+                                                        <button @click="deleteConversation(conv._id); menuOpen = false"
+                                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
+                                                            <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
                                     </div>
                                     <template x-if="!conversationsByFolder[folder.id] || conversationsByFolder[folder.id].length === 0">
                                         <p class="text-[11px] text-4 italic py-2 px-3 text-center">No chats yet</p>
@@ -598,51 +657,102 @@
 
                 <!-- Recent Chats -->
                 <div class="px-2 pb-2">
-                    <div class="px-3 mb-1.5">
+                    <div class="px-3 mb-1.5 flex items-center justify-between">
                         <h2 class="text-[11px] font-bold uppercase tracking-[0.08em] text-4">Recent</h2>
+                        <button @click="openSpotlight()" title="Search Conversations (Cmd+K / Cmd+Space)"
+                            class="w-5 h-5 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5 text-4 hover:text-accent-c transition-all t-apple">
+                            <i class="fa-solid fa-magnifying-glass text-[10px]"></i>
+                        </button>
                     </div>
                     <div class="widget-masonry">
-                        <template x-for="conv in conversationsByFolder['none']" :key="conv._id">
-                            <div class="relative group" x-data="{ menuOpen: false }">
-                                <!-- Card Widget -->
-                                <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
-                                    <div class="widget-meta">
-                                        <template x-if="currentConvId === conv._id">
-                                            <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                        <!-- Column 1 (Even) -->
+                        <div class="flex flex-col gap-2">
+                            <template x-for="conv in (conversationsByFolder['none'] || []).filter((_, idx) => idx % 2 === 0)" :key="conv._id">
+                                <div class="relative group" x-data="{ menuOpen: false }">
+                                    <!-- Card Widget -->
+                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
+                                        <div class="widget-meta">
+                                            <template x-if="currentConvId === conv._id">
+                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                            </template>
+                                            <span x-text="formatConvTime(conv.updated_at)"></span>
+                                        </div>
+                                        <span class="widget-title" x-text="conv.title"></span>
+                                        <template x-if="conv.preview">
+                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
                                         </template>
-                                        <span x-text="formatConvTime(conv.updated_at)"></span>
+                                        <template x-if="shouldShowConvImage(conv)">
+                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
+                                        </template>
+                                        <span @click.stop="menuOpen = !menuOpen"
+                                            class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
+                                            <i class="fa-solid fa-ellipsis"></i>
+                                        </span>
                                     </div>
-                                    <span class="widget-title" x-text="conv.title"></span>
-                                    <template x-if="conv.preview">
-                                        <p class="widget-preview" x-text="conv.preview"></p>
-                                    </template>
-                                    <template x-if="getCharById(conv.character_id) && getCharById(conv.character_id).avatar">
-                                        <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
-                                    </template>
-                                    <span @click.stop="menuOpen = !menuOpen"
-                                        class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
-                                        <i class="fa-solid fa-ellipsis"></i>
-                                    </span>
-                                </div>
-                                <!-- Dropdown Menu -->
-                                <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
-                                    class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
-                                    <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Add to Project</div>
-                                    <template x-for="f in folders" :key="f.id">
-                                        <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
-                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
-                                            <i :class="f.icon" class="opacity-50 text-[10px]"></i>
-                                            <span x-text="f.name"></span>
+                                    <!-- Dropdown Menu -->
+                                    <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+                                        class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
+                                        <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Add to Project</div>
+                                        <template x-for="f in folders" :key="f.id">
+                                            <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                                class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
+                                                <i :class="f.icon" class="opacity-50 text-[10px]"></i>
+                                                <span x-text="f.name"></span>
+                                            </button>
+                                        </template>
+                                        <div class="my-1 border-t border-themed opacity-30"></div>
+                                        <button @click="deleteConversation(conv._id); menuOpen = false"
+                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
+                                            <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
                                         </button>
-                                    </template>
-                                    <div class="my-1 border-t border-themed opacity-30"></div>
-                                    <button @click="deleteConversation(conv._id); menuOpen = false"
-                                        class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
-                                        <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
-                                    </button>
+                                    </div>
                                 </div>
-                            </div>
-                        </template>
+                            </template>
+                        </div>
+                        <!-- Column 2 (Odd) -->
+                        <div class="flex flex-col gap-2 pt-4">
+                            <template x-for="conv in (conversationsByFolder['none'] || []).filter((_, idx) => idx % 2 === 1)" :key="conv._id">
+                                <div class="relative group" x-data="{ menuOpen: false }">
+                                    <!-- Card Widget -->
+                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
+                                        <div class="widget-meta">
+                                            <template x-if="currentConvId === conv._id">
+                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                            </template>
+                                            <span x-text="formatConvTime(conv.updated_at)"></span>
+                                        </div>
+                                        <span class="widget-title" x-text="conv.title"></span>
+                                        <template x-if="conv.preview">
+                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
+                                        </template>
+                                        <template x-if="shouldShowConvImage(conv)">
+                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
+                                        </template>
+                                        <span @click.stop="menuOpen = !menuOpen"
+                                            class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
+                                            <i class="fa-solid fa-ellipsis"></i>
+                                        </span>
+                                    </div>
+                                    <!-- Dropdown Menu -->
+                                    <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+                                        class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
+                                        <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Add to Project</div>
+                                        <template x-for="f in folders" :key="f.id">
+                                            <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                                class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
+                                                <i :class="f.icon" class="opacity-50 text-[10px]"></i>
+                                                <span x-text="f.name"></span>
+                                            </button>
+                                        </template>
+                                        <div class="my-1 border-t border-themed opacity-30"></div>
+                                        <button @click="deleteConversation(conv._id); menuOpen = false"
+                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
+                                            <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                     <!-- Empty State -->
                     <template x-if="conversations.length === 0">
@@ -1768,6 +1878,147 @@
                     Maybe Later
                 </button>
             </div>
+    </div>
+</div>
+
+    <!-- ═══════════════ Spotlight Finder Search Modal ═══════════════ -->
+    <div x-show="spotlightOpen" x-cloak class="fixed inset-0 z-[999999] flex items-center justify-center p-4" @keydown.window.escape="closeSpotlight()">
+        <!-- Backdrop -->
+        <div x-show="spotlightOpen" x-transition.opacity @click="closeSpotlight()" class="absolute inset-0 bg-black/45 backdrop-blur-md"></div>
+        
+        <!-- Search Modal Window -->
+        <div x-show="spotlightOpen"
+             x-transition:enter="transition ease-out duration-200 transform"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150 transform"
+             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+             :class="[spotlightQuery ? 'h-[480px]' : 'h-[60px]', spotlightGlowing ? 'spotlight-glow-active' : '']"
+             class="relative w-full max-w-[700px] material-elevated border border-themed rounded-squircle shadow-t-2xl overflow-hidden flex flex-col t-apple transition-[height] duration-200 ease-in-out">
+             
+             <!-- Header Input Bar -->
+             <div :class="spotlightQuery ? 'border-b border-themed' : ''" class="h-[60px] flex items-center gap-3.5 px-4 shrink-0 relative bg-black/[0.01]">
+                 <i class="fa-solid fa-magnifying-glass text-4 text-[17px]"></i>
+                 <input type="text" x-ref="spotlightInput" x-model="spotlightQuery" @input="handleSpotlightInput()"
+                        @keydown.up.prevent="navigateSpotlight(-1)"
+                        @keydown.down.prevent="navigateSpotlight(1)"
+                        @keydown.enter.prevent="confirmSpotlightSelection()"
+                        placeholder="Search conversations by title or preview content..."
+                        class="flex-grow bg-transparent text-[15px] font-medium text-1 focus:outline-none placeholder-4 border-none py-4" />
+                 <div class="flex items-center gap-1.5 shrink-0">
+                     <span class="text-[9px] font-bold text-4 border border-themed px-1.5 py-0.5 rounded-[5px]">ESC</span>
+                     <span class="text-[9px] font-bold text-4 border border-themed px-1.5 py-0.5 rounded-[5px]">ENTER</span>
+                 </div>
+             </div>
+             
+             <!-- Split Pane Content -->
+             <div x-show="spotlightQuery" class="flex-grow overflow-hidden flex min-h-0">
+                 <!-- Left Pane: List / Results -->
+                 <div class="w-[270px] border-r border-themed overflow-y-auto flex flex-col py-2.5 bg-black/[0.01] shrink-0">
+                     <!-- suggestions -->
+                     <template x-if="!spotlightQuery">
+                         <div>
+                             <div class="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest text-4 mb-1">Suggestions</div>
+                             <template x-for="conv in spotlightSuggestions" :key="conv._id">
+                                 <button :id="'spotlight-item-' + conv._id"
+                                     class="w-[calc(100%-16px)] text-left px-3 py-2.5 rounded-[9px] mx-2 mb-0.5 transition-all t-apple flex flex-col gap-0.5 relative group"
+                                     :class="spotlightSelectedId === conv._id ? 'bg-accent-sub text-accent-c' : 'text-2 hover:bg-black/5 dark:hover:bg-white/5'"
+                                     @mouseenter="selectSpotlightItem(conv._id)"
+                                     @click="confirmSpotlightSelection()">
+                                     <div class="flex items-center gap-1.5 min-w-0">
+                                         <i class="fa-regular fa-comments text-[11px] opacity-70 flex-shrink-0"></i>
+                                         <span class="font-bold text-[13px] truncate" x-text="conv.title"></span>
+                                     </div>
+                                     <template x-if="conv.preview">
+                                         <span class="text-[10px] opacity-60 truncate pl-4" x-text="conv.preview"></span>
+                                     </template>
+                                 </button>
+                             </template>
+                         </div>
+                     </template>
+                     
+                     <!-- search results -->
+                     <template x-if="spotlightQuery">
+                         <div>
+                             <div class="px-4 py-1.5 text-[9px] font-bold uppercase tracking-widest text-4 mb-1">Suggestions</div>
+                             <template x-for="conv in spotlightResults" :key="conv._id">
+                                 <button :id="'spotlight-item-' + conv._id"
+                                     class="w-[calc(100%-16px)] text-left px-3 py-2.5 rounded-[9px] mx-2 mb-0.5 transition-all t-apple flex flex-col gap-0.5 relative group"
+                                     :class="spotlightSelectedId === conv._id ? 'bg-accent-sub text-accent-c' : 'text-2 hover:bg-black/5 dark:hover:bg-white/5'"
+                                     @mouseenter="selectSpotlightItem(conv._id)"
+                                     @click="confirmSpotlightSelection()">
+                                     <div class="flex items-center gap-1.5 min-w-0">
+                                         <i class="fa-regular fa-comments text-[11px] opacity-70 flex-shrink-0"></i>
+                                         <span class="font-bold text-[13px] truncate" x-text="conv.title"></span>
+                                     </div>
+                                     <span class="text-[10px] opacity-60 truncate pl-4" x-text="conv.preview"></span>
+                                 </button>
+                             </template>
+                             
+                             <!-- empty search -->
+                             <div x-show="spotlightResults.length === 0" class="py-12 text-center text-4 px-4">
+                                 <i class="fa-regular fa-face-frown text-2xl opacity-40 block mb-2"></i>
+                                 <p class="text-[12px] font-medium">No matches for "<span x-text="spotlightQuery"></span>"</p>
+                             </div>
+                         </div>
+                     </template>
+                 </div>
+                 
+                 <!-- Right Pane: Live Chat History Preview -->
+                 <div class="flex-grow overflow-hidden flex flex-col bg-canvas relative min-w-0">
+                     <!-- Loading spinner -->
+                     <div x-show="spotlightLoading" class="absolute inset-0 bg-canvas/80 backdrop-blur-sm z-55 flex items-center justify-center flex-col gap-2.5">
+                         <i class="fa-solid fa-spinner fa-spin text-accent-c text-xl"></i>
+                         <p class="text-[11px] text-4 font-semibold uppercase tracking-wider">Loading history...</p>
+                     </div>
+                     
+                     <!-- Selected Preview -->
+                     <template x-if="spotlightPreview">
+                         <div class="h-full flex flex-col overflow-hidden">
+                             <!-- Preview Header -->
+                             <div class="px-4 py-3 border-b border-themed shrink-0 bg-black/[0.01]">
+                                 <div class="flex items-center gap-2">
+                                     <div class="w-8 h-8 rounded-[8px] flex items-center justify-center bg-accent-sub text-accent-c shrink-0">
+                                         <i class="fa-regular fa-comments text-xs"></i>
+                                     </div>
+                                     <div class="min-w-0 flex-grow">
+                                         <h4 class="font-bold text-[14px] text-1 truncate" x-text="spotlightPreview.title"></h4>
+                                         <p class="text-[10px] text-4 font-medium uppercase tracking-[0.02em]">Updated <span x-text="formatConvTime(spotlightPreview.updated_at)"></span></p>
+                                     </div>
+                                 </div>
+                             </div>
+                             <!-- Preview Message History -->
+                             <div x-ref="spotlightPreviewContainer" class="flex-grow overflow-y-auto p-4 space-y-3 min-h-0 bg-black/[0.01]">
+                                 <template x-for="msg in (spotlightPreview.messages || []).filter(m => ['user', 'assistant'].includes(m.role))">
+                                     <div class="flex flex-col max-w-[85%]" :class="msg.role === 'user' ? 'ml-auto items-end' : 'items-start'">
+                                         <span class="text-[9px] font-semibold text-4 mb-0.5" x-text="msg.role === 'user' ? 'You' : (msg.character_name || spotlightPreview.character_id)"></span>
+                                         <div class="px-3 py-2 rounded-[14px] text-[12px] leading-relaxed shadow-sm break-words"
+                                              :class="msg.role === 'user' ? 'bg-accent text-accent-t rounded-tr-none' : 'material-sidebar border border-themed text-1 rounded-tl-none'"
+                                              x-text="cleanMsgContent(msg.content)"></div>
+                                     </div>
+                                 </template>
+                                 <template x-if="!(spotlightPreview.messages || []).some(m => ['user', 'assistant'].includes(m.role))">
+                                     <div class="h-full flex items-center justify-center opacity-30 italic text-[11px] py-12">
+                                         No previewable messages
+                                     </div>
+                                 </template>
+                             </div>
+                         </div>
+                     </template>
+                     
+                     <!-- Default Empty State -->
+                     <template x-if="!spotlightSelectedId && !spotlightLoading">
+                         <div class="h-full flex flex-col items-center justify-center text-center p-6 opacity-30 select-none">
+                             <i class="fa-solid fa-command text-[36px] text-4 mb-3"></i>
+                             <h4 class="font-bold text-[14px] text-1 mb-1.5">Spotlight Conversation Search</h4>
+                             <p class="text-[11px] leading-relaxed max-w-[240px]">
+                                 Press <span class="font-bold font-mono">↑↓ Arrow Keys</span> to navigate, <span class="font-bold font-mono">Enter</span> to load, and <span class="font-bold font-mono">Esc</span> to close.
+                             </p>
+                         </div>
+                     </template>
+                 </div>
+             </div>
         </div>
     </div>
 

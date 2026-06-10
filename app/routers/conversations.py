@@ -46,8 +46,8 @@ def get_last_message_preview(c):
         if m.get("role") == "assistant" and not m.get("tool_calls"):
             cleaned = _clean_content(m.get("content", ""))
             if cleaned:
-                if len(cleaned) > 60:
-                    return cleaned[:57] + "..."
+                if len(cleaned) > 180:
+                    return cleaned[:177] + "..."
                 return cleaned
 
     # 2. Fallback to the first user message (e.g. if the assistant hasn't replied yet)
@@ -55,8 +55,8 @@ def get_last_message_preview(c):
         if m.get("role") == "user" and not m.get("tool_calls"):
             cleaned = _clean_content(m.get("content", ""))
             if cleaned:
-                if len(cleaned) > 60:
-                    return cleaned[:57] + "..."
+                if len(cleaned) > 180:
+                    return cleaned[:177] + "..."
                 return cleaned
 
     # 3. Last resort fallback to any valid message from the end
@@ -68,8 +68,8 @@ def get_last_message_preview(c):
             continue
         cleaned = _clean_content(m.get("content", ""))
         if cleaned:
-            if len(cleaned) > 60:
-                return cleaned[:57] + "..."
+            if len(cleaned) > 180:
+                return cleaned[:177] + "..."
             return cleaned
 
     return ""

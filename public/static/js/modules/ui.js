@@ -7,8 +7,17 @@ export function getUiActions() {
         formatConvTime(updatedAt) {
             if (!updatedAt) return 'Just now';
             let dateVal = typeof updatedAt === 'number' ? updatedAt * 1000 : updatedAt;
-            if (typeof updatedAt === 'string' && !isNaN(updatedAt)) {
-                dateVal = parseFloat(updatedAt) * 1000;
+            if (typeof updatedAt === 'string') {
+                if (!isNaN(updatedAt)) {
+                    dateVal = parseFloat(updatedAt) * 1000;
+                } else {
+                    let cleanStr = updatedAt.trim();
+                    cleanStr = cleanStr.replace(' ', 'T');
+                    if (!/Z|[+-]\d{2}(?::?\d{2})?$/.test(cleanStr)) {
+                        cleanStr += 'Z';
+                    }
+                    dateVal = cleanStr;
+                }
             }
             const date = new Date(dateVal);
             if (isNaN(date.getTime())) return 'Recently';
@@ -28,6 +37,34 @@ export function getUiActions() {
             }
             
             return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        },
+
+        shouldShowConvImage(conv) {
+            if (!conv || !conv._id) return false;
+            const char = this.getCharById(conv.character_id);
+            if (!char || !char.avatar) return false;
+            
+            // Deterministic random check (e.g. 50% chance based on id hash)
+            let sum = 0;
+            for (let i = 0; i < conv._id.length; i++) {
+                sum += conv._id.charCodeAt(i);
+            }
+            return sum % 2 === 0;
+        },
+        getConvPreviewText(conv) {
+            if (!conv || !conv.preview) return '';
+            
+            // Deterministic character limit between 40 and 130 based on id hash
+            let sum = 0;
+            for (let i = 0; i < conv._id.length; i++) {
+                sum += conv._id.charCodeAt(i);
+            }
+            const limit = 40 + (sum % 91);
+            
+            if (conv.preview.length > limit) {
+                return conv.preview.substring(0, limit) + '...';
+            }
+            return conv.preview;
         },
 
         // -- Theme --
@@ -214,6 +251,22 @@ export function getUiActions() {
                     }
                 }
             }, true); // Use capture phase
+
+            // Spotlight keyboard shortcut listener
+            window.addEventListener('keydown', (e) => {
+                const isK = e.key === 'k' || e.key === 'K';
+                const isSpace = e.code === 'Space';
+                const isModifier = e.metaKey || e.ctrlKey;
+                
+                if (isModifier && (isK || isSpace)) {
+                    e.preventDefault();
+                    if (this.spotlightOpen) {
+                        this.closeSpotlight();
+                    } else {
+                        this.openSpotlight();
+                    }
+                }
+            });
         },
         renderArtifactInModal() {
             if (!this.artifactModal.content) {
@@ -407,6 +460,118 @@ except:
                     setTimeout(() => URL.revokeObjectURL(oldUrl), 1000);
                 }
             }, 100); // 100ms debounce for smoothness
+        },
+
+        openSpotlight() {
+            this.spotlightOpen = true;
+            this.spotlightQuery = '';
+            this.spotlightResults = [];
+            this.spotlightSelectedId = null;
+            this.spotlightPreview = null;
+            this.spotlightLoading = false;
+            this.spotlightGlowing = true;
+            
+            setTimeout(() => {
+                this.spotlightGlowing = false;
+            }, 1000);
+            
+            setTimeout(() => {
+                const el = this.$refs.spotlightInput;
+                if (el) el.focus();
+            }, 50);
+        },
+        closeSpotlight() {
+            this.spotlightOpen = false;
+            this.spotlightQuery = '';
+            this.spotlightResults = [];
+            this.spotlightSelectedId = null;
+            this.spotlightPreview = null;
+        },
+        handleSpotlightInput() {
+            if (this._spotlightDebounceTimer) clearTimeout(this._spotlightDebounceTimer);
+            this._spotlightDebounceTimer = setTimeout(() => {
+                this.performSpotlightSearch();
+            }, 1000); // 1-second debounce!
+        },
+        performSpotlightSearch() {
+            const q = this.spotlightQuery.toLowerCase().trim();
+            if (!q) {
+                this.spotlightResults = [];
+                this.spotlightSelectedId = null;
+                this.spotlightPreview = null;
+                return;
+            }
+            
+            this.spotlightResults = this.conversations.filter(c =>
+                c.title.toLowerCase().includes(q) ||
+                (c.preview && c.preview.toLowerCase().includes(q))
+            );
+            
+            if (this.spotlightResults.length > 0) {
+                this.selectSpotlightItem(this.spotlightResults[0]._id);
+            } else {
+                this.spotlightSelectedId = null;
+                this.spotlightPreview = null;
+            }
+        },
+        async selectSpotlightItem(convId) {
+            this.spotlightSelectedId = convId;
+            this.spotlightLoading = true;
+            this.spotlightPreview = null;
+            
+            try {
+                const resp = await fetch(`/api/conversations/${convId}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (this.spotlightSelectedId === convId) {
+                        this.spotlightPreview = data;
+                        this.$nextTick(() => {
+                            const container = this.$refs.spotlightPreviewContainer;
+                            if (container) {
+                                container.scrollTop = container.scrollHeight;
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                if (this.spotlightSelectedId === convId) {
+                    this.spotlightLoading = false;
+                }
+            }
+        },
+        confirmSpotlightSelection() {
+            if (this.spotlightSelectedId) {
+                this.loadConversation(this.spotlightSelectedId);
+                this.closeSpotlight();
+            }
+        },
+        navigateSpotlight(direction) {
+            const list = this.spotlightQuery ? this.spotlightResults : this.spotlightSuggestions;
+            if (!list || list.length === 0) return;
+            const currentIdx = list.findIndex(c => c._id === this.spotlightSelectedId);
+            let nextIdx = currentIdx + direction;
+            if (nextIdx < 0) nextIdx = list.length - 1;
+            if (nextIdx >= list.length) nextIdx = 0;
+            const nextConv = list[nextIdx];
+            if (nextConv) {
+                this.selectSpotlightItem(nextConv._id);
+                this.$nextTick(() => {
+                    const el = document.getElementById(`spotlight-item-${nextConv._id}`);
+                    if (el) el.scrollIntoView({ block: 'nearest' });
+                });
+            }
+        },
+        cleanMsgContent(content) {
+            if (!content) return '';
+            // Remove <think>...</think> or <thought>...</thought> (closed or unclosed)
+            let cleaned = content.replace(/<(think|thought)>[\s\S]*?(<\/\1>|$)/gi, '');
+            // Strip markdown heading markers
+            cleaned = cleaned.replace(/^\s*#+\s+/gm, '');
+            // Strip code blocks
+            cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
+            return cleaned.trim();
         }
     };
 }
