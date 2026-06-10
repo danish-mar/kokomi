@@ -292,6 +292,86 @@
         font-weight: 500 !important;
         margin-right: auto !important;
     }
+
+    /* ═══ MASONRY/PINTEREST WIDGET SIDEBAR STYLES ═══ */
+    .widget-masonry {
+        column-count: 2;
+        column-gap: 8px;
+        padding: 4px 8px;
+    }
+    .widget-card {
+        break-inside: avoid;
+        display: inline-block;
+        width: 100%;
+        margin-bottom: 8px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        text-align: left;
+        transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+        position: relative;
+        cursor: pointer;
+    }
+    .dark .widget-card {
+        background: color-mix(in srgb, var(--swatch-midnight) 45%, var(--swatch-obsidian));
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .widget-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.04);
+        border-color: var(--accent);
+    }
+    .dark .widget-card:hover {
+        box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+    .widget-card.active {
+        background: var(--accent-subtle);
+        border-color: var(--accent);
+        box-shadow: 0 4px 10px rgba(80, 80, 129, 0.06);
+    }
+    .widget-meta {
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--text-tertiary);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+    .widget-title {
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+        margin-bottom: 5px;
+        display: block;
+        word-break: break-word;
+    }
+    .widget-preview {
+        font-size: 10.5px;
+        font-weight: 400;
+        line-height: 1.35;
+        color: var(--text-secondary);
+        opacity: 0.85;
+        word-break: break-word;
+    }
+    .widget-image {
+        width: 100%;
+        aspect-ratio: 4/3;
+        object-fit: cover;
+        border-radius: 12px;
+        margin-top: 8px;
+        display: block;
+        transition: transform 0.25s ease;
+    }
+    .widget-card:hover .widget-image {
+        transform: scale(1.02);
+    }
 </style>
 {% endblock %}
 
@@ -456,43 +536,56 @@
                                         <i class="fa-solid fa-ellipsis text-[10px]"></i>
                                     </button>
                                 </div>
-                                <div x-show="isFolderOpen(folder.id)" x-collapse class="pl-[38px] pr-1 pb-1 space-y-0.5">
-                                    <template x-for="conv in conversationsByFolder[folder.id]" :key="conv._id">
-                                        <div class="relative group/item" x-data="{ menuOpen: false }">
-                                            <button @click="loadConversation(conv._id)"
-                                                :class="currentConvId === conv._id ? 'bg-accent-sub text-accent-c font-medium' : 'text-3 hover:text-1 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'"
-                                                class="w-full text-left px-2.5 py-[5px] rounded-[8px] text-[12.5px] flex items-center gap-2 t-apple">
-                                                <i class="fa-regular fa-message text-[9px] opacity-40 shrink-0"></i>
-                                                <span class="truncate flex-grow" x-text="conv.title"></span>
-                                                <span @click.stop="menuOpen = !menuOpen"
-                                                    class="opacity-0 group-hover/item:opacity-70 hover:!opacity-100 text-[10px] text-4 shrink-0 cursor-pointer">
-                                                    <i class="fa-solid fa-ellipsis"></i>
-                                                </span>
-                                            </button>
-                                            <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
-                                                class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
-                                                <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Move</div>
-                                                <template x-for="f in folders" :key="f.id">
-                                                    <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                <div x-show="isFolderOpen(folder.id)" x-collapse class="px-2 pt-1 pb-2">
+                                    <div class="widget-masonry">
+                                        <template x-for="conv in conversationsByFolder[folder.id]" :key="conv._id">
+                                            <div class="relative group" x-data="{ menuOpen: false }">
+                                                <!-- Card Widget -->
+                                                <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
+                                                    <div class="widget-meta">
+                                                        <template x-if="currentConvId === conv._id">
+                                                            <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                        </template>
+                                                        <span x-text="formatConvTime(conv.updated_at)"></span>
+                                                    </div>
+                                                    <span class="widget-title" x-text="conv.title"></span>
+                                                    <template x-if="conv.preview">
+                                                        <p class="widget-preview" x-text="conv.preview"></p>
+                                                    </template>
+                                                    <template x-if="getCharById(conv.character_id) && getCharById(conv.character_id).avatar">
+                                                        <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
+                                                    </template>
+                                                    <span @click.stop="menuOpen = !menuOpen"
+                                                        class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
+                                                        <i class="fa-solid fa-ellipsis"></i>
+                                                    </span>
+                                                </div>
+                                                <!-- Dropdown Menu -->
+                                                <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+                                                    class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
+                                                    <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Move</div>
+                                                    <template x-for="f in folders" :key="f.id">
+                                                        <button @click="assignToFolder(conv._id, f.id); menuOpen = false"
+                                                            class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
+                                                            <i :class="f.icon" class="opacity-50 text-[10px]"></i>
+                                                            <span x-text="f.name"></span>
+                                                        </button>
+                                                    </template>
+                                                    <button @click="assignToFolder(conv._id, null); menuOpen = false"
                                                         class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
-                                                        <i :class="f.icon" class="opacity-50 text-[10px]"></i>
-                                                        <span x-text="f.name"></span>
+                                                        <i class="fa-solid fa-xmark opacity-50 text-[10px]"></i> Ungroup
                                                     </button>
-                                                </template>
-                                                <button @click="assignToFolder(conv._id, null); menuOpen = false"
-                                                    class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-black/5 dark:hover:bg-white/5 text-[11px] text-1 t-apple">
-                                                    <i class="fa-solid fa-xmark opacity-50 text-[10px]"></i> Ungroup
-                                                </button>
-                                                <div class="my-1 border-t border-themed opacity-30"></div>
-                                                <button @click="deleteConversation(conv._id); menuOpen = false"
-                                                    class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
-                                                    <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
-                                                </button>
+                                                    <div class="my-1 border-t border-themed opacity-30"></div>
+                                                    <button @click="deleteConversation(conv._id); menuOpen = false"
+                                                        class="w-full flex items-center gap-2.5 px-2 py-1 rounded-[7px] hover:bg-red-500/10 text-[11px] text-red-500 t-apple">
+                                                        <i class="fa-regular fa-trash-can opacity-60 text-[10px]"></i> Delete
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </template>
+                                        </template>
+                                    </div>
                                     <template x-if="!conversationsByFolder[folder.id] || conversationsByFolder[folder.id].length === 0">
-                                        <p class="text-[11px] text-4 italic py-1 px-2.5">No chats yet</p>
+                                        <p class="text-[11px] text-4 italic py-2 px-3 text-center">No chats yet</p>
                                     </template>
                                 </div>
                             </div>
@@ -508,19 +601,30 @@
                     <div class="px-3 mb-1.5">
                         <h2 class="text-[11px] font-bold uppercase tracking-[0.08em] text-4">Recent</h2>
                     </div>
-                    <div class="space-y-0.5">
+                    <div class="widget-masonry">
                         <template x-for="conv in conversationsByFolder['none']" :key="conv._id">
                             <div class="relative group" x-data="{ menuOpen: false }">
-                                <button @click="loadConversation(conv._id)"
-                                    :class="currentConvId === conv._id ? 'bg-accent-sub text-accent-c font-medium' : 'text-3 hover:text-1 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'"
-                                    class="w-full text-left px-3 py-[7px] rounded-[10px] text-[13px] flex items-center gap-2.5 t-apple">
-                                    <i class="fa-regular fa-message text-[10px] opacity-40 shrink-0"></i>
-                                    <span class="truncate flex-grow" x-text="conv.title"></span>
+                                <!-- Card Widget -->
+                                <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
+                                    <div class="widget-meta">
+                                        <template x-if="currentConvId === conv._id">
+                                            <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                        </template>
+                                        <span x-text="formatConvTime(conv.updated_at)"></span>
+                                    </div>
+                                    <span class="widget-title" x-text="conv.title"></span>
+                                    <template x-if="conv.preview">
+                                        <p class="widget-preview" x-text="conv.preview"></p>
+                                    </template>
+                                    <template x-if="getCharById(conv.character_id) && getCharById(conv.character_id).avatar">
+                                        <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
+                                    </template>
                                     <span @click.stop="menuOpen = !menuOpen"
-                                        class="opacity-0 group-hover:opacity-60 hover:!opacity-100 text-[10px] text-4 shrink-0 cursor-pointer t-apple">
+                                        class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
                                         <i class="fa-solid fa-ellipsis"></i>
                                     </span>
-                                </button>
+                                </div>
+                                <!-- Dropdown Menu -->
                                 <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
                                     class="absolute top-full left-0 mt-1 w-40 material-elevated border border-themed rounded-[12px] shadow-t-lg z-[100] p-1.5">
                                     <div class="px-2 py-1 text-[8px] font-bold uppercase tracking-widest text-4">Add to Project</div>
@@ -555,59 +659,6 @@
             <!-- ── ZONE 3: Bottom Bar (pinned) ── -->
             <div class="shrink-0 px-3 pb-3 pt-2 space-y-3 border-t separator">
                 
-                <!-- Character Selector -->
-                <div id="tour-character" class="flex items-center gap-2.5 px-2.5 py-2 rounded-[10px] bg-accent-sub cursor-pointer hover:brightness-[1.03] t-apple"
-                    @click="charPickerOpen = !charPickerOpen">
-                    <template x-if="activeChar.avatar">
-                        <img :src="activeChar.avatar" class="w-[22px] h-[22px] rounded-[6px] object-cover" />
-                    </template>
-                    <template x-if="!activeChar.avatar">
-                        <div class="w-[22px] h-[22px] rounded-[6px] flex items-center justify-center" style="background: linear-gradient(135deg, #505081, #8686AC);">
-                            <span class="text-white text-[10px] font-bold" x-text="activeChar.name.charAt(0)"></span>
-                        </div>
-                    </template>
-                    <div class="min-w-0 flex-grow">
-                        <p class="text-[10px] text-4 font-medium uppercase tracking-[0.04em]">Character</p>
-                        <p class="text-[12px] font-medium text-accent-c truncate" x-text="activeChar.name"></p>
-                    </div>
-                    <i class="fa-solid fa-chevron-down text-[9px] text-4 t-apple" :class="charPickerOpen && 'rotate-180'"></i>
-                </div>
-
-                <!-- Character Picker (sidebar) -->
-                <div x-show="charPickerOpen" x-collapse x-data="{ charSideQ: '' }">
-                    <!-- Search when many characters -->
-                    <div x-show="characters.length > 6" class="px-1 pb-1.5 pt-0.5">
-                        <div class="relative">
-                            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-4 pointer-events-none"></i>
-                            <input type="text" x-model="charSideQ" placeholder="Search…"
-                                   class="w-full pl-6 pr-2.5 py-1 text-[11.5px] bg-black/5 dark:bg-white/5 rounded-[8px] border border-transparent focus:border-accent-c outline-none text-1 t-apple" />
-                        </div>
-                    </div>
-                    <div class="space-y-0.5 pl-1 max-h-[220px] overflow-y-auto">
-                        <template x-for="char in characters.filter(c => !charSideQ || c.name.toLowerCase().includes(charSideQ.toLowerCase()))" :key="char.id">
-                            <button @click="selectCharacter(char.id)"
-                                :class="activeCharId === char.id ? 'bg-accent-sub text-1' : 'text-2 hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'"
-                                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-[8px] text-[12px] t-apple">
-                                <template x-if="char.avatar">
-                                    <img :src="char.avatar" class="w-[18px] h-[18px] rounded-[5px] object-cover flex-shrink-0" />
-                                </template>
-                                <template x-if="!char.avatar">
-                                    <div class="w-[18px] h-[18px] rounded-[5px] flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0"
-                                         style="background: linear-gradient(135deg, #505081, #8686AC);" x-text="char.name.charAt(0)"></div>
-                                </template>
-                                <span class="truncate" x-text="char.name"></span>
-                                <template x-if="activeCharId === char.id">
-                                    <i class="fa-solid fa-check text-[9px] text-accent-c ml-auto flex-shrink-0"></i>
-                                </template>
-                            </button>
-                        </template>
-                        <div x-show="characters.filter(c => !charSideQ || c.name.toLowerCase().includes(charSideQ.toLowerCase())).length === 0"
-                             class="py-3 text-center text-4 text-[11px]">
-                            No match for "<span x-text="charSideQ"></span>"
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Quick Actions Grid -->
                 <div id="tour-quick-access" class="grid grid-cols-2 gap-1.5 px-0.5">
                     <!-- Spaces -->

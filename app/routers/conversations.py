@@ -9,6 +9,72 @@ from app.storage import load_convos, save_convos, load_folders, save_folders
 router = APIRouter(prefix="/api")
 
 
+def _clean_content(content):
+    if not content:
+        return ""
+    # Skip raw JSON payloads
+    content_strip = content.strip()
+    if content_strip.startswith("{") and content_strip.endswith("}"):
+        return ""
+        
+    import re
+    # Remove think/thought tags (closed or unclosed until end of text)
+    cleaned = re.sub(r"<(think|thought)>.*?(</\1>|$)", "", content, flags=re.DOTALL | re.IGNORECASE)
+    # Remove markdown code blocks
+    cleaned = re.sub(r"```.*?```", "", cleaned, flags=re.DOTALL)
+    # Remove markdown heading symbols at start of lines
+    cleaned = re.sub(r"^\s*#+\s+", "", cleaned, flags=re.MULTILINE)
+    # Remove blockquotes at start of lines
+    cleaned = re.sub(r"^\s*>\s+", "", cleaned, flags=re.MULTILINE)
+    # Remove list markers at start of lines
+    cleaned = re.sub(r"^\s*[-\*+]\s+", "", cleaned, flags=re.MULTILINE)
+    # Remove inline formatting / artifacts
+    cleaned = re.sub(r"\[\[ARTIFACT:.*?\]\]", "", cleaned)
+    cleaned = cleaned.replace("**", "").replace("*", "").replace("`", "").strip()
+    # Collapse whitespace/newlines into spaces
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def get_last_message_preview(c):
+    messages = c.get("messages", [])
+    if not messages:
+        return ""
+
+    # 1. Try to find the AI's (assistant) first response
+    for m in messages:
+        if m.get("role") == "assistant" and not m.get("tool_calls"):
+            cleaned = _clean_content(m.get("content", ""))
+            if cleaned:
+                if len(cleaned) > 60:
+                    return cleaned[:57] + "..."
+                return cleaned
+
+    # 2. Fallback to the first user message (e.g. if the assistant hasn't replied yet)
+    for m in messages:
+        if m.get("role") == "user" and not m.get("tool_calls"):
+            cleaned = _clean_content(m.get("content", ""))
+            if cleaned:
+                if len(cleaned) > 60:
+                    return cleaned[:57] + "..."
+                return cleaned
+
+    # 3. Last resort fallback to any valid message from the end
+    for m in reversed(messages):
+        role = m.get("role", "user")
+        if role not in ("user", "assistant"):
+            continue
+        if m.get("tool_calls"):
+            continue
+        cleaned = _clean_content(m.get("content", ""))
+        if cleaned:
+            if len(cleaned) > 60:
+                return cleaned[:57] + "..."
+            return cleaned
+
+    return ""
+
+
 # ── Conversations ────────────────────────────────────────────────────
 
 @router.get("/conversations")
@@ -21,6 +87,7 @@ async def list_conversations_api():
             "character_id": c.get("character_id", "kokomi"),
             "folder_id": c.get("folder_id", None),
             "updated_at": str(c.get("updated_at", "")),
+            "preview": get_last_message_preview(c),
         }
         for cid, c in convos.items()
         if not c.get("is_anonymous", False)

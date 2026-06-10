@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.1.0] - 2026-06-10
+
+### Added
+
+- **Pinterest-style Masonry Grid Card Layout for Sidebar**: Redesigned the main chat sidebar conversation list to follow a premium card-based masonry list layout.
+- **Clean Message Preview Prioritizing AI Response**: Changed the sidebar conversation preview to display the AI's first response instead of the user's question, falling back to the first user message or last message if needed.
+- **Streamlined UI**: Removed the character selector and picker from the sidebar bottom bar to clean up the navigation layout.
+
+### Changed
+
+- **Active Card Highlight**: Updated the active conversation card background highlight to use the subtle accent color (`var(--accent-subtle)`) for better theme blending.
+
 ## [v5.0.9] - 2026-06-10
 
 ### Fixed

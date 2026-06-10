@@ -4,6 +4,32 @@
 
 export function getUiActions() {
     return {
+        formatConvTime(updatedAt) {
+            if (!updatedAt) return 'Just now';
+            let dateVal = typeof updatedAt === 'number' ? updatedAt * 1000 : updatedAt;
+            if (typeof updatedAt === 'string' && !isNaN(updatedAt)) {
+                dateVal = parseFloat(updatedAt) * 1000;
+            }
+            const date = new Date(dateVal);
+            if (isNaN(date.getTime())) return 'Recently';
+            
+            const now = new Date();
+            const isToday = date.toDateString() === now.toDateString();
+            
+            if (isToday) {
+                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+            }
+            
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 7) {
+                return date.toLocaleDateString([], { weekday: 'long' });
+            }
+            
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        },
+
         // -- Theme --
         get darkMode() {
             return document.documentElement.classList.contains('dark');
