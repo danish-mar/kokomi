@@ -24,7 +24,7 @@ from app.insights import log_generation
 from app.memory import save_memory, search_memories, summarize_conversation
 from app.tools.memory_tool import get_memory_tool
 
-from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _ensure_pool
+from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_tool, _ensure_pool
 
 router = APIRouter(prefix="/api")
 
@@ -152,6 +152,21 @@ async def chat(req: ChatRequest):
             persona += (
                 "\n\nYou have access to a web scraping tool called 'scrape_page'. "
                 "USE it to extract clean text from any URL when you need to read page contents."
+            )
+
+        image_tool = _get_image_tool(prefs)
+        if image_tool:
+            tool_defs.append(image_tool)
+            builtin_tools[image_tool.name] = image_tool
+            persona += (
+                "\n\n[IMAGES] You can show the user real photos via the 'search_images' tool (results render "
+                "automatically as a gallery). PROACTIVELY call it — without waiting to be asked, and BEFORE "
+                "writing your answer — whenever the topic is something visual: a place/city/country/landmark/"
+                "travel destination, a product or gadget, a dish or food, an animal or plant, a person or "
+                "character, a building, a vehicle, or an artwork. Example: 'tell me about Aurangabad' → first "
+                "call search_images('Aurangabad'), then write your reply. Skip it only for abstract topics "
+                "(code, math, feelings, definitions) where a photo wouldn't help. Never paste raw image URLs "
+                "or markdown image tags in your message."
             )
 
         if prefs.get("browser_redirect_enabled", True):
@@ -409,6 +424,11 @@ async def chat_stream(req: ChatRequest):
                     tool_defs.append(scrape_tool)
                     builtin_tools[scrape_tool.name] = scrape_tool
 
+                image_tool = _get_image_tool(prefs)
+                if image_tool:
+                    tool_defs.append(image_tool)
+                    builtin_tools[image_tool.name] = image_tool
+
                 if prefs.get("browser_redirect_enabled", True):
                     tool_defs.append(open_url)
                     builtin_tools[open_url.name] = open_url
@@ -526,6 +546,19 @@ async def chat_stream(req: ChatRequest):
                         p_persona += (
                             "\n\nYou have access to a web scraping tool called 'scrape_page'. "
                             "USE it to extract clean text from any URL when you need to read page contents."
+                        )
+
+                    if "search_images" in builtin_tools:
+                        p_persona += (
+                            "\n\n[IMAGES] You can show the user real photos via the 'search_images' tool "
+                            "(results render automatically as a gallery). PROACTIVELY call it — without waiting "
+                            "to be asked, and BEFORE writing your answer — whenever the topic is something "
+                            "visual: a place/city/country/landmark/travel destination, a product or gadget, a "
+                            "dish or food, an animal or plant, a person or character, a building, a vehicle, or "
+                            "an artwork. Example: 'tell me about Aurangabad' → first call search_images("
+                            "'Aurangabad'), then write your reply referencing the photos naturally. Skip it only "
+                            "for abstract topics (code, math, feelings, definitions) where a photo wouldn't help. "
+                            "Never paste raw image URLs or markdown image tags in your message."
                         )
 
                     if prefs.get("browser_redirect_enabled", True) and "open_url" in builtin_tools:

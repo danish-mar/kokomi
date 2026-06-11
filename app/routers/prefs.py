@@ -13,6 +13,71 @@ async def get_prefs():
     return load_prefs()
 
 
+def _sniff_image_type(b: bytes):
+    """Guess an image MIME type from magic bytes, for hosts that mislabel content-type."""
+    if b[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if b[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "image/webp"
+    if b[:2] == b"BM":
+        return "image/bmp"
+    head = b[:256].lstrip().lower()
+    if head[:5] == b"<?xml" or head[:4] == b"<svg":
+        return "image/svg+xml"
+    return None
+
+
+@router.get("/img")
+async def image_proxy(url: str):
+    """Proxy a remote image through the server so it loads same-origin. Some image
+    hosts set a restrictive Cross-Origin-Resource-Policy (or serve over http on an
+    https page); fetching server-side and re-serving from our own origin sidesteps
+    CORP, mixed-content, and hotlink protection for AI image galleries."""
+    from fastapi import HTTPException
+    from fastapi.responses import Response
+    from urllib.parse import urlparse
+
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Invalid url")
+
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        # Many hosts hotlink-protect by Referer; presenting the image's own origin
+        # gets us past most of them.
+        "Referer": origin + "/",
+    }
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
+            r = await client.get(url, headers=headers)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Fetch failed")
+
+    if r.status_code != 200 or not r.content:
+        raise HTTPException(status_code=404, detail="Not available")
+    if len(r.content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image too large")
+
+    content_type = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if not content_type.startswith("image/"):
+        content_type = _sniff_image_type(r.content)
+        if not content_type:
+            raise HTTPException(status_code=415, detail="Not an image")
+
+    return Response(
+        content=r.content,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @router.post("/prefs")
 async def update_prefs(p: PrefsUpdate):
     prefs = load_prefs()

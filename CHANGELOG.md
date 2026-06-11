@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.2.9] - 2026-06-12
+
+### Added
+
+- **Live AI Image Galleries**: The assistant can now show real photos inline. A new `search_images` tool (Tavily or SearxNG, per the active search provider) returns image URLs that render as a themed, justified-rows gallery above the reply. The AI is prompted to use it **proactively** for visual topics (places, products, food, people, landmarks…), not just when explicitly asked.
+- **Fullscreen Lightbox**: Tap any gallery image to open a fullscreen viewer with prev/next, keyboard arrows, and Esc to close. Opens instantly via the cached thumbnail, then upgrades to full resolution in the background.
+- **Sidebar Chat Thumbnails**: Conversations that produced images now surface one as the card thumbnail.
+- **Same-Origin Image Proxy** (`/api/img`): Fetches remote images server-side and re-serves them from our own origin, sidestepping Cross-Origin-Resource-Policy blocks, mixed-content, and Referer-based hotlink protection (with content-type sniffing for mislabeled hosts).
+- **Resizable Sidebar**: Drag the right edge to resize; the width persists client-side (localStorage) across sessions.
+
+### Changed
+
+- **Sidebar Redesign (Pinterest aesthetic)**: Larger, airier masonry cards with bold titles, generous radius and soft shadows. Chats with an image render as **hero cards** — a full-bleed image with the title overlaid on a gradient scrim. Fully theme-aware (light/dark).
+- **Mobile Sidebar**: Now covers the full screen on phones, with a dedicated close button.
+- **Image-search prompting** is more directive so smaller models reliably show pictures for visual topics.
+
+### Fixed
+
+- Lightbox no longer flashes the previously viewed image while a large original loads.
+- Gallery images that hosts block cross-origin (e.g. restrictive CORP) now load via the proxy instead of leaving blank gaps; genuinely dead URLs are hidden cleanly.
+
 ## [v5.2.0] - 2026-06-11
 
 ### Added

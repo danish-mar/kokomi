@@ -23,11 +23,15 @@ export function getInitialState() {
             'fa-solid fa-music', 'fa-solid fa-palette', 'fa-solid fa-microchip'
         ],
         prefs: { dynamic_suggestions: true, artifacts: true, debug_mode: false },
-        artifactModal: { 
-            show: false, id: null, title: '', type: '', icon: '', 
+        artifactModal: {
+            show: false, id: null, title: '', type: '', icon: '',
             content: '', renderedContent: '', output: '', executing: false,
             tab: 'code'
         },
+        // Fullscreen image viewer for AI-generated galleries
+        lightbox: { show: false, images: [], index: 0, src: '' },
+        // Resizable sidebar width (px), persisted client-side
+        sidebarWidth: (parseInt(localStorage.getItem('sidebarWidth'), 10) || 300),
         abortController: null,
         spaces: [],
         activeSpaceId: null,

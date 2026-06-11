@@ -153,6 +153,81 @@ def _get_scrape_tool(prefs: dict):
         return None
 
 
+def _get_image_tool(prefs: dict):
+    """Build a `search_images` tool (Tavily or SearxNG, per prefs) that returns
+    real image URLs for the UI to display as a gallery. None if not configured."""
+    try:
+        if not prefs.get("image_search_enabled", True):
+            return None
+
+        from langchain_core.tools import tool
+        import json
+
+        provider = prefs.get("search_provider") or "tavily"
+        DESC = (
+            "Search the web for IMAGES of a subject (places, landmarks, products, people, "
+            "food, animals, etc.). Returns image URLs that are shown to the user automatically "
+            "as a gallery. Call this whenever the user asks to see/show a picture of something, "
+            "or when images would clearly enrich your answer. Keep `query` short and visual."
+        )
+
+        if provider == "searxng":
+            import httpx
+            searxng_url = (prefs.get("searxng_url") or "http://localhost:8080").rstrip("/")
+
+            @tool("search_images", description=DESC)
+            def searxng_image_tool(query: str, count: int = 6) -> str:
+                try:
+                    n = max(1, min(int(count), 12))
+                    params = {"q": query, "format": "json", "categories": "images"}
+                    resp = httpx.get(f"{searxng_url}/search", params=params, timeout=12.0)
+                    if resp.status_code != 200:
+                        resp = httpx.get(f"{searxng_url}/", params=params, timeout=12.0)
+                    if resp.status_code != 200:
+                        return json.dumps({"query": query, "images": [], "error": f"SearxNG status {resp.status_code}"})
+                    images = []
+                    for r in (resp.json().get("results") or [])[:n]:
+                        src = r.get("img_src") or r.get("thumbnail_src")
+                        if not src:
+                            continue
+                        if src.startswith("//"):
+                            src = "https:" + src
+                        elif src.startswith("/"):
+                            src = searxng_url + src
+                        images.append({"url": src, "thumbnail": r.get("thumbnail_src") or src})
+                    return json.dumps({"query": query, "images": images})
+                except Exception as e:
+                    return json.dumps({"query": query, "images": [], "error": str(e)})
+
+            return searxng_image_tool
+
+        # Tavily (default)
+        api_key = prefs.get("tavily_api_key") or ""
+        if not api_key:
+            return None
+
+        @tool("search_images", description=DESC)
+        def tavily_image_tool(query: str, count: int = 6) -> str:
+            try:
+                from tavily import TavilyClient
+                n = max(1, min(int(count), 12))
+                res = TavilyClient(api_key=api_key).search(
+                    query=query, include_images=True, max_results=3,
+                )
+                images = []
+                for im in (res.get("images") or [])[:n]:
+                    url = im.get("url") if isinstance(im, dict) else im
+                    if url:
+                        images.append({"url": url, "thumbnail": url})
+                return json.dumps({"query": query, "images": images})
+            except Exception as e:
+                return json.dumps({"query": query, "images": [], "error": str(e)})
+
+        return tavily_image_tool
+    except Exception:
+        return None
+
+
 async def _ensure_pool():
     """Lazily initialize the MCP pool if it's stale or not ready."""
     if pool_is_stale():

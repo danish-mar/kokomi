@@ -256,6 +256,54 @@
     .kokomi-diagram-modal-body { display: flex; align-items: center; justify-content: center; overflow: auto; }
     .kokomi-diagram-modal-body svg { max-width: 100%; height: auto; }
 
+    /* ── AI image gallery (justified rows) ───────────────
+       Each image keeps its aspect ratio at a shared row height; flex-grow then
+       fills each row to the full width. The ::after spacer keeps the final row at
+       natural size instead of stretching it. */
+    .ai-gallery { display: flex; flex-wrap: wrap; gap: 4px; max-width: 480px; line-height: 0; }
+    .ai-gallery::after { content: ""; flex-grow: 999; }
+    .ai-gallery-img {
+        height: 150px; flex-grow: 1; width: auto; min-width: 84px; max-width: 100%;
+        object-fit: cover; border-radius: 12px; cursor: pointer; display: block;
+        border: 1px solid var(--border); background: var(--bg-surface-hover);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .ai-gallery-img:hover { opacity: 0.9; transform: translateY(-1px); }
+    /* A lone image shouldn't be cropped to a thin strip */
+    .ai-gallery-img:only-child { height: auto; max-height: 300px; flex-grow: 0; }
+
+    /* ── Image lightbox ──────────────────────────────── */
+    .lightbox-stage {
+        position: relative; z-index: 1; display: flex; flex-direction: column;
+        align-items: center; gap: 12px; max-width: 92vw; max-height: 88vh; padding: 12px;
+    }
+    .lightbox-img {
+        max-width: 92vw; max-height: 80vh; object-fit: contain;
+        border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,0.6); cursor: default;
+    }
+    .lightbox-caption {
+        margin: 0; max-width: 80vw; text-align: center; color: rgba(255,255,255,0.85);
+        font-size: 13px; line-height: 1.5;
+    }
+    .lightbox-btn {
+        position: absolute; z-index: 2; width: 46px; height: 46px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        color: #fff; font-size: 18px; border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.08); backdrop-filter: blur(10px);
+        transition: background 0.18s ease, transform 0.15s ease;
+    }
+    .lightbox-btn:hover { background: rgba(255,255,255,0.18); }
+    .lightbox-btn:active { transform: scale(0.92); }
+    .lightbox-close { top: max(18px, env(safe-area-inset-top)); right: 18px; }
+    .lightbox-prev { left: 14px; top: 50%; transform: translateY(-50%); }
+    .lightbox-next { right: 14px; top: 50%; transform: translateY(-50%); }
+    .lightbox-prev:active, .lightbox-next:active { transform: translateY(-50%) scale(0.92); }
+    .lightbox-counter {
+        position: absolute; z-index: 2; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
+        transform: translateX(-50%); color: rgba(255,255,255,0.8); font-size: 13px; font-weight: 600;
+        background: rgba(0,0,0,0.4); padding: 5px 12px; border-radius: 999px; backdrop-filter: blur(8px);
+    }
+
     .meta-tooltip {
         position: absolute;
         bottom: calc(100% + 12px);
@@ -371,74 +419,129 @@
         align-items: start;
     }
     .widget-card {
-        display: block;
+        display: flex;
+        flex-direction: column;
         width: 100%;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
         background: #ffffff;
         border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        border-radius: 24px;
+        padding: 16px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
         text-align: left;
-        transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+        transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), box-shadow 0.25s ease, border-color 0.25s ease;
         position: relative;
         cursor: pointer;
+        overflow: hidden;
     }
     .dark .widget-card {
         background: color-mix(in srgb, var(--swatch-midnight) 45%, var(--swatch-obsidian));
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.22);
     }
     .widget-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.04);
+        box-shadow: 0 10px 24px rgba(0,0,0,0.07);
         border-color: var(--accent);
     }
     .dark .widget-card:hover {
-        box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        box-shadow: 0 10px 26px rgba(0,0,0,0.34);
     }
     .widget-card.active {
-        background: var(--accent-subtle);
         border-color: var(--accent);
-        box-shadow: 0 4px 10px rgba(80, 80, 129, 0.06);
+        box-shadow: 0 0 0 1.5px var(--accent), 0 6px 16px rgba(80, 80, 129, 0.12);
     }
+    .widget-card-body { display: block; min-width: 0; }
     .widget-meta {
-        font-size: 9px;
+        font-size: 11px;
         font-weight: 600;
         color: var(--text-tertiary);
-        margin-bottom: 4px;
+        margin-bottom: 6px;
         display: flex;
         align-items: center;
-        gap: 3px;
-        text-transform: uppercase;
-        letter-spacing: 0.02em;
+        gap: 5px;
+        letter-spacing: 0.01em;
     }
     .widget-title {
-        font-size: 12px;
+        font-size: 17px;
         font-weight: 800;
-        line-height: 1.25;
+        line-height: 1.2;
         letter-spacing: -0.02em;
         color: var(--text-primary);
-        margin-bottom: 5px;
         display: block;
         word-break: break-word;
     }
     .widget-preview {
-        font-size: 10.5px;
+        font-size: 13px;
         font-weight: 400;
-        line-height: 1.35;
+        line-height: 1.45;
         color: var(--text-secondary);
         opacity: 0.85;
+        margin-top: 7px;
         word-break: break-word;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
+    /* Bottom image (avatar thumbnails on non-image chats) */
     .widget-image {
         width: 100%;
         aspect-ratio: 4/3;
         object-fit: cover;
-        border-radius: 12px;
-        margin-top: 8px;
+        border-radius: 14px;
+        margin-top: 12px;
         display: block;
-        transition: transform 0.25s ease;
     }
+    .widget-image--full {
+        aspect-ratio: auto;
+        height: auto;
+        object-fit: contain;
+        background: var(--bg-surface-hover);
+    }
+    /* ── Hero card: full-bleed image with the title overlaid ── */
+    .widget-card--hero {
+        padding: 0;
+        min-height: 190px;
+        justify-content: flex-end;
+    }
+    .widget-hero-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        z-index: 0;
+    }
+    .widget-card--hero .widget-card-body {
+        position: relative;
+        z-index: 1;
+        padding: 16px 16px 16px;
+        background: linear-gradient(to top, rgba(0,0,0,0.80) 0%, rgba(0,0,0,0.45) 48%, transparent 100%);
+    }
+    .widget-card--hero .widget-title { color: #fff; }
+    .widget-card--hero .widget-meta { color: rgba(255,255,255,0.85); }
+    .widget-card--hero.active { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(0,0,0,0.4); }
+
+    /* ── Resizable / responsive sidebar ───────────────── */
+    .app-sidebar { width: 100vw; }                 /* phone: full screen */
+    .app-sidebar-inner { width: 100vw; }
+    @media (min-width: 640px) {
+        .app-sidebar { width: var(--sb-w, 300px); }        /* desktop: resizable */
+        .app-sidebar-inner { width: var(--sb-w-open, 300px); }
+    }
+    .sidebar-resize-handle {
+        position: absolute; top: 0; right: 0; bottom: 0; width: 7px;
+        cursor: col-resize; z-index: 60;
+    }
+    .sidebar-resize-handle::after {
+        content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 2px;
+        background: transparent; transition: background 0.15s ease;
+    }
+    .sidebar-resize-handle:hover::after { background: var(--accent); }
+    body.sidebar-resizing { cursor: col-resize; user-select: none; }
+    body.sidebar-resizing * { user-select: none !important; }
+    body.sidebar-resizing .app-sidebar { transition: none !important; }  /* no lag while dragging */
     @keyframes spotlightGlow {
         0% {
             box-shadow: 0 0 35px 12px color-mix(in srgb, var(--accent, #505081) 85%, transparent);
@@ -557,11 +660,14 @@
 
     <!-- ═══════════════ SIDEBAR ═══════════════ -->
     <aside id="tour-sidebar"
-        :class="sidebarOpen ? 'translate-x-0 cursor-default' : '-translate-x-full sm:w-0 sm:translate-x-0'"
-        class="material-sidebar fixed inset-y-0 left-0 z-50 w-[260px] sm:static sm:flex-shrink-0 flex flex-col overflow-hidden border-r border-themed t-apple transition-transform duration-300 ease-in-out sm:transition-[width] sm:duration-300"
-        :style="sidebarOpen ? 'width: 260px' : ''">
+        :class="sidebarOpen ? 'translate-x-0 cursor-default' : '-translate-x-full sm:translate-x-0'"
+        class="material-sidebar app-sidebar fixed inset-y-0 left-0 z-50 sm:static sm:flex-shrink-0 flex flex-col overflow-hidden border-r border-themed t-apple transition-transform duration-300 ease-in-out sm:transition-[width] sm:duration-300"
+        :style="'--sb-w:' + (sidebarOpen ? sidebarWidth : 0) + 'px; --sb-w-open:' + sidebarWidth + 'px'">
         
-        <div class="w-[260px] flex flex-col h-full">
+        <!-- Drag-to-resize handle (desktop only) -->
+        <div class="sidebar-resize-handle hidden sm:block" @mousedown="startSidebarResize($event)"></div>
+
+        <div class="app-sidebar-inner flex flex-col h-full">
 
             <!-- ── ZONE 1: Brand Header (fixed) ── -->
             <div class="px-4 pt-5 pb-3 flex items-center justify-between shrink-0">
@@ -576,10 +682,17 @@
 
 
 
-                <button @click="newChat()" title="New Chat"
-                    class="w-[30px] h-[30px] rounded-[10px] hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center text-3 hover:text-1 t-apple">
-                    <i class="fa-solid fa-square-pen text-[14px]"></i>
-                </button>
+                <div class="flex items-center gap-1">
+                    <!-- Close (mobile only — full-screen sidebar has no tappable backdrop) -->
+                    <button @click="sidebarOpen = false" title="Close" x-show="sidebarOpen"
+                        class="sm:hidden w-[30px] h-[30px] rounded-[10px] hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center text-3 hover:text-1 t-apple">
+                        <i class="fa-solid fa-xmark text-[16px]"></i>
+                    </button>
+                    <button @click="newChat()" title="New Chat"
+                        class="w-[30px] h-[30px] rounded-[10px] hover:bg-black/5 dark:hover:bg-white/5 flex items-center justify-center text-3 hover:text-1 t-apple">
+                        <i class="fa-solid fa-square-pen text-[14px]"></i>
+                    </button>
+                </div>
 
             </div>
 
@@ -621,20 +734,22 @@
                                             <template x-for="conv in (conversationsByFolder[folder.id] || []).filter((_, idx) => idx % 2 === 0)" :key="conv._id">
                                                 <div class="relative group" x-data="{ menuOpen: false }">
                                                     <!-- Card Widget -->
-                                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
-                                                        <div class="widget-meta">
-                                                            <template x-if="currentConvId === conv._id">
-                                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                                        <template x-if="conv.thumbnail">
+                                                            <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
+                                                        </template>
+                                                        <div class="widget-card-body">
+                                                            <div class="widget-meta">
+                                                                <template x-if="currentConvId === conv._id">
+                                                                    <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                                </template>
+                                                                <span x-text="formatConvTime(conv.updated_at)"></span>
+                                                            </div>
+                                                            <span class="widget-title" x-text="conv.title"></span>
+                                                            <template x-if="!conv.thumbnail && conv.preview">
+                                                                <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
                                                             </template>
-                                                            <span x-text="formatConvTime(conv.updated_at)"></span>
                                                         </div>
-                                                        <span class="widget-title" x-text="conv.title"></span>
-                                                        <template x-if="conv.preview">
-                                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
-                                                        </template>
-                                                        <template x-if="shouldShowConvImage(conv)">
-                                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
-                                                        </template>
                                                         <span @click.stop="menuOpen = !menuOpen"
                                                             class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
                                                             <i class="fa-solid fa-ellipsis"></i>
@@ -669,20 +784,22 @@
                                             <template x-for="conv in (conversationsByFolder[folder.id] || []).filter((_, idx) => idx % 2 === 1)" :key="conv._id">
                                                 <div class="relative group" x-data="{ menuOpen: false }">
                                                     <!-- Card Widget -->
-                                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
-                                                        <div class="widget-meta">
-                                                            <template x-if="currentConvId === conv._id">
-                                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                                        <template x-if="conv.thumbnail">
+                                                            <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
+                                                        </template>
+                                                        <div class="widget-card-body">
+                                                            <div class="widget-meta">
+                                                                <template x-if="currentConvId === conv._id">
+                                                                    <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                                </template>
+                                                                <span x-text="formatConvTime(conv.updated_at)"></span>
+                                                            </div>
+                                                            <span class="widget-title" x-text="conv.title"></span>
+                                                            <template x-if="!conv.thumbnail && conv.preview">
+                                                                <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
                                                             </template>
-                                                            <span x-text="formatConvTime(conv.updated_at)"></span>
                                                         </div>
-                                                        <span class="widget-title" x-text="conv.title"></span>
-                                                        <template x-if="conv.preview">
-                                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
-                                                        </template>
-                                                        <template x-if="shouldShowConvImage(conv)">
-                                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
-                                                        </template>
                                                         <span @click.stop="menuOpen = !menuOpen"
                                                             class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
                                                             <i class="fa-solid fa-ellipsis"></i>
@@ -740,20 +857,22 @@
                             <template x-for="conv in (conversationsByFolder['none'] || []).filter((_, idx) => idx % 2 === 0)" :key="conv._id">
                                 <div class="relative group" x-data="{ menuOpen: false }">
                                     <!-- Card Widget -->
-                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
-                                        <div class="widget-meta">
-                                            <template x-if="currentConvId === conv._id">
-                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                        <template x-if="conv.thumbnail">
+                                            <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
+                                        </template>
+                                        <div class="widget-card-body">
+                                            <div class="widget-meta">
+                                                <template x-if="currentConvId === conv._id">
+                                                    <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                </template>
+                                                <span x-text="formatConvTime(conv.updated_at)"></span>
+                                            </div>
+                                            <span class="widget-title" x-text="conv.title"></span>
+                                            <template x-if="!conv.thumbnail && conv.preview">
+                                                <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
                                             </template>
-                                            <span x-text="formatConvTime(conv.updated_at)"></span>
                                         </div>
-                                        <span class="widget-title" x-text="conv.title"></span>
-                                        <template x-if="conv.preview">
-                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
-                                        </template>
-                                        <template x-if="shouldShowConvImage(conv)">
-                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
-                                        </template>
                                         <span @click.stop="menuOpen = !menuOpen"
                                             class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
                                             <i class="fa-solid fa-ellipsis"></i>
@@ -784,20 +903,22 @@
                             <template x-for="conv in (conversationsByFolder['none'] || []).filter((_, idx) => idx % 2 === 1)" :key="conv._id">
                                 <div class="relative group" x-data="{ menuOpen: false }">
                                     <!-- Card Widget -->
-                                    <div class="widget-card" :class="currentConvId === conv._id && 'active'" @click="loadConversation(conv._id)">
-                                        <div class="widget-meta">
-                                            <template x-if="currentConvId === conv._id">
-                                                <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                        <template x-if="conv.thumbnail">
+                                            <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
+                                        </template>
+                                        <div class="widget-card-body">
+                                            <div class="widget-meta">
+                                                <template x-if="currentConvId === conv._id">
+                                                    <i class="fa-solid fa-thumbtack text-[8px] text-accent-c"></i>
+                                                </template>
+                                                <span x-text="formatConvTime(conv.updated_at)"></span>
+                                            </div>
+                                            <span class="widget-title" x-text="conv.title"></span>
+                                            <template x-if="!conv.thumbnail && conv.preview">
+                                                <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
                                             </template>
-                                            <span x-text="formatConvTime(conv.updated_at)"></span>
                                         </div>
-                                        <span class="widget-title" x-text="conv.title"></span>
-                                        <template x-if="conv.preview">
-                                            <p class="widget-preview" x-text="getConvPreviewText(conv)"></p>
-                                        </template>
-                                        <template x-if="shouldShowConvImage(conv)">
-                                            <img :src="getCharById(conv.character_id).avatar" class="widget-image" />
-                                        </template>
                                         <span @click.stop="menuOpen = !menuOpen"
                                             class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 hover:!opacity-100 text-[10px] text-4 cursor-pointer p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-opacity t-apple">
                                             <i class="fa-solid fa-ellipsis"></i>
@@ -1420,10 +1541,10 @@
                                                     <div x-show="open" x-collapse class="mt-2 text-3 italic chat-prose" style="font-size:0.9em; white-space:pre-wrap; word-break:break-word;" x-text="msg.thinking"></div>
                                                 </div>
                                             </template>
-                                            <!-- Tool Calls -->
-                                            <template x-if="msg.tool_calls && msg.tool_calls.length">
+                                            <!-- Tool Calls (image search is shown as a gallery, not a pill) -->
+                                            <template x-if="msg.tool_calls && msg.tool_calls.some(t => t.name !== 'search_images')">
                                                 <div class="mb-3 space-y-1.5">
-                                                    <template x-for="(tc, ti) in msg.tool_calls" :key="ti">
+                                                    <template x-for="(tc, ti) in msg.tool_calls.filter(t => t.name !== 'search_images')" :key="ti">
                                                         <div class="rounded-[10px] border border-themed p-2.5 t-apple" style="background: var(--accent-subtle);" 
                                                              x-data="{ 
                                                                  expanded: false,
@@ -1497,8 +1618,20 @@
                                                 </div>
                                             </template>
 
+                                            <!-- AI-generated image gallery (from search_images): justified rows -->
+                                            <template x-if="galleryImages(msg).length">
+                                                <div class="ai-gallery mb-3">
+                                                    <template x-for="(img, gi) in galleryImages(msg)" :key="img.url">
+                                                        <img class="ai-gallery-img" :src="imgProxy(img.thumbnail || img.url)"
+                                                             :alt="img.title" loading="lazy"
+                                                             @click="openLightbox(galleryImages(msg), gi)"
+                                                             @error="$el.style.display='none'" />
+                                                    </template>
+                                                </div>
+                                            </template>
+
                                             <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg, msg.streaming)"></div>
-                                            
+
                                             <template x-if="msg.artifacts && msg.artifacts.length">
                                                 <div class="mt-4 space-y-3">
                                                     <template x-for="art in msg.artifacts.filter(a => !msg.content || !msg.content.includes('[[ARTIFACT:' + a.id + ']]'))" :key="art.id">
@@ -1802,6 +1935,38 @@
                 </button>
             </div>
         </template>
+    </div>
+
+    <!-- Image Lightbox -->
+    <div x-show="lightbox.show" x-cloak
+         class="fixed inset-0 z-[1100] flex items-center justify-center"
+         @keydown.escape.window="closeLightbox()"
+         @keydown.arrow-right.window="lightbox.show && lightboxNext()"
+         @keydown.arrow-left.window="lightbox.show && lightboxPrev()">
+        <div class="absolute inset-0 bg-black/85 backdrop-blur-[14px]" @click="closeLightbox()"></div>
+        <div class="lightbox-stage" x-show="lightbox.show"
+             x-transition:enter="t-apple" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
+            <template x-if="lightbox.images.length">
+                <img :src="lightbox.src"
+                     :alt="lightbox.images[lightbox.index] && lightbox.images[lightbox.index].title"
+                     class="lightbox-img" @click.stop />
+            </template>
+            <p class="lightbox-caption" x-show="lightbox.images[lightbox.index] && lightbox.images[lightbox.index].title"
+               x-text="lightbox.images[lightbox.index] && lightbox.images[lightbox.index].title" @click.stop></p>
+        </div>
+
+        <!-- Controls -->
+        <button class="lightbox-btn lightbox-close" @click="closeLightbox()" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <button class="lightbox-btn lightbox-prev" x-show="lightbox.images.length > 1" @click.stop="lightboxPrev()" aria-label="Previous">
+            <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <button class="lightbox-btn lightbox-next" x-show="lightbox.images.length > 1" @click.stop="lightboxNext()" aria-label="Next">
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <div class="lightbox-counter" x-show="lightbox.images.length > 1"
+             x-text="(lightbox.index + 1) + ' / ' + lightbox.images.length"></div>
     </div>
 
     <!-- Artifacts Modal -->

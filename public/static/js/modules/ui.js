@@ -4,6 +4,27 @@
 
 export function getUiActions() {
     return {
+        // Drag-to-resize the sidebar (desktop). Width persists in localStorage.
+        startSidebarResize(e) {
+            e.preventDefault();
+            const startX = e.clientX;
+            const startW = this.sidebarWidth;
+            const MIN = 240, MAX = 560;
+            const onMove = (ev) => {
+                let w = startW + (ev.clientX - startX);
+                this.sidebarWidth = Math.max(MIN, Math.min(MAX, w));
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.body.classList.remove('sidebar-resizing');
+                try { localStorage.setItem('sidebarWidth', String(this.sidebarWidth)); } catch (err) {}
+            };
+            document.body.classList.add('sidebar-resizing');
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        },
+
         formatConvTime(updatedAt) {
             if (!updatedAt) return 'Just now';
             let dateVal = typeof updatedAt === 'number' ? updatedAt * 1000 : updatedAt;
@@ -41,6 +62,8 @@ export function getUiActions() {
 
         shouldShowConvImage(conv) {
             if (!conv || !conv._id) return false;
+            // If the chat produced images, always surface one as the card thumbnail.
+            if (conv.thumbnail) return true;
             const char = this.getCharById(conv.character_id);
             if (!char || !char.avatar) return false;
             

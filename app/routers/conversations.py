@@ -75,6 +75,27 @@ def get_last_message_preview(c):
     return ""
 
 
+def get_conversation_thumbnail(c):
+    """First image URL from the most recent `search_images` result in the chat,
+    used as the sidebar card thumbnail. None if the chat has no images."""
+    import json as _json
+    for m in reversed(c.get("messages", [])):
+        if m.get("role") != "assistant":
+            continue
+        for tc in reversed(m.get("tool_calls") or []):
+            if tc.get("name") != "search_images" or not tc.get("result"):
+                continue
+            try:
+                images = (_json.loads(tc["result"]) or {}).get("images") or []
+            except Exception:
+                continue
+            for im in images:
+                url = (im.get("thumbnail") or im.get("url")) if isinstance(im, dict) else im
+                if url:
+                    return url
+    return None
+
+
 # ── Conversations ────────────────────────────────────────────────────
 
 @router.get("/conversations")
@@ -88,6 +109,7 @@ async def list_conversations_api():
             "folder_id": c.get("folder_id", None),
             "updated_at": str(c.get("updated_at", "")),
             "preview": get_last_message_preview(c),
+            "thumbnail": get_conversation_thumbnail(c),
         }
         for cid, c in convos.items()
         if not c.get("is_anonymous", False)

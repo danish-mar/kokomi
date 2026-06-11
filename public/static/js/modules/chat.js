@@ -432,8 +432,17 @@ export function getChatActions() {
 
         renderMarkdown(msg, isStreaming = false) {
             if (!msg) return '';
-            const rawContent = (msg.role === 'assistant' && msg.displayContent !== undefined) ? msg.displayContent : msg.content;
+            let rawContent = (msg.role === 'assistant' && msg.displayContent !== undefined) ? msg.displayContent : msg.content;
             if (!rawContent) return '';
+
+            // When images are shown in the gallery, strip any markdown image tags the
+            // model also pasted so they don't double-render as ugly full-width images.
+            if (msg.role === 'assistant' && this.galleryImages(msg).length) {
+                rawContent = rawContent
+                    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')   // ![alt](url)
+                    .replace(/\n{3,}/g, '\n\n')
+                    .trim();
+            }
 
             try {
                 // parseWithMath handles math extraction → marked → KaTeX injection
@@ -508,6 +517,80 @@ export function getChatActions() {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        },
+
+        // Derive an image gallery for a message from its `search_images` tool results.
+        // Persistence-free: works live (tool_calls filled during streaming) and on reload
+        // (tool_calls come from the DB). Memoized per message so re-renders are cheap and
+        // x-for keys stay stable (images don't reload).
+        galleryImages(msg) {
+            if (!msg || !msg.tool_calls || !msg.tool_calls.length) return [];
+            let sig = '';
+            for (const tc of msg.tool_calls) {
+                if (tc && tc.name === 'search_images' && tc.result) sig += tc.result.length + ':';
+            }
+            if (!sig) return [];
+            this._galleryCache = this._galleryCache || {};
+            const key = msg.id || msg.timestamp || '';
+            const cached = this._galleryCache[key];
+            if (cached && cached.sig === sig) return cached.images;
+
+            const seen = new Set();
+            const images = [];
+            for (const tc of msg.tool_calls) {
+                if (!tc || tc.name !== 'search_images' || !tc.result) continue;
+                let data;
+                try { data = JSON.parse(tc.result); } catch (e) { continue; }
+                for (const im of (data && data.images) || []) {
+                    const url = typeof im === 'string' ? im : (im && (im.url || im.thumbnail));
+                    if (!url || seen.has(url)) continue;
+                    seen.add(url);
+                    const thumb = (typeof im === 'object' && im.thumbnail) ? im.thumbnail : url;
+                    images.push({ url, thumbnail: thumb, title: (typeof im === 'object' && im.title) || '' });
+                }
+            }
+            this._galleryCache[key] = { sig, images };
+            return images;
+        },
+
+        // Route remote images through the same-origin proxy (sidesteps CORP /
+        // mixed-content / hotlink blocks). Local paths (avatars, etc.) pass through.
+        imgProxy(url) {
+            if (!url) return '';
+            if (url.startsWith('/') || url.startsWith('data:')) return url;
+            return '/api/img?url=' + encodeURIComponent(url);
+        },
+
+        openLightbox(images, index) {
+            this.lightbox = { show: true, images: images || [], index: index || 0, src: '' };
+            this._loadLightboxImage();
+        },
+        closeLightbox() { this.lightbox.show = false; },
+        lightboxNext() {
+            const n = this.lightbox.images.length;
+            if (n) { this.lightbox.index = (this.lightbox.index + 1) % n; this._loadLightboxImage(); }
+        },
+        lightboxPrev() {
+            const n = this.lightbox.images.length;
+            if (n) { this.lightbox.index = (this.lightbox.index - 1 + n) % n; this._loadLightboxImage(); }
+        },
+        // Show the (already-cached) thumbnail instantly, then swap to the full-res image
+        // once it has preloaded — so the lightbox never shows the previous image while a
+        // large original downloads.
+        _loadLightboxImage() {
+            const img = this.lightbox.images[this.lightbox.index];
+            if (!img) { this.lightbox.src = ''; return; }
+            const thumb = this.imgProxy(img.thumbnail || img.url);
+            const fullUrl = this.imgProxy(img.url);
+            this.lightbox.src = thumb;
+            if (fullUrl && fullUrl !== thumb) {
+                const idx = this.lightbox.index;
+                const full = new Image();
+                full.onload = () => {
+                    if (this.lightbox.show && this.lightbox.index === idx) this.lightbox.src = fullUrl;
+                };
+                full.src = fullUrl;
+            }
         },
 
         renderChartCard(art) {
