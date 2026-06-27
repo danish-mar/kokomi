@@ -1,5 +1,4 @@
 import asyncio
-import os
 import re
 import datetime
 import uuid
@@ -10,7 +9,6 @@ from fastapi.responses import JSONResponse
 from app.storage import load_prefs, save_prefs, load_chars, load_convos, save_convos
 from app.llm import get_llm, resolve_character_model
 from app.mcp import get_pool_tools, init_pool, pool_is_stale
-from app.config import AVATARS_DIR
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 
 router = APIRouter(prefix="/api/telegram")
@@ -179,41 +177,33 @@ async def sync_bot_profile(request: Request):
         return JSONResponse({"ok": False, "error": "Character not found"}, status_code=404)
 
     results = {}
-    async with httpx.AsyncClient(timeout=15) as client:
-        # Set bot name
+    # Each call is isolated so one failure (e.g. flood-wait) doesn't abort the rest.
+    async with httpx.AsyncClient(timeout=10) as client:
+        async def _call(key, method, payload):
+            try:
+                r = await client.post(_tg_url(token, method), json=payload)
+                results[key] = r.json()
+            except Exception as e:
+                results[key] = {"ok": False, "description": str(e)}
+
         name = char.get("name", "")
         if name:
-            r = await client.post(_tg_url(token, "setMyName"), json={"name": name[:64]})
-            results["name"] = r.json()
+            await _call("name", "setMyName", {"name": name[:64]})
 
-        # Set bot description from first 512 chars of persona
         persona = char.get("persona", "")
         if persona:
-            desc = persona[:512]
-            r = await client.post(_tg_url(token, "setMyDescription"), json={"description": desc})
-            results["description"] = r.json()
-            r2 = await client.post(_tg_url(token, "setMyShortDescription"),
-                                   json={"short_description": persona[:120]})
-            results["short_description"] = r2.json()
+            await _call("description", "setMyDescription", {"description": persona[:512]})
+            await _call("short_description", "setMyShortDescription", {"short_description": persona[:120]})
 
-        # Upload avatar photo if the character has one
-        avatar_rel = char.get("avatar", "")  # e.g. "/avatars/abc123.png"
-        if avatar_rel:
-            avatar_filename = os.path.basename(avatar_rel)
-            avatar_path = os.path.join(AVATARS_DIR, avatar_filename)
-            if os.path.exists(avatar_path):
-                with open(avatar_path, "rb") as f:
-                    img_bytes = f.read()
-                ext = os.path.splitext(avatar_filename)[1].lower().lstrip(".")
-                mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
-                r = await client.post(
-                    _tg_url(token, "setMyPhoto"),
-                    files={"photo": (avatar_filename, img_bytes, mime)},
-                )
-                results["photo"] = r.json()
-
-    all_ok = all(v.get("ok") for v in results.values())
-    return {"ok": all_ok, "results": results}
+    # NOTE: Telegram's Bot API has NO method to set a bot's profile photo.
+    # The avatar can only be changed via @BotFather → /setuserpic. We surface
+    # that to the UI so the user knows it's a manual one-time step.
+    all_ok = all(v.get("ok") for v in results.values()) if results else False
+    return {
+        "ok": all_ok,
+        "results": results,
+        "photo_note": "Bot profile photo must be set manually via @BotFather → /setuserpic (Telegram's API can't do it).",
+    }
 
 
 async def send_telegram_message(chat_id: int | str, text: str, token: str):

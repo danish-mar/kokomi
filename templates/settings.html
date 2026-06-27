@@ -513,13 +513,19 @@
                     },
                     async syncProfile() {
                         this.tgSyncing = true; this.tgSyncMsg = '';
+                        await this.saveToken();
                         try {
                             const r = await fetch('/api/telegram/sync-profile', {method:'POST'});
                             const d = await r.json();
-                            this.tgSyncMsg = d.ok ? '✓ Profile synced!' : ('✗ ' + (d.error || JSON.stringify(d.results)));
+                            if (d.ok) {
+                                this.tgSyncMsg = '✓ Name & description synced! (Avatar must be set via @BotFather → /setuserpic)';
+                            } else {
+                                const desc = (d.results && Object.values(d.results).map(v => v.description).filter(Boolean).join('; ')) || d.error || 'Failed';
+                                this.tgSyncMsg = '✗ ' + desc;
+                            }
                         } catch(e) { this.tgSyncMsg = '✗ Request failed: ' + e; }
                         this.tgSyncing = false;
-                        setTimeout(() => this.tgSyncMsg = '', 4000);
+                        setTimeout(() => this.tgSyncMsg = '', 7000);
                     }
                 }">
                     <div class="card-row" style="background: var(--accent-subtle);">
@@ -599,7 +605,7 @@
                                 <div style="display:flex; align-items:center; justify-content:space-between;">
                                     <div>
                                         <label class="apple-label" style="margin-bottom:1px;">Sync Bot Profile</label>
-                                        <p style="font-size:11px; color:var(--text-quaternary);">Push character name, description &amp; photo to Telegram.</p>
+                                        <p style="font-size:11px; color:var(--text-quaternary);">Push character name &amp; description to Telegram. (Avatar: set via @BotFather)</p>
                                     </div>
                                     <button @click="syncProfile()" :disabled="tgSyncing || !prefs.telegram_bot_token"
                                         class="btn-accent" style="min-width:80px; font-size:12px; padding:6px 14px;">
