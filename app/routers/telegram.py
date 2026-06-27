@@ -89,6 +89,20 @@ async def _poll_loop():
                 await asyncio.sleep(5)
 
 
+@router.post("/set-token")
+async def set_token(request: Request):
+    """Save only the telegram_bot_token pref — avoids full-prefs race conditions."""
+    body = await request.json()
+    token = body.get("token", "").strip()
+    import re as _re
+    if token and not _re.match(r'^\d{5,}:[A-Za-z0-9_-]{20,}$', token):
+        return JSONResponse({"ok": False, "error": "Invalid token format"}, status_code=400)
+    prefs = load_prefs()
+    prefs["telegram_bot_token"] = token
+    save_prefs(prefs)
+    return {"ok": True}
+
+
 @router.post("/polling/start")
 async def polling_start():
     """Start the background polling loop immediately (no restart needed)."""

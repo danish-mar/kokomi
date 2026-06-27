@@ -451,14 +451,10 @@
                     tgToken: '',
                     tgTokenError: '',
                     init() {
+                        // Read once — never call savePrefs() here; it races with the
+                        // parent's async prefs fetch and overwrites good DB values.
                         const t = prefs.telegram_bot_token || '';
-                        // Reject anything that doesn't look like a real Telegram token
                         this.tgToken = /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(t) ? t : '';
-                        if (t && !this.tgToken) {
-                            // Bad value in DB — clear it silently
-                            prefs.telegram_bot_token = '';
-                            savePrefs();
-                        }
                     },
                     get tgChar() {
                         return characters.find(c => c.id === prefs.telegram_character_id) || null;
@@ -472,9 +468,16 @@
                             return;
                         }
                         this.tgTokenError = '';
-                        prefs.telegram_bot_token = this.tgToken;
-                        await savePrefs();
-                        await new Promise(r => setTimeout(r, 300));
+                        // Dedicated endpoint — bypasses full-prefs race conditions entirely.
+                        try {
+                            await fetch('/api/telegram/set-token', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({token: this.tgToken})
+                            });
+                            prefs.telegram_bot_token = this.tgToken;
+                        } catch(e) { console.error('Failed to save token', e); }
+                        await new Promise(r => setTimeout(r, 200));
                     },
                     async checkStatus() {
                         this.tgChecking = true; this.tgStatus = null;
