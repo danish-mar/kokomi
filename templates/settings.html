@@ -448,10 +448,13 @@
                     tgChecking: false, tgShowToken: false,
                     tgRegistering: false, tgRegisterMsg: '',
                     tgPollingMsg: '', tgPollingBusy: false,
+                    tgToken: '',
+                    init() { this.tgToken = prefs.telegram_bot_token || ''; },
                     get tgChar() {
                         return characters.find(c => c.id === prefs.telegram_character_id) || null;
                     },
                     async saveToken() {
+                        prefs.telegram_bot_token = this.tgToken;
                         await savePrefs();
                         await new Promise(r => setTimeout(r, 300));
                     },
@@ -522,7 +525,10 @@
                             <div style="margin-bottom:14px;">
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Bot Token</label>
                                 <div style="position:relative;">
-                                    <input :type="tgShowToken ? 'text' : 'password'" x-model="prefs.telegram_bot_token" @blur="savePrefs()"
+                                    <input :type="tgShowToken ? 'text' : 'password'"
+                                        :value="tgToken"
+                                        @input="tgToken = $event.target.value"
+                                        @blur="prefs.telegram_bot_token = tgToken; savePrefs()"
                                         placeholder="123456789:ABC-DEF..." class="apple-field"
                                         style="font-family:'SF Mono',monospace; font-size:12px; padding-right:40px;">
                                     <button @click="tgShowToken = !tgShowToken" type="button"
