@@ -561,6 +561,36 @@ export function getChatActions() {
             return '/api/img?url=' + encodeURIComponent(url);
         },
 
+        // Handle a click on an AI-emitted action chip (kokomi-actions widget).
+        // detail: { fill?, send?, set?, label? }  (copy/url/confirm resolved in widgets.js)
+        handleWidgetAction(detail) {
+            if (!detail) return;
+
+            // Update one or more preferences inline, then persist.
+            if (detail.set && typeof detail.set === 'object') {
+                let changed = false;
+                for (const [k, v] of Object.entries(detail.set)) {
+                    if (k in this.prefs) { this.prefs[k] = v; changed = true; }
+                }
+                if (changed && typeof this.updatePreferences === 'function') this.updatePreferences();
+                if (changed && typeof this.showToast === 'function') this.showToast('Settings updated', 'success');
+                return;
+            }
+            if (detail.fill) {
+                this.input = detail.fill;
+                this.$nextTick(() => {
+                    const ta = this.$refs.textarea;
+                    if (ta) { ta.focus(); ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+                });
+                return;
+            }
+            if (detail.send) {
+                if (this.loading) return;
+                this.input = detail.send;
+                this.sendMessage();
+            }
+        },
+
         openLightbox(images, index) {
             this.lightbox = { show: true, images: images || [], index: index || 0, src: '' };
             this._loadLightboxImage();

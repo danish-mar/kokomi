@@ -304,6 +304,127 @@
         background: rgba(0,0,0,0.4); padding: 5px 12px; border-radius: 999px; backdrop-filter: blur(8px);
     }
 
+    /* ══ Message widgets (images, video, tables, action chips) ══════════════ */
+
+    /* Image figure */
+    .kokomi-img-fig { margin: 12px 0; max-width: 480px; }
+    .kokomi-img {
+        display: block; max-width: 100%; max-height: 360px; width: auto; border-radius: 14px;
+        border: 1px solid var(--border); background: var(--bg-surface-hover); cursor: zoom-in;
+        transition: opacity .18s ease, transform .18s ease;
+    }
+    .kokomi-img:hover { opacity: 0.92; transform: translateY(-1px); }
+    .kokomi-img--err .kokomi-img { display: none; }
+    .kokomi-img--err::before {
+        content: "\f127  image unavailable"; font-family: "Font Awesome 6 Free", sans-serif; font-weight: 900;
+        display: block; padding: 18px; text-align: center; font-size: 12px; color: var(--text-quaternary);
+        border: 1px dashed var(--border); border-radius: 14px;
+    }
+    .kokomi-img-cap {
+        display: flex; align-items: center; gap: 8px; margin-top: 6px;
+        font-size: 11px; color: var(--text-quaternary); line-height: 1.4;
+    }
+    .kokomi-img-text { flex: 1; min-width: 0; }
+    .kokomi-img-dims {
+        flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 600;
+        padding: 1px 7px; border-radius: 6px; background: var(--accent-subtle); color: var(--text-tertiary);
+    }
+    .kokomi-img-dims:empty { display: none; }
+
+    /* Inline video */
+    .kokomi-video-fig { margin: 12px 0; max-width: 560px; }
+    .kokomi-video {
+        display: block; width: 100%; max-height: 420px; border-radius: 14px;
+        border: 1px solid var(--border); background: #000;
+    }
+
+    /* Interactive table */
+    .kokomi-tbl-wrap { margin: 14px 0; }
+    .kokomi-tbl-toolbar {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+        padding: 5px 10px; border: 1px solid var(--border); border-radius: 10px;
+        background: var(--bg-surface-hover);
+    }
+    .kokomi-tbl-search-ico { font-size: 11px; color: var(--text-quaternary); }
+    .kokomi-tbl-filter {
+        flex: 1; border: none; outline: none; background: transparent;
+        font-size: 12.5px; color: var(--text-primary); min-width: 0;
+    }
+    .kokomi-tbl-count {
+        font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+        color: var(--text-quaternary); flex-shrink: 0;
+    }
+    .kokomi-th-sort { cursor: pointer; user-select: none; position: relative; white-space: nowrap; }
+    .kokomi-th-sort::after {
+        content: "\f0dc"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+        font-size: 9px; opacity: 0.25; margin-left: 6px;
+    }
+    .kokomi-th-sort[data-sort="asc"]::after { content: "\f0de"; opacity: 0.85; }
+    .kokomi-th-sort[data-sort="desc"]::after { content: "\f0dd"; opacity: 0.85; }
+    .kokomi-tbl td img { max-height: 56px; border-radius: 6px; cursor: zoom-in; vertical-align: middle; }
+    /* Images embedded in table cells collapse to a bare thumbnail (no figure chrome). */
+    .kokomi-tbl td .kokomi-img-fig { margin: 0; max-width: none; display: inline-block; }
+    .kokomi-tbl td .kokomi-img-cap { display: none; }
+
+    /* Action chips */
+    .kokomi-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .kokomi-chip {
+        display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px;
+        font-size: 12.5px; font-weight: 600; color: var(--accent);
+        background: var(--accent-subtle); border: 1px solid var(--border); border-radius: 999px;
+        cursor: pointer; transition: background .15s ease, transform .12s ease, border-color .15s ease;
+    }
+    .kokomi-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .kokomi-chip:active { transform: translateY(0) scale(0.97); }
+    .kokomi-chip i { font-size: 11px; opacity: 0.85; }
+    /* Variants */
+    .kokomi-chip--primary {
+        color: var(--accent-text, #fff); background: var(--accent); border-color: var(--accent);
+    }
+    .kokomi-chip--primary:hover { filter: brightness(1.08); }
+    .kokomi-chip--ghost {
+        color: var(--text-secondary); background: transparent; border-color: var(--border);
+    }
+    .kokomi-chip--danger {
+        color: #ef4444; background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.30);
+    }
+    .kokomi-chip--danger:hover { border-color: #ef4444; }
+    .kokomi-chip--ok { color: #22c55e !important; border-color: rgba(34,197,94,0.4) !important; }
+    .kokomi-chip--more { color: var(--text-tertiary); background: transparent; border-style: dashed; }
+    .kokomi-chip--hidden { display: none; }
+    .kokomi-widget-err {
+        font-size: 12px; color: var(--text-quaternary); padding: 8px 12px;
+        border: 1px dashed var(--border); border-radius: 10px; margin: 10px 0;
+    }
+
+    /* Widget lightbox (DOM-mounted, separate from the gallery lightbox) */
+    .kokomi-lightbox {
+        position: fixed; inset: 0; z-index: 9998; display: none;
+        align-items: center; justify-content: center; padding: 24px;
+        background: rgba(0,0,0,0.82); backdrop-filter: blur(6px);
+    }
+    .kokomi-lightbox.open { display: flex; }
+    .kokomi-lb-img {
+        max-width: 92vw; max-height: 84vh; object-fit: contain; border-radius: 14px;
+        box-shadow: 0 24px 70px rgba(0,0,0,0.6);
+    }
+    .kokomi-lb-close, .kokomi-lb-open {
+        position: absolute; top: 18px; width: 44px; height: 44px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        color: #fff; font-size: 17px; border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.08); backdrop-filter: blur(10px); text-decoration: none;
+        transition: background .18s ease;
+    }
+    .kokomi-lb-close { right: 18px; }
+    .kokomi-lb-open { right: 72px; font-size: 15px; }
+    .kokomi-lb-close:hover, .kokomi-lb-open:hover { background: rgba(255,255,255,0.2); }
+    .kokomi-lb-meta {
+        position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
+        transform: translateX(-50%); color: rgba(255,255,255,0.85); font-size: 12.5px; font-weight: 600;
+        background: rgba(0,0,0,0.45); padding: 5px 12px; border-radius: 999px; backdrop-filter: blur(8px);
+    }
+    .kokomi-lb-meta:empty { display: none; }
+
     .meta-tooltip {
         position: absolute;
         bottom: calc(100% + 12px);

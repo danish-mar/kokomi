@@ -29,6 +29,39 @@ from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_t
 router = APIRouter(prefix="/api")
 
 
+# Guidance the UI's message renderer relies on. The frontend turns plain markdown
+# images/tables and two fenced blocks into rich interactive widgets, so the model
+# must emit them as RAW markdown — never wrapped in a ```markdown / ```html fence,
+# or they render as source code instead of widgets.
+MEDIA_WIDGET_GUIDE = (
+    "\n\nRICH MESSAGE WIDGETS — your replies render in a UI that upgrades certain "
+    "markdown into interactive widgets. Emit these as RAW markdown only; NEVER wrap "
+    "them in a ```markdown or ```html code fence (that shows the source instead of "
+    "the widget).\n"
+    "- Images: write a normal markdown image ![alt](https://url). It renders as a "
+    "figure with dimensions and click-to-expand. Do not use HTML <img>.\n"
+    "- Video: write a markdown link/image to a direct video file "
+    "(.mp4/.webm/.ogg), e.g. ![clip](https://host/clip.mp4) — it becomes a player. "
+    "For a poster/title use a ```kokomi-video fenced block whose body is JSON: "
+    '{\"src\":\"https://host/clip.mp4\",\"poster\":\"https://host/p.jpg\",\"title\":\"Demo\"}.\n'
+    "- Tables: write a normal GFM markdown table — it becomes sortable and "
+    "filterable automatically. Image cells become thumbnails that expand.\n"
+    "- Action buttons: when offering follow-ups or actions, you MAY emit a "
+    "```kokomi-actions fenced block whose body is a JSON array (keep it to ~3-6 "
+    "chips). Each item has a \"label\" plus exactly ONE verb:\n"
+    '    {\"label\":\"...\",\"send\":\"a message to send as the user\"}\n'
+    '    {\"label\":\"...\",\"fill\":\"text to prefill the input box (not sent)\"}\n'
+    '    {\"label\":\"...\",\"url\":\"https://...\"}  (opens a link)\n'
+    '    {\"label\":\"...\",\"copy\":\"text copied to clipboard\"}\n'
+    '    {\"label\":\"...\",\"set\":{\"pref_key\":value}}  (changes a setting, e.g. '
+    '{\"llm_provider\":\"google\"} or {\"web_search_enabled\":true})\n'
+    "  Optional per-chip: \"icon\" (a Font Awesome class like \"fa-solid fa-bolt\"), "
+    "\"variant\" (\"primary\", \"ghost\", or \"danger\"), and \"confirm\" (a yes/no "
+    "prompt string shown before the action runs — use it with \"danger\" for any "
+    "stateful or irreversible action)."
+)
+
+
 # ── Non-streaming chat ───────────────────────────────────────────────
 
 @router.post("/chat")
@@ -172,7 +205,17 @@ async def chat(req: ChatRequest):
         if prefs.get("browser_redirect_enabled", True):
             tool_defs.append(open_url)
             builtin_tools[open_url.name] = open_url
-            persona += "\n\nYou have access to the 'open_url' tool. If the user asks to 'play' media or 'open' a site, you MUST use this tool to directly open the link for them. Do NOT just print the URL in your message."
+            persona += (
+                "\n\nYou have access to the 'open_url' tool, which launches a link in the "
+                "user's device/browser. Use it ONLY when the user clearly wants to leave "
+                "the chat to perform an action — e.g. start a phone call, email, navigate a "
+                "map, or explicitly says 'open/launch this in my browser'. Do NOT use it "
+                "merely to show, embed, preview, or display media inline — for images, "
+                "video files and tables just write the markdown (see widget guidance) so it "
+                "renders inside the chat."
+            )
+
+        persona += MEDIA_WIDGET_GUIDE
 
         # Re-initialize SystemMessage with updated persona (including MCP/RAG context)
         lc_msgs[0] = SystemMessage(content=persona)
@@ -563,17 +606,22 @@ async def chat_stream(req: ChatRequest):
 
                     if prefs.get("browser_redirect_enabled", True) and "open_url" in builtin_tools:
                         p_persona += (
-                            "\n\nYou have access to the 'open_url' tool, which acts as a universal launcher. "
-                            "You MUST use it whenever the user asks for actions involving links or communication:"
+                            "\n\nYou have access to the 'open_url' tool, a universal launcher. "
+                            "Use it ONLY when the user wants to leave the chat to perform an action "
+                            "involving a link or communication:"
                             "\n- Call/Dial: Use 'tel:+91XXXXXXXXXX'"
                             "\n- Email: Use 'mailto:email@address.com'"
                             "\n- SMS: Use 'sms:+91XXXXXXXXXX'"
                             "\n- WhatsApp: Use 'whatsapp://send?phone=XXXXXXXXXX'"
-                            "\n- Play/Watch: Use 'youtube://watch?v=ID' or 'https://youtube.com/...'"
+                            "\n- Play/Watch externally: Use 'youtube://watch?v=ID' or 'https://youtube.com/...'"
                             "\n- Navigation/Maps: Use 'maps:?q=LocationName'"
                             "\n- Open Site: Use the standard https URL."
-                            "\nDo NOT just print the URL or number; use 'open_url' to trigger the action for the user."
+                            "\nDo NOT use 'open_url' to show, embed, preview or display images, video "
+                            "files or tables inline — for those, just write the markdown (see widget "
+                            "guidance) so it renders inside the chat."
                         )
+
+                    p_persona += MEDIA_WIDGET_GUIDE
 
                     p_persona += (
                         "\n\nIMPORTANT: Always wrap internal reasoning inside <think>...</think> tags before your response."

@@ -49,6 +49,9 @@ function aiApp() {
         this.updateSuggestions();
         this.initGlobalListeners();
 
+        // Bridge AI-emitted action chips (kokomi-actions widget) into the chat component.
+        window.addEventListener('kokomi-action', (e) => this.handleWidgetAction(e.detail));
+
         // Dynamic Tab Title
         this.$watch('currentTitle', (val) => {
             document.title = `${val} - KokomiAi`;

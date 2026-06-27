@@ -3,6 +3,8 @@
  * Includes KaTeX math rendering for LaTeX expressions
  */
 
+import { renderImage, renderTable, renderCodeWidget, setupWidgets } from './widgets.js';
+
 // ── Math Token Store ─────────────────────────────────────────────────────────
 // We extract math before marked runs (to prevent it from mangling LaTeX),
 // store them in a temp map, then re-inject them after markdown is parsed.
@@ -72,6 +74,12 @@ export function setupMarkdown() {
     renderer.code = (obj) => {
         const code = obj.text || '';
         const lang = obj.lang || '';
+
+        // Convention-based widgets (kokomi-video, kokomi-actions, …) take over the
+        // fenced block before any syntax highlighting.
+        const widget = renderCodeWidget(lang, code);
+        if (widget !== null) return widget;
+
         let hl;
         try {
             hl = lang && hljs.getLanguage(lang)
@@ -85,13 +93,16 @@ export function setupMarkdown() {
         return `<div class="code-wrapper">${label}<button class="code-copy-btn" onclick="window.copyCode(this)">Copy</button><pre><code class="hljs">${hl}</code></pre></div>`;
     };
 
-    renderer.table = (obj) => {
-        const header = obj.header.map(cell => `<th>${marked.parseInline(cell.text)}</th>`).join('');
-        const rows = obj.rows.map(row => `<tr>${row.map(cell => `<td>${marked.parseInline(cell.text)}</td>`).join('')}</tr>`).join('');
-        return `<div class="table-wrapper"><table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></div>`;
-    };
+    // Interactive (sortable + filterable) table widget.
+    renderer.table = (obj) => renderTable(obj);
+
+    // Image figure with dimensions + lightbox (also handles inline video URLs).
+    renderer.image = (token) => renderImage(token);
 
     marked.use({ renderer });
+
+    // Start the widget manager (lightbox, table hydration, action dispatch).
+    setupWidgets();
 }
 
 // ── Exported render function (used in renderMarkdown) ────────────────────────
