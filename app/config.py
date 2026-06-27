@@ -76,6 +76,7 @@ DEFAULT_PREFS: dict = {
     "telegram_show_thinking": False,
     "telegram_allowed_users": [],
     "telegram_history_limit": 10,
+    "telegram_use_webhook": False,
     "tavily_api_key": os.getenv("TAVILY_API_KEY", ""),
     "web_search_enabled": False,
     "image_search_enabled": True,

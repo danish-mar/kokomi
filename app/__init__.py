@@ -49,9 +49,18 @@ async def lifespan(app):
     from app.scheduler import start_scheduler_loop
     import asyncio
     scheduler_task = asyncio.create_task(start_scheduler_loop())
+
+    from app.storage import load_prefs
+    from app.routers.telegram import start_polling
+    _prefs = load_prefs()
+    if _prefs.get("telegram_enabled") and not _prefs.get("telegram_use_webhook"):
+        asyncio.create_task(start_polling())
+
     yield
-    # Shutdown — tear down MCP sessions
+    # Shutdown — tear down MCP sessions and telegram polling
     scheduler_task.cancel()
+    from app.routers.telegram import stop_polling
+    await stop_polling()
     from app.mcp import teardown_pool
     await teardown_pool()
 

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import datetime
@@ -16,9 +17,93 @@ router = APIRouter(prefix="/api/telegram")
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 
+# Tracks the background polling task so we can cancel/restart it.
+_poll_task: asyncio.Task | None = None
+
 
 def _tg_url(token: str, method: str) -> str:
     return TELEGRAM_API.format(token=token, method=method)
+
+
+async def start_polling():
+    """Long-poll getUpdates in a background loop. Safe to call multiple times —
+    cancels any existing poll task first so there's never a duplicate."""
+    global _poll_task
+    if _poll_task and not _poll_task.done():
+        _poll_task.cancel()
+        try:
+            await _poll_task
+        except asyncio.CancelledError:
+            pass
+    _poll_task = asyncio.create_task(_poll_loop())
+
+
+async def stop_polling():
+    global _poll_task
+    if _poll_task and not _poll_task.done():
+        _poll_task.cancel()
+        try:
+            await _poll_task
+        except asyncio.CancelledError:
+            pass
+    _poll_task = None
+
+
+async def _poll_loop():
+    """Background long-polling loop using getUpdates (offset tracking)."""
+    offset = 0
+    print("[Telegram] Polling loop started.")
+    async with httpx.AsyncClient(timeout=40) as client:
+        while True:
+            prefs = load_prefs()
+            if not prefs.get("telegram_enabled") or prefs.get("telegram_use_webhook"):
+                await asyncio.sleep(5)
+                continue
+            token = prefs.get("telegram_bot_token", "")
+            if not token:
+                await asyncio.sleep(5)
+                continue
+            try:
+                resp = await client.get(
+                    _tg_url(token, "getUpdates"),
+                    params={"offset": offset, "timeout": 30, "allowed_updates": ["message"]},
+                )
+                data = resp.json()
+                if not data.get("ok"):
+                    await asyncio.sleep(5)
+                    continue
+                for update in data.get("result", []):
+                    offset = update["update_id"] + 1
+                    msg = update.get("message")
+                    if not msg:
+                        continue
+                    chat_id = msg.get("chat", {}).get("id")
+                    text = (msg.get("text") or "").strip()
+                    if chat_id and text:
+                        asyncio.create_task(process_telegram_message(chat_id, text))
+            except asyncio.CancelledError:
+                print("[Telegram] Polling loop stopped.")
+                raise
+            except Exception as e:
+                print(f"[Telegram] Polling error: {e}")
+                await asyncio.sleep(5)
+
+
+@router.post("/polling/start")
+async def polling_start():
+    """Start the background polling loop immediately (no restart needed)."""
+    prefs = load_prefs()
+    if not prefs.get("telegram_bot_token"):
+        return JSONResponse({"ok": False, "error": "No bot token configured"}, status_code=400)
+    await start_polling()
+    return {"ok": True, "message": "Polling started"}
+
+
+@router.post("/polling/stop")
+async def polling_stop():
+    """Stop the background polling loop."""
+    await stop_polling()
+    return {"ok": True, "message": "Polling stopped"}
 
 
 @router.get("/status")
