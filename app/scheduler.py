@@ -176,10 +176,12 @@ async def start_scheduler_loop():
             
             # ── Memory Decay Sweep (daily) ───────────────────────
             if now - _last_decay_sweep > DECAY_INTERVAL:
+                # Mark the attempt time up-front so a failing sweep backs off for a
+                # full interval instead of retrying every 30s (e.g. Qdrant unreachable).
+                _last_decay_sweep = now
                 try:
                     from app.memory import run_decay_sweep
                     run_decay_sweep()
-                    _last_decay_sweep = now
                     print("🧠 Daily memory decay sweep completed")
                 except Exception as decay_err:
                     print(f"Memory decay sweep error: {decay_err}")

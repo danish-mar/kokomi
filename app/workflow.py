@@ -2473,8 +2473,17 @@ class MultiAgentWorkflowEngine:
         
         # Circuit Breaker Logic
         current_error = failed_task.get('error', 'Unknown')
-        error_signature = current_error[:100]  # simple signature based on first 100 chars
-        
+        # Build a STABLE signature: raw str(e) often embeds request IDs, timestamps,
+        # ports, hex IDs or attempt counts that differ every retry, which would reset
+        # the counter to 1 forever and defeat the breaker. Normalize volatile tokens.
+        _sig_src = _re.sub(r'0x[0-9a-fA-F]+', '<HEX>', current_error)
+        _sig_src = _re.sub(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', '<UUID>', _sig_src)
+        _sig_src = _re.sub(r'\d{4}-\d{2}-\d{2}[T ][\d:.]+', '<TS>', _sig_src)
+        # Mixed alphanumeric tokens (request IDs, trace IDs, e.g. req_a1b2c3d4) — collapse whole token.
+        _sig_src = _re.sub(r'\b(?=\w*\d)(?=\w*[A-Za-z])\w{4,}\b', '<ID>', _sig_src)
+        _sig_src = _re.sub(r'\d+', '<N>', _sig_src)
+        error_signature = _sig_src[:100]  # normalized signature, stable across retries
+
         if failed_task.get('last_error_signature') == error_signature:
             failed_task['error_signature_count'] = failed_task.get('error_signature_count', 0) + 1
         else:
@@ -2673,14 +2682,37 @@ Respond in JSON exactly matching this schema:
         state["notifications"].append(f"Execution started for '{state['run_title']}'")
         db[run_id] = state
         save_workflows(db)
-        
+
+        # ── Runaway guards ───────────────────────────────────────────────
+        # The recovery actions full_restart / restart_subtree re-queue tasks,
+        # so the loop can spin forever if workers keep failing (common when a
+        # server dependency — Qdrant, Docker, API keys — is misconfigured).
+        # These hard caps guarantee the loop always terminates.
+        MAX_LOOP_ITERATIONS = 500          # absolute backstop on scheduler ticks
+        MAX_GLOBAL_RESTARTS = 3            # full_restart + restart_subtree combined
+        MAX_RUNTIME_SECONDS = 60 * 60      # wall-clock ceiling (1 hour)
+        loop_iterations = 0
+        run_started_monotonic = time.monotonic()
+        state.setdefault("global_restart_count", 0)
+
         while state["status"] == "running":
+            loop_iterations += 1
+            if loop_iterations > MAX_LOOP_ITERATIONS:
+                _dbg(state, f"🛑 Runaway guard: exceeded {MAX_LOOP_ITERATIONS} loop iterations — forcing terminal failure")
+                state["status"] = "failed"
+                state["final_result"] = "Workflow stopped: exceeded maximum scheduler iterations (possible recovery loop)."
+                break
+            if time.monotonic() - run_started_monotonic > MAX_RUNTIME_SECONDS:
+                _dbg(state, f"🛑 Runaway guard: exceeded {MAX_RUNTIME_SECONDS}s wall-clock runtime — forcing terminal failure")
+                state["status"] = "failed"
+                state["final_result"] = "Workflow stopped: exceeded maximum runtime."
+                break
             # Check for external manual cancellation/failure
             db_check = load_workflows()
             if db_check.get(run_id, {}).get("status") in ["failed", "completed", "cancelled"]:
                 _dbg(state, "🛑 Workflow loop halted due to status change")
                 break
-                
+
             state = run_scheduler_step(state)
             
             ready = list(state["ready_queue"])
@@ -2775,11 +2807,12 @@ Respond in JSON exactly matching this schema:
                         cn["retry_backoff_until"] = datetime.datetime.now().timestamp() + backoff
                         
                         state["notifications"].append(f"Task '{cn['title']}' scheduled for retry ({cn['attempt_count']}/3) ↻")
-                    elif decision == "restart_subtree":
-                        _dbg(state, f"🔄 Subtree restart initiated from node '{tid}'. Unaffected completed nodes will be preserved.")
+                    elif decision == "restart_subtree" and state["global_restart_count"] < MAX_GLOBAL_RESTARTS:
+                        state["global_restart_count"] += 1
+                        _dbg(state, f"🔄 Subtree restart initiated from node '{tid}' ({state['global_restart_count']}/{MAX_GLOBAL_RESTARTS}). Unaffected completed nodes will be preserved.")
                         cn["status"] = "pending"
                         cn["attempt_count"] = 0
-                        
+
                         # Recursively find descendants to invalidate
                         descendants = set([tid])
                         changed = True
@@ -2805,8 +2838,9 @@ Respond in JSON exactly matching this schema:
                         state["failed_tasks"].append(tid)
                         state["notifications"].append(f"Workflow needs replanning. Terminal failure ✗")
                         
-                    elif decision == "full_restart":
-                        _dbg(state, f"⚠️ Full workflow restart initiated! Root assumptions were broken.")
+                    elif decision == "full_restart" and state["global_restart_count"] < MAX_GLOBAL_RESTARTS:
+                        state["global_restart_count"] += 1
+                        _dbg(state, f"⚠️ Full workflow restart initiated ({state['global_restart_count']}/{MAX_GLOBAL_RESTARTS})! Root assumptions were broken.")
                         for t in state["tasks"]:
                             t["status"] = "pending"
                             t["attempt_count"] = 0
@@ -2814,7 +2848,7 @@ Respond in JSON exactly matching this schema:
                         state["failed_tasks"] = []
                         state["running_tasks"] = []
                         state["notifications"].append("Entire workflow restarted ⚠️")
-                        
+
                     else:
                         cn["status"] = f"failed_{classification}"
                         state["failed_tasks"].append(tid)
