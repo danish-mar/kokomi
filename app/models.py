@@ -49,6 +49,16 @@ class PrefsUpdate(BaseModel):
     whatsapp_character_id: str = "kokomi"
     whatsapp_api_url: str = "http://localhost:3013"
     whatsapp_show_thinking: bool = True
+    telegram_enabled: bool = False
+    # NOTE: telegram_bot_token is intentionally NOT here — it is written only via
+    # the dedicated /api/telegram/set-token endpoint so bulk prefs saves can never
+    # clobber the saved token with an empty/stale value.
+    telegram_character_id: str = "kokomi"
+    telegram_show_thinking: bool = False
+    telegram_allowed_users: Optional[list] = []
+    telegram_history_limit: int = 10
+    telegram_use_webhook: bool = False
+    max_tool_rounds: int = 8
     tavily_api_key: Optional[str] = ""
     web_search_enabled: bool = False
     search_provider: Optional[str] = "tavily"
