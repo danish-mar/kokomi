@@ -446,6 +446,7 @@
                 <div class="glass-card" x-data="{
                     tgStatus: null, tgSyncing: false, tgSyncMsg: '',
                     tgChecking: false, tgShowToken: false,
+                    tgRegistering: false, tgRegisterMsg: '',
                     get tgChar() {
                         return characters.find(c => c.id === prefs.telegram_character_id) || null;
                     },
@@ -457,13 +458,24 @@
                         } catch(e) { this.tgStatus = {ok: false, error: String(e)}; }
                         this.tgChecking = false;
                     },
+                    async registerWebhook() {
+                        this.tgRegistering = true; this.tgRegisterMsg = '';
+                        try {
+                            const r = await fetch('/api/telegram/register-webhook', {method:'POST'});
+                            const d = await r.json();
+                            this.tgRegisterMsg = d.ok ? ('✓ Webhook registered! → ' + d.webhook_url) : ('✗ ' + (d.description || d.error || 'Failed'));
+                            if (d.ok) await this.checkStatus();
+                        } catch(e) { this.tgRegisterMsg = '✗ Request failed: ' + e; }
+                        this.tgRegistering = false;
+                        setTimeout(() => this.tgRegisterMsg = '', 6000);
+                    },
                     async syncProfile() {
                         this.tgSyncing = true; this.tgSyncMsg = '';
                         try {
                             const r = await fetch('/api/telegram/sync-profile', {method:'POST'});
                             const d = await r.json();
-                            this.tgSyncMsg = d.ok ? '✓ Profile synced!' : ('Error: ' + (d.error || JSON.stringify(d.results)));
-                        } catch(e) { this.tgSyncMsg = 'Request failed: ' + e; }
+                            this.tgSyncMsg = d.ok ? '✓ Profile synced!' : ('✗ ' + (d.error || JSON.stringify(d.results)));
+                        } catch(e) { this.tgSyncMsg = '✗ Request failed: ' + e; }
                         this.tgSyncing = false;
                         setTimeout(() => this.tgSyncMsg = '', 4000);
                     }
@@ -585,10 +597,12 @@
                                 </button>
                             </div>
 
-                            <!-- Webhook setup + status -->
+                            <!-- Webhook + Status -->
                             <div style="border-top:1px solid var(--border); padding-top:14px;">
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:6px;">Webhook URL</label>
-                                <div style="display:flex; gap:8px; align-items:center;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:6px;">Webhook Setup</label>
+
+                                <!-- Webhook URL display -->
+                                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
                                     <code style="flex:1; font-size:10px; color:var(--text-secondary); background:var(--bg-elevated); padding:6px 10px; border-radius:6px; word-break:break-all; border:1px solid var(--border);"
                                         x-text="window.location.origin + '/api/telegram/webhook'"></code>
                                     <button @click="navigator.clipboard.writeText(window.location.origin + '/api/telegram/webhook')"
@@ -596,35 +610,71 @@
                                         <i class="fa-regular fa-copy"></i>
                                     </button>
                                 </div>
-                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
-                                    Register: <code style="font-size:10px;">GET https://api.telegram.org/bot&lt;TOKEN&gt;/setWebhook?url=&lt;above&gt;</code>
-                                </p>
 
-                                <!-- Bot status card -->
-                                <div style="margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
+                                <!-- Register Webhook button — the key missing step -->
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
                                     <div>
-                                        <label class="apple-label" style="margin-bottom:1px;">Bot Status</label>
-                                        <template x-if="tgStatus && tgStatus.ok">
-                                            <p style="font-size:11px; color:#34C759;">
-                                                <i class="fa-solid fa-circle-check"></i>
-                                                @<span x-text="tgStatus.bot.username"></span>
-                                                <span x-show="tgStatus.webhook && tgStatus.webhook.url" style="color:var(--text-quaternary);">
-                                                    — webhook active
-                                                </span>
-                                                <span x-show="tgStatus.webhook && !tgStatus.webhook.url" style="color:#FF9500;">
-                                                    — no webhook set
-                                                </span>
-                                            </p>
+                                        <label class="apple-label" style="margin-bottom:1px;">Register Webhook</label>
+                                        <p style="font-size:11px; color:var(--text-quaternary);">Tell Telegram to send messages to this server.</p>
+                                    </div>
+                                    <button @click="registerWebhook()" :disabled="tgRegistering || !prefs.telegram_bot_token"
+                                        class="btn-accent" style="font-size:12px; padding:6px 14px; min-width:90px;">
+                                        <span x-show="!tgRegistering"><i class="fa-solid fa-link" style="margin-right:4px;"></i>Register</span>
+                                        <span x-show="tgRegistering"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                                    </button>
+                                </div>
+                                <p x-show="tgRegisterMsg" x-text="tgRegisterMsg"
+                                    :style="tgRegisterMsg.startsWith('✓') ? 'color:#34C759' : 'color:#FF3B30'"
+                                    style="font-size:11px; margin-bottom:8px; word-break:break-all;"></p>
+
+                                <!-- Status check -->
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-top:4px;">
+                                    <div style="flex:1; min-width:0;">
+                                        <label class="apple-label" style="margin-bottom:4px;">Bot Status</label>
+                                        <template x-if="!tgStatus">
+                                            <p style="font-size:11px; color:var(--text-quaternary);">Click Check to verify your token and webhook.</p>
                                         </template>
                                         <template x-if="tgStatus && !tgStatus.ok">
-                                            <p style="font-size:11px; color:#FF3B30;"><i class="fa-solid fa-circle-xmark"></i> <span x-text="tgStatus.error"></span></p>
+                                            <p style="font-size:11px; color:#FF3B30;">
+                                                <i class="fa-solid fa-circle-xmark"></i>
+                                                <span x-text="tgStatus.error"></span>
+                                            </p>
                                         </template>
-                                        <template x-if="!tgStatus">
-                                            <p style="font-size:11px; color:var(--text-quaternary);">Not checked yet.</p>
+                                        <template x-if="tgStatus && tgStatus.ok">
+                                            <div>
+                                                <p style="font-size:11px; color:#34C759; margin-bottom:3px;">
+                                                    <i class="fa-solid fa-circle-check"></i>
+                                                    @<span x-text="tgStatus.bot.username"></span>
+                                                    — <span x-text="tgStatus.bot.first_name"></span>
+                                                </p>
+                                                <!-- Webhook sub-status -->
+                                                <template x-if="tgStatus.webhook && tgStatus.webhook.url">
+                                                    <p style="font-size:10px; color:#34C759;">
+                                                        <i class="fa-solid fa-link"></i> Webhook active
+                                                        <span x-show="tgStatus.webhook.pending_update_count > 0"
+                                                            style="color:#FF9500; margin-left:4px;">
+                                                            — <span x-text="tgStatus.webhook.pending_update_count"></span> pending
+                                                        </span>
+                                                    </p>
+                                                </template>
+                                                <template x-if="tgStatus.webhook && !tgStatus.webhook.url">
+                                                    <p style="font-size:10px; color:#FF9500;">
+                                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                                        No webhook registered — click Register above.
+                                                    </p>
+                                                </template>
+                                                <!-- Last error from Telegram -->
+                                                <template x-if="tgStatus.webhook && tgStatus.webhook.last_error_message">
+                                                    <p style="font-size:10px; color:#FF3B30; margin-top:2px; word-break:break-all;">
+                                                        <i class="fa-solid fa-bug"></i>
+                                                        Last error: <span x-text="tgStatus.webhook.last_error_message"></span>
+                                                    </p>
+                                                </template>
+                                            </div>
                                         </template>
                                     </div>
                                     <button @click="checkStatus()" :disabled="tgChecking || !prefs.telegram_bot_token"
-                                        class="btn-accent" style="font-size:12px; padding:6px 14px;">
+                                        class="btn-accent" style="font-size:12px; padding:6px 14px; min-width:80px; margin-left:10px; flex-shrink:0;">
                                         <span x-show="!tgChecking"><i class="fa-solid fa-rotate" style="margin-right:4px;"></i>Check</span>
                                         <span x-show="tgChecking"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
                                     </button>

@@ -41,6 +41,30 @@ async def telegram_status(request: Request):
             return {"ok": False, "error": str(e)}
 
 
+@router.post("/register-webhook")
+async def register_webhook(request: Request):
+    """Call Telegram's setWebhook using this server's own origin URL."""
+    prefs = load_prefs()
+    token = prefs.get("telegram_bot_token", "")
+    if not token:
+        return JSONResponse({"ok": False, "error": "No bot token configured"}, status_code=400)
+
+    # Build the webhook URL from the incoming request's base URL
+    base = str(request.base_url).rstrip("/")
+    webhook_url = f"{base}/api/telegram/webhook"
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            r = await client.post(
+                _tg_url(token, "setWebhook"),
+                json={"url": webhook_url, "allowed_updates": ["message"]},
+            )
+            data = r.json()
+            return {"ok": data.get("ok"), "description": data.get("description"), "webhook_url": webhook_url}
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
 @router.post("/sync-profile")
 async def sync_bot_profile(request: Request):
     """Push the selected character's name, description and photo to the Telegram bot."""
