@@ -449,11 +449,29 @@
                     tgRegistering: false, tgRegisterMsg: '',
                     tgPollingMsg: '', tgPollingBusy: false,
                     tgToken: '',
-                    init() { this.tgToken = prefs.telegram_bot_token || ''; },
+                    tgTokenError: '',
+                    init() {
+                        const t = prefs.telegram_bot_token || '';
+                        // Reject anything that doesn't look like a real Telegram token
+                        this.tgToken = /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(t) ? t : '';
+                        if (t && !this.tgToken) {
+                            // Bad value in DB — clear it silently
+                            prefs.telegram_bot_token = '';
+                            savePrefs();
+                        }
+                    },
                     get tgChar() {
                         return characters.find(c => c.id === prefs.telegram_character_id) || null;
                     },
+                    isValidToken(t) {
+                        return !t || /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(t);
+                    },
                     async saveToken() {
+                        if (!this.isValidToken(this.tgToken)) {
+                            this.tgTokenError = 'Invalid token format. Should look like: 123456789:ABC-xyz...';
+                            return;
+                        }
+                        this.tgTokenError = '';
                         prefs.telegram_bot_token = this.tgToken;
                         await savePrefs();
                         await new Promise(r => setTimeout(r, 300));
@@ -527,16 +545,18 @@
                                 <div style="position:relative;">
                                     <input :type="tgShowToken ? 'text' : 'password'"
                                         :value="tgToken"
-                                        @input="tgToken = $event.target.value"
-                                        @blur="prefs.telegram_bot_token = tgToken; savePrefs()"
-                                        placeholder="123456789:ABC-DEF..." class="apple-field"
-                                        style="font-family:'SF Mono',monospace; font-size:12px; padding-right:40px;">
+                                        @input="tgToken = $event.target.value; tgTokenError = ''"
+                                        @blur="saveToken()"
+                                        placeholder="123456789:ABC-DEF..."
+                                        :class="tgTokenError ? 'apple-field' : 'apple-field'"
+                                        :style="tgTokenError ? 'font-family:\'SF Mono\',monospace; font-size:12px; padding-right:40px; border-color:#FF3B30;' : 'font-family:\'SF Mono\',monospace; font-size:12px; padding-right:40px;'">
                                     <button @click="tgShowToken = !tgShowToken" type="button"
                                         style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:12px;">
                                         <i :class="tgShowToken ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
                                     </button>
                                 </div>
-                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
+                                <p x-show="tgTokenError" x-text="tgTokenError" style="font-size:11px; color:#FF3B30; margin-top:5px;"></p>
+                                <p x-show="!tgTokenError" style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
                                     Get a token from <a href="https://t.me/BotFather" target="_blank" style="color:#229ED9;">@BotFather</a>.
                                 </p>
                             </div>
