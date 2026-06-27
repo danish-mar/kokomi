@@ -451,11 +451,23 @@
                     tgToken: '',
                     tgTokenError: '',
                     init() {
-                        // Read once — never call savePrefs() here; it races with the
-                        // parent's async prefs fetch and overwrites good DB values.
-                        const t = prefs.telegram_bot_token || '';
-                        this.tgToken = /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(t) ? t : '';
+                        // The parent loads prefs asynchronously, so prefs.telegram_bot_token
+                        // is often empty when this component first mounts. Watch it and sync
+                        // tgToken whenever it lands (and on later changes). Never savePrefs()
+                        // here — that races with the parent fetch and wipes good DB values.
+                        const sync = (t) => {
+                            t = t || '';
+                            this.tgToken = /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(t) ? t : '';
+                        };
+                        sync(prefs.telegram_bot_token);
+                        this.$watch('prefs.telegram_bot_token', sync);
+                        // Reflect the real backend state after a refresh: if a token
+                        // exists, check status once so the Live badge / webhook info show.
+                        this.$watch('prefs.telegram_bot_token', (t) => {
+                            if (t && !this._autoChecked) { this._autoChecked = true; this.checkStatus(); }
+                        });
                     },
+                    _autoChecked: false,
                     get tgChar() {
                         return characters.find(c => c.id === prefs.telegram_character_id) || null;
                     },
@@ -681,7 +693,13 @@
                                     <div style="padding:12px; background:var(--bg-elevated); border-radius:10px; border:1px solid var(--border); margin-bottom:8px;">
                                         <div style="display:flex; align-items:center; justify-content:space-between;">
                                             <div>
-                                                <label class="apple-label" style="margin-bottom:1px;">Start / Stop Polling</label>
+                                                <label class="apple-label" style="margin-bottom:1px;">
+                                                    Start / Stop Polling
+                                                    <span x-show="tgStatus && tgStatus.polling_active"
+                                                        style="margin-left:6px; font-size:10px; color:#34C759; font-weight:600;">
+                                                        <i class="fa-solid fa-circle" style="font-size:7px; animation:pulse 1.5s infinite;"></i> LIVE
+                                                    </span>
+                                                </label>
                                                 <p style="font-size:11px; color:var(--text-quaternary);">Activates the bot immediately without any webhook setup.</p>
                                             </div>
                                             <div style="display:flex; gap:6px;">

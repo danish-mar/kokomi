@@ -50,6 +50,7 @@ async def stop_polling():
 async def _poll_loop():
     """Background long-polling loop using getUpdates (offset tracking)."""
     offset = 0
+    webhook_cleared = False
     print("[Telegram] Polling loop started.")
     async with httpx.AsyncClient(timeout=40) as client:
         while True:
@@ -61,6 +62,18 @@ async def _poll_loop():
             if not token:
                 await asyncio.sleep(5)
                 continue
+
+            # getUpdates returns HTTP 409 Conflict if a webhook is still set.
+            # Delete it once before we start polling so the two modes don't fight.
+            if not webhook_cleared:
+                try:
+                    await client.post(_tg_url(token, "deleteWebhook"),
+                                      json={"drop_pending_updates": False})
+                    webhook_cleared = True
+                    print("[Telegram] Cleared any existing webhook for polling mode.")
+                except Exception as e:
+                    print(f"[Telegram] Failed to clear webhook: {e}")
+
             try:
                 resp = await client.get(
                     _tg_url(token, "getUpdates"),
@@ -68,6 +81,9 @@ async def _poll_loop():
                 )
                 data = resp.json()
                 if not data.get("ok"):
+                    # Surface the real reason (e.g. 409 conflict, bad token) instead of
+                    # silently retrying forever.
+                    print(f"[Telegram] getUpdates failed: {data.get('error_code')} {data.get('description')}")
                     await asyncio.sleep(5)
                     continue
                 for update in data.get("result", []):
@@ -78,6 +94,7 @@ async def _poll_loop():
                     chat_id = msg.get("chat", {}).get("id")
                     text = (msg.get("text") or "").strip()
                     if chat_id and text:
+                        print(f"[Telegram] Message from {chat_id}: {text[:60]}")
                         asyncio.create_task(process_telegram_message(chat_id, text))
             except asyncio.CancelledError:
                 print("[Telegram] Polling loop stopped.")
@@ -105,8 +122,19 @@ async def set_token(request: Request):
 async def polling_start():
     """Start the background polling loop immediately (no restart needed)."""
     prefs = load_prefs()
-    if not prefs.get("telegram_bot_token"):
+    token = prefs.get("telegram_bot_token")
+    if not token:
         return JSONResponse({"ok": False, "error": "No bot token configured"}, status_code=400)
+    # Polling and webhook are mutually exclusive — force polling mode and clear
+    # any webhook so getUpdates won't return 409 Conflict.
+    if prefs.get("telegram_use_webhook"):
+        prefs["telegram_use_webhook"] = False
+        save_prefs(prefs)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(_tg_url(token, "deleteWebhook"), json={"drop_pending_updates": False})
+    except Exception as e:
+        print(f"[Telegram] deleteWebhook on start failed: {e}")
     await start_polling()
     return {"ok": True, "message": "Polling started"}
 
@@ -125,6 +153,7 @@ async def telegram_status(request: Request):
     token = prefs.get("telegram_bot_token", "")
     if not token:
         return {"ok": False, "error": "No bot token configured"}
+    polling_active = bool(_poll_task and not _poll_task.done())
     async with httpx.AsyncClient(timeout=10) as client:
         try:
             me = (await client.get(_tg_url(token, "getMe"))).json()
@@ -133,9 +162,10 @@ async def telegram_status(request: Request):
                 "ok": True,
                 "bot": me.get("result", {}),
                 "webhook": wh.get("result", {}),
+                "polling_active": polling_active,
             }
         except Exception as e:
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": str(e), "polling_active": polling_active}
 
 
 @router.post("/register-webhook")
@@ -246,11 +276,25 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
 
 
 async def process_telegram_message(chat_id: int | str, text: str):
+    """Wrapper that guarantees errors are logged and the user gets a reply,
+    since this runs as a fire-and-forget task whose exceptions are otherwise lost."""
     prefs = load_prefs()
     token = prefs.get("telegram_bot_token", "")
     if not token:
         print("[Telegram] No bot token configured.")
         return
+    try:
+        await _process_telegram_message(prefs, token, chat_id, text)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            await send_telegram_message(chat_id, f"⚠️ Error: {e}", token)
+        except Exception:
+            pass
+
+
+async def _process_telegram_message(prefs: dict, token: str, chat_id: int | str, text: str):
 
     # ── Allowlist check ───────────────────────────────────────────────────
     allowed = prefs.get("telegram_allowed_users", [])
