@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.3.0] - 2026-06-28
+
+### Added
+
+- **Telegram Bot Bridge**: A full Telegram integration alongside the WhatsApp bridge. Point the bot at any character, talk to it 1:1, and reuse the same MCP tools, history, and thinking-mode forwarding as the web chat. Configure everything from Settings — bot token, target character, context-history depth, an optional user allowlist, and show/hide thinking.
+  - **Polling mode (default)**: long-polls `getUpdates` in a background loop, so no public URL or webhook is required — it works on a laptop or behind NAT. Start/Stop from Settings with a live status badge.
+  - **Webhook mode**: one-click `setWebhook` registration using the server's own origin for public deployments. The two modes are mutually exclusive, and the bridge clears a stale webhook before polling so `getUpdates` never 409s.
+  - **Profile sync**: pushes the selected character's name and description to the bot (the avatar is set manually via @BotFather, which Telegram's API can't automate — surfaced as a note).
+- **Rich Message Widgets**: AI message bubbles now upgrade plain markdown into interactive widgets, rendered through the same renderer + `MutationObserver` hydration used by charts/diagrams (everything degrades to text if a widget can't mount).
+  - **Images**: markdown images become figures with captured pixel dimensions and a click-to-expand lightbox (with "open original"). Remote URLs are fronted by the `/api/img` proxy.
+  - **Video**: a markdown link to a direct video file (`.mp4`/`.webm`/`.ogg`) auto-renders a player; a ```kokomi-video``` block adds poster/title.
+  - **Tables**: GFM tables become **sortable** (numeric-aware) and **filterable**, with images in cells collapsing to thumbnails that open in the lightbox.
+  - **Action chips**: a ```kokomi-actions``` JSON block renders interactive pills with verbs `send` / `fill` / `url` / `copy` / `set` (update a preference inline), optional `icon` / `variant` (`primary`/`ghost`/`danger`) / `confirm` (a one-tap approval gate for stateful actions), and a "+N more" overflow guard past six.
+
+### Changed
+
+- **Media prompting**: the system prompt (streaming and non-streaming) now documents the widget conventions so the model emits raw markdown/widget blocks instead of fenced source. The `open_url` instruction was softened so it no longer fires merely to show or embed media inline.
+
+### Fixed
+
+- **Workflow engine runaway loop**: the multi-agent engine could loop indefinitely when `restart_subtree`/`full_restart` reset attempt counters with no global ceiling and the circuit breaker's error signature was too brittle to match. Added hard caps (loop iterations, global restarts, total runtime) and a normalized error signature so identical failures trip the breaker reliably.
+- **Scheduler decay sweep back-off**: a failing daily memory-decay sweep retried every 30s instead of backing off; the timestamp now advances before the attempt so a failure waits a full day.
+- **Telegram reliability**: the token now persists correctly (it was dropped because `telegram_*` fields weren't declared on the prefs model, and separately clobbered by a full-prefs save race — fixed with a dedicated set-token endpoint and format validation), and the bot replies again after a lingering webhook previously blocked polling with 409 Conflict.
+- **Widget video proxying**: video sources load directly from origin instead of being routed through the image-only `/api/img` proxy (which returns 415 for non-image content); only the poster image is proxied.
+
 ## [v5.2.9] - 2026-06-12
 
 ### Added
