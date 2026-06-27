@@ -442,6 +442,199 @@
                     </div>
                 </div>
 
+                <!-- Telegram Bridge -->
+                <div class="glass-card" x-data="{
+                    tgStatus: null, tgSyncing: false, tgSyncMsg: '',
+                    tgChecking: false, tgShowToken: false,
+                    get tgChar() {
+                        return characters.find(c => c.id === prefs.telegram_character_id) || null;
+                    },
+                    async checkStatus() {
+                        this.tgChecking = true; this.tgStatus = null;
+                        try {
+                            const r = await fetch('/api/telegram/status');
+                            this.tgStatus = await r.json();
+                        } catch(e) { this.tgStatus = {ok: false, error: String(e)}; }
+                        this.tgChecking = false;
+                    },
+                    async syncProfile() {
+                        this.tgSyncing = true; this.tgSyncMsg = '';
+                        try {
+                            const r = await fetch('/api/telegram/sync-profile', {method:'POST'});
+                            const d = await r.json();
+                            this.tgSyncMsg = d.ok ? '✓ Profile synced!' : ('Error: ' + (d.error || JSON.stringify(d.results)));
+                        } catch(e) { this.tgSyncMsg = 'Request failed: ' + e; }
+                        this.tgSyncing = false;
+                        setTimeout(() => this.tgSyncMsg = '', 4000);
+                    }
+                }">
+                    <div class="card-row" style="background: var(--accent-subtle);">
+                        <!-- Header row -->
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:30px; height:30px; border-radius:8px; background:#229ED9; display:flex; align-items:center; justify-content:center; color:#fff;">
+                                    <i class="fa-brands fa-telegram" style="font-size:14px;"></i>
+                                </div>
+                                <div>
+                                    <label class="apple-label" style="margin-bottom:0;">Telegram Integration</label>
+                                    <p style="font-size:11px; color:var(--text-tertiary);">Receive &amp; reply via Telegram Bot.</p>
+                                </div>
+                            </div>
+                            <button @click="prefs.telegram_enabled = !prefs.telegram_enabled; savePrefs()"
+                                class="apple-toggle" :class="prefs.telegram_enabled ? 'on' : 'off'">
+                                <div class="toggle-knob"></div>
+                            </button>
+                        </div>
+
+                        <div x-show="prefs.telegram_enabled" x-transition>
+
+                            <!-- Bot Token -->
+                            <div style="margin-bottom:14px;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Bot Token</label>
+                                <div style="position:relative;">
+                                    <input :type="tgShowToken ? 'text' : 'password'" x-model="prefs.telegram_bot_token" @blur="savePrefs()"
+                                        placeholder="123456789:ABC-DEF..." class="apple-field"
+                                        style="font-family:'SF Mono',monospace; font-size:12px; padding-right:40px;">
+                                    <button @click="tgShowToken = !tgShowToken" type="button"
+                                        style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:12px;">
+                                        <i :class="tgShowToken ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"></i>
+                                    </button>
+                                </div>
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
+                                    Get a token from <a href="https://t.me/BotFather" target="_blank" style="color:#229ED9;">@BotFather</a>.
+                                </p>
+                            </div>
+
+                            <!-- Character selector + live preview -->
+                            <div style="margin-bottom:14px;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Bot Character</label>
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <!-- Avatar preview -->
+                                    <div style="flex-shrink:0; width:48px; height:48px; border-radius:50%; overflow:hidden; background:var(--bg-elevated); border:2px solid var(--border); display:flex; align-items:center; justify-content:center;">
+                                        <template x-if="tgChar && tgChar.avatar">
+                                            <img :src="tgChar.avatar" style="width:100%; height:100%; object-fit:cover;">
+                                        </template>
+                                        <template x-if="!tgChar || !tgChar.avatar">
+                                            <i class="fa-solid fa-robot" style="font-size:20px; color:var(--text-tertiary);"></i>
+                                        </template>
+                                    </div>
+                                    <div style="flex:1; position:relative;">
+                                        <select x-model="prefs.telegram_character_id" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                            <template x-for="char in characters" :key="char.id">
+                                                <option :value="char.id" x-text="char.name"
+                                                    style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                            </template>
+                                        </select>
+                                        <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                            <i class="fa-solid fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:6px;">
+                                    The bot will use this character's persona and avatar.
+                                </p>
+                            </div>
+
+                            <!-- Sync Profile button -->
+                            <div style="margin-bottom:14px; padding:12px; background:var(--bg-elevated); border-radius:10px; border:1px solid var(--border);">
+                                <div style="display:flex; align-items:center; justify-content:space-between;">
+                                    <div>
+                                        <label class="apple-label" style="margin-bottom:1px;">Sync Bot Profile</label>
+                                        <p style="font-size:11px; color:var(--text-quaternary);">Push character name, description &amp; photo to Telegram.</p>
+                                    </div>
+                                    <button @click="syncProfile()" :disabled="tgSyncing || !prefs.telegram_bot_token"
+                                        class="btn-accent" style="min-width:80px; font-size:12px; padding:6px 14px;">
+                                        <span x-show="!tgSyncing"><i class="fa-solid fa-arrow-up-from-bracket" style="margin-right:4px;"></i>Sync</span>
+                                        <span x-show="tgSyncing"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                                    </button>
+                                </div>
+                                <p x-show="tgSyncMsg" x-text="tgSyncMsg" style="font-size:11px; margin-top:8px; color:var(--accent);"></p>
+                            </div>
+
+                            <!-- Context history depth -->
+                            <div style="margin-bottom:14px;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">
+                                    Context History Depth <span style="color:var(--accent);" x-text="prefs.telegram_history_limit || 10"></span> messages
+                                </label>
+                                <input type="range" min="1" max="40" x-model.number="prefs.telegram_history_limit" @change="savePrefs()"
+                                    style="width:100%; accent-color:#229ED9;">
+                            </div>
+
+                            <!-- Allowed Users -->
+                            <div style="margin-bottom:14px;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Allowed Chat IDs</label>
+                                <input type="text"
+                                    :value="(prefs.telegram_allowed_users || []).join(', ')"
+                                    @blur="prefs.telegram_allowed_users = $event.target.value.split(',').map(s=>s.trim()).filter(Boolean); savePrefs()"
+                                    placeholder="Leave empty to allow all users"
+                                    class="apple-field" style="font-family:'SF Mono',monospace; font-size:12px;">
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:4px;">
+                                    Comma-separated Telegram chat/user IDs. Empty = public. Find your ID via <a href="https://t.me/userinfobot" target="_blank" style="color:#229ED9;">@userinfobot</a>.
+                                </p>
+                            </div>
+
+                            <!-- Show Thinking toggle -->
+                            <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between;">
+                                <div>
+                                    <label class="apple-label" style="margin-bottom:1px;">Show Thinking</label>
+                                    <p style="font-size:11px; color:var(--text-quaternary);">Prepend reasoning to Telegram replies.</p>
+                                </div>
+                                <button @click="prefs.telegram_show_thinking = !prefs.telegram_show_thinking; savePrefs()"
+                                    class="apple-toggle" :class="prefs.telegram_show_thinking ? 'on' : 'off'">
+                                    <div class="toggle-knob"></div>
+                                </button>
+                            </div>
+
+                            <!-- Webhook setup + status -->
+                            <div style="border-top:1px solid var(--border); padding-top:14px;">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:6px;">Webhook URL</label>
+                                <div style="display:flex; gap:8px; align-items:center;">
+                                    <code style="flex:1; font-size:10px; color:var(--text-secondary); background:var(--bg-elevated); padding:6px 10px; border-radius:6px; word-break:break-all; border:1px solid var(--border);"
+                                        x-text="window.location.origin + '/api/telegram/webhook'"></code>
+                                    <button @click="navigator.clipboard.writeText(window.location.origin + '/api/telegram/webhook')"
+                                        title="Copy" style="background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:13px; padding:4px;">
+                                        <i class="fa-regular fa-copy"></i>
+                                    </button>
+                                </div>
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">
+                                    Register: <code style="font-size:10px;">GET https://api.telegram.org/bot&lt;TOKEN&gt;/setWebhook?url=&lt;above&gt;</code>
+                                </p>
+
+                                <!-- Bot status card -->
+                                <div style="margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
+                                    <div>
+                                        <label class="apple-label" style="margin-bottom:1px;">Bot Status</label>
+                                        <template x-if="tgStatus && tgStatus.ok">
+                                            <p style="font-size:11px; color:#34C759;">
+                                                <i class="fa-solid fa-circle-check"></i>
+                                                @<span x-text="tgStatus.bot.username"></span>
+                                                <span x-show="tgStatus.webhook && tgStatus.webhook.url" style="color:var(--text-quaternary);">
+                                                    — webhook active
+                                                </span>
+                                                <span x-show="tgStatus.webhook && !tgStatus.webhook.url" style="color:#FF9500;">
+                                                    — no webhook set
+                                                </span>
+                                            </p>
+                                        </template>
+                                        <template x-if="tgStatus && !tgStatus.ok">
+                                            <p style="font-size:11px; color:#FF3B30;"><i class="fa-solid fa-circle-xmark"></i> <span x-text="tgStatus.error"></span></p>
+                                        </template>
+                                        <template x-if="!tgStatus">
+                                            <p style="font-size:11px; color:var(--text-quaternary);">Not checked yet.</p>
+                                        </template>
+                                    </div>
+                                    <button @click="checkStatus()" :disabled="tgChecking || !prefs.telegram_bot_token"
+                                        class="btn-accent" style="font-size:12px; padding:6px 14px;">
+                                        <span x-show="!tgChecking"><i class="fa-solid fa-rotate" style="margin-right:4px;"></i>Check</span>
+                                        <span x-show="tgChecking"><i class="fa-solid fa-circle-notch fa-spin"></i></span>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
                 <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
                     <div class="saved-toast"><i class="fa-solid fa-circle-notch fa-spin"></i> Saved</div>
                 </div>
