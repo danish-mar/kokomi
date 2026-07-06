@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.2] - 2026-07-07
+
+### Fixed
+
+- **Whole app hangs while an Atlas workflow runs**: built-in worker tools (`web_search`, `scrape_page`, `pdf_export`, `docx`/`pptx`/`excel_export`, `shell_exec`) are synchronous and were invoked directly on the single asyncio event loop, freezing it for the tool's entire duration (up to a 15s scrape or a full document render). That stalled every other request and dropped the live workflow WebSockets — with CPU staying low the whole time (a blocked loop waiting on I/O), which is why server usage looked fine yet the UI lagged. Each blocking tool/exporter call now runs via `asyncio.to_thread`, keeping the loop responsive during a run.
+
+### Changed
+
+- **More cohesive multi-agent output**: parallel workers run in isolation and previously drifted — inconsistent date framing ("June" vs "this week"), mismatched section styles, and thin/dropped sections when the compiler merged them. Every worker prompt now carries a shared run context: the absolute current date (so "recent/latest" resolves consistently and facts get explicit dates) plus a common house style. The writer/PDF compiler is additionally instructed to normalize all sections, add a title + executive summary + table of contents, and keep every topic as an equal top-level section.
+
 ## [v5.4.1] - 2026-07-07
 
 ### Fixed
