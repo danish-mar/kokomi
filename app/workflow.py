@@ -1583,7 +1583,14 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                             or captured_content
                         )
                         try:
-                            single_out = tool_func.invoke(tc_args)
+                            # Built-in tools (web_search/scrape_page/pdf_export/
+                            # shell_exec/…) are SYNCHRONOUS and blocking — calling
+                            # .invoke() directly would freeze the single event-loop
+                            # thread for the tool's whole duration (up to a 15s HTTP
+                            # scrape, a subprocess, or ReportLab CPU work), stalling
+                            # every other request and the live WebSocket feeds. Run
+                            # it in a worker thread so the loop stays responsive.
+                            single_out = await asyncio.to_thread(tool_func.invoke, tc_args)
                         except Exception as te:
                             single_out = f"Tool error: {te}"
                     else:
@@ -1838,7 +1845,11 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                             
                         # 2. Render premium PDF booklet
                         if compile_pdf:
-                            pdf_result = pdf_export.invoke({"markdown_content": md_content, "filename": f"{safe_name}.pdf"})
+                            # Document renderers (ReportLab/docx/pptx/openpyxl) are
+                            # synchronous and CPU-heavy — offload to threads so the
+                            # compile step doesn't freeze the event loop (see the
+                            # tool-invoke note above).
+                            pdf_result = await asyncio.to_thread(pdf_export.invoke, {"markdown_content": md_content, "filename": f"{safe_name}.pdf"})
                             print(f"[PDF Worker] Direct PDF invocation result: {pdf_result}")
                             
                             if "Successfully" in pdf_result:
@@ -1856,7 +1867,7 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                         # 3. Render premium editable Word Document (.docx)
                         if compile_docx:
                             try:
-                                docx_res = docx_export.invoke({"markdown_content": md_content, "filename": f"{safe_name}.docx"})
+                                docx_res = await asyncio.to_thread(docx_export.invoke, {"markdown_content": md_content, "filename": f"{safe_name}.docx"})
                                 print(f"[PDF Worker] Word DOCX generation result: {docx_res}")
                                 if "Successfully" in docx_res:
                                     path_match = _re.search(r'at:\s*(.+)$', docx_res)
@@ -1867,7 +1878,7 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                         # 4. Render premium slide deck PowerPoint (.pptx)
                         if compile_pptx:
                             try:
-                                pptx_res = pptx_export.invoke({"markdown_content": md_content, "filename": f"{safe_name}.pptx"})
+                                pptx_res = await asyncio.to_thread(pptx_export.invoke, {"markdown_content": md_content, "filename": f"{safe_name}.pptx"})
                                 print(f"[PDF Worker] PowerPoint PPTX generation result: {pptx_res}")
                                 if "Successfully" in pptx_res:
                                     path_match = _re.search(r'at:\s*(.+)$', pptx_res)
@@ -1897,7 +1908,7 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                                     tables_data.append(current_table)
                                     
                                 if tables_data:
-                                    xls_res = excel_export.invoke({
+                                    xls_res = await asyncio.to_thread(excel_export.invoke, {
                                         "table_data_json": json.dumps(tables_data[0]),
                                         "filename": f"{safe_name}.xlsx"
                                     })
