@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.3] - 2026-07-07
+
+### Fixed
+
+- **Workflow WebSocket reconnect storm**: the Atlas summary and detail sockets reconnected on a fixed 3-second timer, so a socket that couldn't establish (e.g. the reverse proxy not upgrading `wss`, or the event loop briefly busy) hammered reconnect attempts indefinitely, flooding the console. Reconnects now use exponential backoff (1s→2s→…→30s cap) that resets on a successful connection.
+- **Flash of unstyled content on load**: because Tailwind runs as an in-browser JIT compiler, pages briefly rendered unstyled before its styles were injected. The body is now hidden until the DOM is parsed plus one frame (Tailwind has compiled by then), with a 1.5s fail-safe so the page can never stay hidden. The zero-build runtime-JIT setup is kept intact.
+
 ## [v5.4.2] - 2026-07-07
 
 ### Fixed
