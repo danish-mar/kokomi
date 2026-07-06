@@ -1467,7 +1467,38 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
     system_prompt = sys_tpl.format(
         task_description=f"{task['description']}\n\nDependency Outputs:\n{dep_outputs}"
     )
-    
+
+    # ── Shared run context ───────────────────────────────────────────────────
+    # Parallel workers run in isolation — each only sees its own task + upstream
+    # dependency outputs, never its siblings. Without a shared anchor they drift:
+    # one frames "latest" as June, another as this week; one uses "## " section
+    # headings, another bold text; and the final compiler stitches three
+    # mismatched styles into one document. Inject a common date + house-style so
+    # every section lands consistent and the compiler has a uniform contract.
+    _today = datetime.datetime.now().strftime("%A, %d %B %Y")
+    shared_ctx = (
+        f"\n\n--- SHARED RUN CONTEXT (applies to every agent in this plan) ---\n"
+        f"Today's date is {_today}. Interpret 'latest', 'recent', 'current', and "
+        f"'this week' relative to THIS date, and state explicit dates (YYYY-MM-DD) "
+        f"for every fact, event, or source you report — never vague relative time.\n"
+        f"Your output is one section of a larger document that a compiler agent will "
+        f"merge with the other agents' sections, so follow this house style so all "
+        f"sections match:\n"
+        f"  • Lead each section with a single '## <Topic Title>' H2 heading.\n"
+        f"  • Follow with a 1-2 sentence intro, then the substance as '- ' bullet "
+        f"points and/or a GitHub-flavored markdown table.\n"
+        f"  • Cite a source (name + URL) inline for each claim.\n"
+        f"  • Keep depth even across sections — do not return a single thin paragraph.\n"
+    )
+    if worker_type in ("writer", "pdf_worker"):
+        shared_ctx += (
+            "  • As the COMPILER, do not just concatenate: normalize every incoming "
+            "section to the house style above, add a top-level document title (# ), a "
+            "short executive summary, and a table of contents, and ensure each topic "
+            "appears as an equal top-level section — none dropped or reduced to a stub.\n"
+        )
+    system_prompt += shared_ctx
+
     correction = task.get("correction_context", "")
     if correction:
         system_prompt += f"\n\n--- CRITICAL RECOVERY INSTRUCTION ---\n{correction}\nAvoid redoing unaffected work if possible."
