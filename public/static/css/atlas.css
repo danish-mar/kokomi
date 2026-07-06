@@ -834,12 +834,12 @@
   position: relative;
   width: 100%;
   max-width: 440px;
-  background: rgba(15, 14, 71, 0.75); /* Obsidian Blue Glassmorphism */
-  border: 1px solid rgba(80, 80, 129, 0.4);
+  background: var(--bg-elevated); /* themed glass surface (adapts light/dark) */
+  border: 1px solid var(--border);
   border-radius: 20px;
   backdrop-filter: blur(15px);
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(80, 80, 129, 0.15);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18), 0 0 30px var(--accent-subtle);
 }
 
 .cyber-glow-border {
@@ -848,7 +848,7 @@
   left: -100%;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, transparent, var(--accent), #8686AC, transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), var(--swatch-lavender, #8686AC), transparent);
   animation: border-laser 3s linear infinite;
 }
 @keyframes border-laser {
@@ -887,7 +887,7 @@
 .holo-radar-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(134, 134, 172, 0.15);
+  border: 1px solid var(--border);
   animation: radar-pulse 3s infinite linear;
 }
 .holo-radar-ring.ring-1 { width: 50px; height: 50px; animation-delay: 0s; }
@@ -906,11 +906,11 @@
   gap: 8px;
   font-size: 11px;
   font-weight: 700;
-  color: #8686AC; /* Dusty Lavender */
+  color: var(--accent);
   letter-spacing: 0.12em;
   padding: 6px 14px;
-  background: rgba(39, 39, 87, 0.6); /* Deep Midnight */
-  border: 1px solid rgba(80, 80, 129, 0.3);
+  background: var(--accent-subtle);
+  border: 1px solid var(--border);
   border-radius: 20px;
   margin-bottom: 16px;
 }
@@ -930,12 +930,12 @@
 .cyber-step-text {
   font-size: 12.5px;
   font-family: monospace;
-  color: white;
+  color: var(--text-primary);
   text-align: center;
-  background: rgba(15, 14, 71, 0.4);
+  background: var(--bg-input);
   padding: 10px 18px;
   border-radius: 10px;
-  border: 1px solid rgba(80, 80, 129, 0.2);
+  border: 1px solid var(--border);
   width: 100%;
   min-height: 52px;
   display: flex;
