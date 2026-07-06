@@ -682,6 +682,26 @@ async def chat_stream(req: ChatRequest):
                         )
                         p_persona = diagram_instr + "\n\n" + p_persona
 
+                        # PDF capability: a real, paginated PDF rendered live (ReportLab)
+                        # from markdown — for documents the user genuinely wants to open,
+                        # print, or share (reports, resumes, letters, invoices), not for
+                        # ordinary conversational replies. Added once (no multiplier).
+                        pdf_instr = (
+                            "[PDF ENABLED]\n"
+                            "When the user wants an actual DOCUMENT they would open, print, share, or attach "
+                            "(a report, resume, cover letter, invoice, proposal, certificate, formatted "
+                            "handout, etc.) — not just a conversational answer — emit it as a PDF artifact: "
+                            "<Artifact id=\"unique_id\" title=\"Document Title\" type=\"pdf\">...markdown...</Artifact>.\n"
+                            "The body MUST be well-structured markdown: '# ' for the document title, '## '/'### ' "
+                            "for sections, '- '/'1. ' for lists, '| a | b |' tables, '> ' quotes, and fenced "
+                            "```code``` blocks. It renders as a real, paginated PDF the user can view or download "
+                            "— do NOT also paste the same content as a normal chat message.\n"
+                            "Use plain conversational text (no PDF artifact) for short answers, explanations, or "
+                            "anything that isn't meant to be a standalone document.\n"
+                            "[/PDF ENABLED]"
+                        )
+                        p_persona = pdf_instr + "\n\n" + p_persona
+
                     # Process attachments for the prompt (Vision + Text)
                     text_parts = [req.message]
                     image_blocks = []

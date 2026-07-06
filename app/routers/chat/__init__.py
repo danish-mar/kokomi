@@ -8,7 +8,7 @@ defined so URL-matching precedence is unchanged.
 """
 from fastapi import APIRouter
 
-from . import uploads, conversation, workflows, files, templates, sockets, schedules
+from . import uploads, conversation, workflows, files, templates, sockets, schedules, artifacts
 
 router = APIRouter()
 router.include_router(uploads.router)
@@ -18,3 +18,4 @@ router.include_router(files.router)
 router.include_router(templates.router)
 router.include_router(sockets.router)
 router.include_router(schedules.router)
+router.include_router(artifacts.router)

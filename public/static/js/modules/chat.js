@@ -475,13 +475,16 @@ export function getChatActions() {
         },
 
         renderArtifactCard(art) {
-            // Charts and diagrams are special artifact types rendered live on the frontend.
+            // Charts, diagrams and PDFs are special artifact types rendered live on the frontend.
             const atype = (art.type || '').toLowerCase();
             if (atype === 'chart') {
                 return this.renderChartCard(art);
             }
             if (atype === 'mermaid' || atype === 'diagram') {
                 return this.renderDiagramCard(art);
+            }
+            if (atype === 'pdf') {
+                return this.renderPdfCard(art);
             }
 
             const icon = art.icon || 'fa-solid fa-file-code';
@@ -724,6 +727,58 @@ export function getChatActions() {
                         </div>
                     </div>
                     <div class="kokomi-diagram-host"></div>
+                </div>`;
+        },
+
+        // PDF artifacts render a document-style card; the actual PDF bytes are only
+        // generated on demand (View/Download) via KokomiPdf, which POSTs the raw
+        // markdown to /api/artifacts/render-pdf. Nothing is written to disk just
+        // because a PDF artifact appeared in a message.
+        renderPdfCard(art) {
+            const title = art.title || 'Document';
+            const content = art.content || '';
+
+            if (art.streaming || !content.trim()) {
+                return `
+                <div class="kokomi-pdf kokomi-pdf--loading mt-4 mb-2">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                            <div>
+                                <p class="artifact-title">${this.escapeHtml(title)}</p>
+                                <p class="artifact-meta uppercase tracking-wider">PDF document</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-spinner fa-spin text-[11px] text-4"></i>
+                    </div>
+                    <div class="kokomi-pdf-shimmer"></div>
+                </div>`;
+            }
+
+            const words = content.trim().split(/\s+/).length;
+            const estPages = Math.max(1, Math.round(words / 400));
+
+            return `
+                <div class="kokomi-pdf mt-4 mb-2" data-pdf-id="${art.id}" data-pdf-content="${window.KokomiCharts.escapeAttr(content)}" data-pdf-title="${this.escapeHtml(title)}">
+                    <div class="artifact-header">
+                        <div class="artifact-info">
+                            <div class="artifact-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                            <div>
+                                <p class="artifact-title">${this.escapeHtml(title)}</p>
+                                <p class="artifact-meta uppercase tracking-wider">PDF · ~${estPages} page${estPages === 1 ? '' : 's'}</p>
+                            </div>
+                        </div>
+                        <div class="kokomi-chart-actions">
+                            <button class="kokomi-chart-btn" title="View PDF"
+                                    onclick="window.KokomiPdf.view('${art.id}', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            <button class="kokomi-chart-btn" title="Download PDF"
+                                    onclick="window.KokomiPdf.download('${art.id}', this)">
+                                <i class="fa-solid fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>`;
         }
     };
@@ -1223,6 +1278,68 @@ if (document.readyState === 'loading') {
 } else {
     KokomiDiagrams.setupObservers();
 }
+
+/**
+ * KokomiPdf — turns a `pdf`-type artifact's markdown into an actual PDF, on
+ * demand. The backend (POST /api/artifacts/render-pdf) generates the bytes
+ * in-memory (nothing written to disk); the result is cached per-card here so
+ * repeated View/Download clicks on the same card don't re-render.
+ */
+const KokomiPdf = {
+    _cache: new Map(), // art id -> blob URL
+
+    _card(id) { return document.querySelector(`.kokomi-pdf[data-pdf-id="${id}"]`); },
+
+    async _blobUrl(id) {
+        if (this._cache.has(id)) return this._cache.get(id);
+        const card = this._card(id);
+        if (!card) return null;
+        const content = card.getAttribute('data-pdf-content') || '';
+        const resp = await fetch('/api/artifacts/render-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+        });
+        if (!resp.ok) throw new Error(`Render failed (${resp.status})`);
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        this._cache.set(id, url);
+        return url;
+    },
+
+    async _withSpinner(btn, fn) {
+        const icon = btn && btn.querySelector('i');
+        const prevClass = icon ? icon.className : null;
+        if (icon) icon.className = 'fa-solid fa-circle-notch fa-spin';
+        try { await fn(); }
+        catch (e) { console.error('[KokomiPdf]', e); }
+        finally { if (icon && prevClass) icon.className = prevClass; }
+    },
+
+    async view(id, btn) {
+        await this._withSpinner(btn, async () => {
+            const url = await this._blobUrl(id);
+            if (url) window.open(url, '_blank');
+        });
+    },
+
+    async download(id, btn) {
+        await this._withSpinner(btn, async () => {
+            const url = await this._blobUrl(id);
+            if (!url) return;
+            const card = this._card(id);
+            const title = (card && card.getAttribute('data-pdf-title')) || 'document';
+            const safeName = title.replace(/[^a-zA-Z0-9_\-]+/g, '_').slice(0, 60) || 'document';
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        });
+    },
+};
+window.KokomiPdf = KokomiPdf;
 
 // Global helper for inline artifact cards
 window.openArtifactFromCard = (id, el) => {

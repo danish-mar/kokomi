@@ -256,6 +256,21 @@
     .kokomi-diagram-modal-body { display: flex; align-items: center; justify-content: center; overflow: auto; }
     .kokomi-diagram-modal-body svg { max-width: 100%; height: auto; }
 
+    /* ── Inline AI-generated PDF documents ───────────────
+       Rendered on demand (View/Download) — the card itself is just a document
+       summary until clicked, so nothing is generated unless requested. */
+    .kokomi-pdf {
+        margin: 12px 0; border: 1px solid var(--border); border-radius: 18px;
+        background: var(--bg-elevated); overflow: hidden;
+        box-shadow: var(--shadow-md); border-left: 4px solid #EF4444;
+    }
+    .kokomi-pdf .artifact-icon { background: #EF4444; color: #fff; }
+    .kokomi-pdf-shimmer {
+        height: 64px; margin: 14px; border-radius: 12px;
+        background: linear-gradient(90deg, var(--bg-canvas), rgba(128,128,128,0.12), var(--bg-canvas));
+        background-size: 200% 100%; animation: shimmer 1.6s infinite;
+    }
+
     /* ── AI image gallery (justified rows) ───────────────
        Each image keeps its aspect ratio at a shared row height; flex-grow then
        fills each row to the full width. The ::after spacer keeps the final row at
