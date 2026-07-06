@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.5.0] - 2026-07-07 — "triton's conch"
+
+### Added
+
+- **Triton — remote moorings (Phase 1)**: pair your own computers so Kokomi can reach in and act on them. A lightweight client daemon (Linux first, in `clients/triton-linux/`) connects out to the server over a WebSocket (NAT-friendly), auto-discovers the server on the LAN via a UDP beacon, and prints an **8-digit code** you enter in **Settings → Triton** to pair. Once paired, the server can dispatch allowlisted, **read-only** actions — `list_dir` and `read_file` (fetch a file back into the app) — with the client enforcing its own per-folder allowlist so the server only ever sees what that machine permits. *Atlas plans, Triton acts.*
+  - New `triton_devices` table + storage layer; core runtime in `app/triton.py` (live-connection registry, pending-pairing sessions, command request/response routing, LAN discovery beacon); browser-facing REST + the client-facing agent WebSocket in `app/routers/triton.py`.
+  - New **Triton** settings tab (circle-nodes icon): discovered clients with pair-by-code, paired moorings with online status / last-seen / revoke, and an inline folder browser to test a mooring.
+  - Device tokens are stored only as a SHA-256 hash server-side; the client keeps the raw token at `~/.config/kokomi-triton/state.json` (chmod 600). Revoking from the UI closes the live connection and forgets the device.
+
 ## [v5.4.5] - 2026-07-07
 
 ### Fixed
