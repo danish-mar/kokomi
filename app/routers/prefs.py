@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import httpx
 from fastapi import APIRouter, UploadFile, File
 
@@ -204,23 +206,30 @@ async def ai_generate(body: dict):
         return {"text": "", "error": str(e)}
 
 
+# Repo root, resolved once, so every git subprocess call below runs against the
+# actual checkout regardless of the FastAPI process's current working directory
+# (relying on cwd here was the root cause of spurious "not a git repository" /
+# "branch does not exist" failures when the app was launched from elsewhere).
+_REPO_ROOT = str(Path(__file__).resolve().parents[2])
+
+
 @router.get("/update/check")
 async def check_for_updates():
     import subprocess
     import tomli
-    from pathlib import Path
 
     # 1. Get current local version
     from app.config import VERSION
     local_version = VERSION
-    
+
     # 2. Get git remote URL
     git_url = "https://github.com/danish-mar/kokomi.git"
     try:
         res = subprocess.run(
-            ["git", "config", "--get", "remote.origin.url"], 
-            capture_output=True, 
-            text=True, 
+            ["git", "-c", "safe.directory=*", "config", "--get", "remote.origin.url"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
             timeout=3
         )
         if res.returncode == 0 and res.stdout.strip():
@@ -364,20 +373,66 @@ async def run_update():
                 data["error"] = error
             return f"data: {json.dumps(data)}\n\n"
 
+        def git(*args, timeout=15):
+            return subprocess.run(
+                ["git", "-c", "safe.directory=*", *args],
+                cwd=_REPO_ROOT, capture_output=True, text=True, timeout=timeout
+            )
+
         try:
             yield format_status("Checking local repository status...", 10)
             await asyncio.sleep(0.8)
-            if not os.path.exists(".git"):
+            if not os.path.isdir(os.path.join(_REPO_ROOT, ".git")):
                 yield format_status("Error: Not a git repository.", 10, error="Not a git repository.")
                 return
 
-            yield format_status("Stashing any uncommitted local changes...", 30)
+            yield format_status("Stashing any uncommitted local changes...", 25)
             await asyncio.sleep(0.8)
-            subprocess.run([
-                "git",
-                "-c", "safe.directory=*",
-                "stash"
-            ], capture_output=True, text=True, timeout=15)
+            stash_res = git("stash")
+            stashed = "No local changes to save" not in (stash_res.stdout or "")
+
+            # Fetch first so remote-tracking refs (and the remote's default branch)
+            # are up to date before we look at branch state — a shallow/CI-baked
+            # checkout can otherwise have stale or missing remote refs, which is
+            # what produces spurious "branch does not exist" style failures below.
+            yield format_status("Fetching latest refs from origin...", 35)
+            await asyncio.sleep(0.4)
+            fetch_res = git("fetch", "origin", "--prune", timeout=30)
+            if fetch_res.returncode != 0:
+                err_msg = fetch_res.stderr.strip() or "git fetch failed"
+                yield format_status(f"Error fetching from remote: {err_msg}", 35, error=err_msg)
+                return
+
+            # Docker images built from a CI checkout are frequently left in a
+            # detached-HEAD state (single-SHA / shallow checkout with no local
+            # branch ref). `git pull` then fails with "You are not currently on
+            # a branch" or, once a branch exists locally without upstream
+            # tracking, "There is no tracking information for the current
+            # branch" / "couldn't find remote ref" — all of which read to users
+            # as "branch doesn't exist". Detect that and recover onto the
+            # remote's actual default branch instead of failing.
+            branch_res = git("rev-parse", "--abbrev-ref", "HEAD")
+            current_branch = (branch_res.stdout or "").strip()
+
+            if branch_res.returncode != 0 or current_branch in ("", "HEAD"):
+                yield format_status("Repository is in a detached state, recovering default branch...", 40)
+                await asyncio.sleep(0.4)
+
+                # Make sure origin/HEAD -> origin/<default> is actually set (shallow
+                # clones frequently omit it), then read the default branch name.
+                git("remote", "set-head", "origin", "-a")
+                symref_res = git("symbolic-ref", "refs/remotes/origin/HEAD")
+                default_branch = "main"
+                symref = (symref_res.stdout or "").strip()
+                if symref_res.returncode == 0 and "/" in symref:
+                    default_branch = symref.rsplit("/", 1)[-1]
+
+                checkout_res = git("checkout", "-B", default_branch, f"origin/{default_branch}")
+                if checkout_res.returncode != 0:
+                    err_msg = checkout_res.stderr.strip() or f"Could not check out '{default_branch}'."
+                    yield format_status(f"Error recovering branch: {err_msg}", 40, error=err_msg)
+                    return
+                current_branch = default_branch
 
             # GitHub Actions' checkout bakes an expired auth header into .git/config
             # (http.https://github.com/.extraheader). Because .git ships inside the
@@ -385,20 +440,14 @@ async def run_update():
             # GitHub answers 401, and git falls back to prompting for a username —
             # which fails as "terminal prompts disabled". Strip any such header so the
             # pull goes out anonymously against the public repo and succeeds.
-            yield format_status("Clearing stale CI credentials...", 45)
+            yield format_status("Clearing stale CI credentials...", 50)
             await asyncio.sleep(0.4)
             try:
-                hdrs = subprocess.run([
-                    "git", "-c", "safe.directory=*",
-                    "config", "--local", "--get-regexp", "extraheader"
-                ], capture_output=True, text=True, timeout=10)
+                hdrs = git("config", "--local", "--get-regexp", "extraheader")
                 for line in hdrs.stdout.splitlines():
                     key = line.split(" ", 1)[0].strip()
                     if key:
-                        subprocess.run([
-                            "git", "-c", "safe.directory=*",
-                            "config", "--local", "--unset-all", key
-                        ], capture_output=True, text=True, timeout=10)
+                        git("config", "--local", "--unset-all", key)
             except Exception:
                 pass
 
@@ -406,6 +455,10 @@ async def run_update():
             await asyncio.sleep(0.8)
             env = os.environ.copy()
             env["GIT_TERMINAL_PROMPT"] = "0"
+            # Pull the current branch explicitly from origin rather than a bare
+            # `git pull` — a bare pull depends on upstream-tracking config being
+            # correctly set, which is exactly what's missing/stale in the
+            # detached-HEAD / freshly-recovered-branch cases handled above.
             pull_res = subprocess.run([
                 "git",
                 "-c", "safe.directory=*",
@@ -413,20 +466,31 @@ async def run_update():
                 "-c", "credential.https://github.com.helper=",
                 # Override the key inline too, in case it lingers under a different URL form.
                 "-c", "http.https://github.com/.extraheader=",
-                "pull"
-            ], env=env, capture_output=True, text=True, timeout=30)
+                "pull", "origin", current_branch
+            ], cwd=_REPO_ROOT, env=env, capture_output=True, text=True, timeout=30)
             if pull_res.returncode != 0:
                 err_msg = pull_res.stderr.strip() or "git pull failed"
+                if stashed:
+                    git("stash", "pop")
                 yield format_status(f"Error pulling changes: {err_msg}", 55, error=err_msg)
                 return
+
+            if stashed:
+                yield format_status("Restoring stashed local changes...", 60)
+                await asyncio.sleep(0.4)
+                pop_res = git("stash", "pop")
+                if pop_res.returncode != 0:
+                    err_msg = pop_res.stderr.strip() or "git stash pop failed (conflicts with pulled changes)"
+                    yield format_status(f"Error restoring local changes: {err_msg}", 60, error=err_msg)
+                    return
 
             yield format_status("Synchronizing dependencies & local package...", 80)
             await asyncio.sleep(0.8)
             uv_path = shutil.which("uv")
             if uv_path:
-                subprocess.run([uv_path, "sync"], capture_output=True, text=True, timeout=60)
+                subprocess.run([uv_path, "sync"], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=60)
             else:
-                subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], capture_output=True, text=True, timeout=60)
+                subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=60)
 
             yield format_status("Done! Kokomi will restart to apply changes...", 100)
             await asyncio.sleep(0.8)
