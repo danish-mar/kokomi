@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.4] - 2026-07-07
+
+### Fixed
+
+- **Stale JS after deploys (recurring "startWorkflow is not defined")**: our own JS/CSS was served with a 7-day `Cache-Control: max-age`, so browsers kept running week-old cached code against freshly server-rendered HTML — e.g. an `atlas.html` that calls `startWorkflow()` while the cached `atlas.js` predates that method. A plain refresh couldn't reliably bust it. `/static/js/` and `/static/css/` (including `app.js`'s ES-module imports) are now served `no-cache` so the browser revalidates every load — a cheap 304 when unchanged, fresh bytes the instant a new build ships. Vendored libraries and images keep the long cache.
+- **Atlas planning screen ignored the theme**: the "Decomposing request" loader card hardcoded the dark palette, so it rendered as a dark card with low-contrast text on the light theme and ignored custom swatches/accent. It now uses the app's semantic theme variables and adapts to light/dark like the rest of the UI.
+
 ## [v5.4.3] - 2026-07-07
 
 ### Fixed
