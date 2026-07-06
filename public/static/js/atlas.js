@@ -13,6 +13,13 @@ function atlasApp() {
     planningInterval: null,
     wsList: null,
     wsDetail: null,
+    // Reconnect backoff (ms): grows on each failed WS attempt, resets on a
+    // successful open. Without this, a WS that can't connect (e.g. proxy not
+    // upgrading, or the server event loop momentarily busy) retried on a fixed
+    // 3s timer forever, producing the console reconnect storm.
+    _wsListBackoff: 1000,
+    _wsDetailBackoff: 1000,
+    _wsBackoffMax: 30000,
     selectedTask: null,
     debugMode: false,
     inputText: '',
@@ -1029,6 +1036,7 @@ function atlasApp() {
       }
       
       this.wsList = new WebSocket(wsUrl);
+      this.wsList.onopen = () => { this._wsListBackoff = 1000; };
       this.wsList.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'workflows_list') {
@@ -1052,7 +1060,9 @@ function atlasApp() {
       };
       
       this.wsList.onclose = () => {
-        setTimeout(() => this.startPolling(), 3000);
+        const delay = this._wsListBackoff;
+        this._wsListBackoff = Math.min(this._wsListBackoff * 2, this._wsBackoffMax);
+        setTimeout(() => this.startPolling(), delay);
       };
     },
 
@@ -1074,6 +1084,7 @@ function atlasApp() {
       }
       
       this.wsDetail = new WebSocket(wsUrl);
+      this.wsDetail.onopen = () => { this._wsDetailBackoff = 1000; };
       this.wsDetail.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'workflow_detail' && data.run_id === this.activeRunId) {
@@ -1108,7 +1119,9 @@ function atlasApp() {
       
       this.wsDetail.onclose = () => {
         if (this.activeRunId) {
-          setTimeout(() => this.restartDetailPolling(), 3000);
+          const delay = this._wsDetailBackoff;
+          this._wsDetailBackoff = Math.min(this._wsDetailBackoff * 2, this._wsBackoffMax);
+          setTimeout(() => this.restartDetailPolling(), delay);
         }
       };
     },
