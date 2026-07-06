@@ -65,7 +65,12 @@ DEFAULT_PREFS: dict = {
     "atlas_local_url": "http://localhost:8080/v1",
     "atlas_local_model": "local-model",
     "inject_time": False,
-    "embedding_model": "models/gemini-embedding-2",
+    # RAG embeddings. Provider selects which service embeds documents/queries.
+    # NOTE: changing the embedding model/provider invalidates existing vectors —
+    # spaces must be re-indexed (the app detects the mismatch and offers it).
+    "embedding_provider": "google",  # "google" | "nvidia"
+    "embedding_model": "gemini-embedding-001",  # stable GA Gemini embedding model
+    "nvidia_embedding_model": "nvidia/nv-embedqa-e5-v5",  # NVIDIA NIM retrieval embedding
     "whatsapp_enabled": False,
     "whatsapp_character_id": "kokomi",
     "whatsapp_api_url": os.getenv("WHATSAPP_API_URL", "http://localhost:3013"),

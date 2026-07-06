@@ -164,7 +164,7 @@
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
                                 <div style="position:relative;">
                                     <select x-model="prefs.nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                        <template x-for="m in models.filter(x => x.provider === 'nvidia')" :key="m.id">
+                                        <template x-for="m in nvidiaChatModels()" :key="m.id">
                                             <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.nvidia_model"
                                                 style="background:var(--bg-canvas); color:var(--text-primary);"></option>
                                         </template>
@@ -193,16 +193,59 @@
 
                     <!-- Embedding -->
                     <div class="card-row">
-                        <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">RAG Embedding Model</label>
-                        <div style="position:relative;">
-                            <select x-model="prefs.embedding_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                <option value="models/gemini-embedding-2" style="background:var(--bg-canvas); color:var(--text-primary);">Gemini Embedding 2 (Latest)</option>
-                                <option value="models/gemini-embedding-001" style="background:var(--bg-canvas); color:var(--text-primary);">Gemini Embedding 001 (Stable)</option>
-                            </select>
-                            <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                <i class="fa-solid fa-chevron-down"></i>
+                        <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">RAG Embedding Provider</label>
+                        <div class="seg-control" style="margin-bottom:14px; max-width:360px;">
+                            <button @click="prefs.embedding_provider = 'google'; savePrefs()"
+                                :class="(prefs.embedding_provider || 'google') === 'google' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-brands fa-google" style="font-size:9px;"></i> Gemini
+                            </button>
+                            <button @click="prefs.embedding_provider = 'nvidia'; savePrefs()"
+                                :class="prefs.embedding_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
+                            </button>
+                        </div>
+
+                        <!-- Gemini embedding models -->
+                        <div x-show="(prefs.embedding_provider || 'google') === 'google'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Gemini Embedding Model</label>
+                            <div style="position:relative;">
+                                <select x-model="prefs.embedding_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                    <option value="gemini-embedding-001" style="background:var(--bg-canvas); color:var(--text-primary);">Gemini Embedding 001 (Stable — recommended)</option>
+                                    <option value="models/embedding-001" style="background:var(--bg-canvas); color:var(--text-primary);">Embedding 001 (legacy)</option>
+                                </select>
+                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
                             </div>
                         </div>
+
+                        <!-- NVIDIA NIM embedding models (retrieval/QA embedders only) -->
+                        <div x-show="prefs.embedding_provider === 'nvidia'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Embedding Model</label>
+                            <div style="position:relative;">
+                                <select x-model="prefs.nvidia_embedding_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                    <!-- Curated retrieval-embedding NIMs -->
+                                    <option value="nvidia/nv-embedqa-e5-v5" style="background:var(--bg-canvas); color:var(--text-primary);">nv-embedqa-e5-v5 · 1024d, QA/search (recommended)</option>
+                                    <option value="nvidia/llama-3.2-nv-embedqa-1b-v2" style="background:var(--bg-canvas); color:var(--text-primary);">llama-3.2-nv-embedqa-1b-v2 · fast, lightweight</option>
+                                    <option value="nvidia/nv-embedqa-mistral-7b-v2" style="background:var(--bg-canvas); color:var(--text-primary);">nv-embedqa-mistral-7b-v2 · long-context</option>
+                                    <option value="baai/bge-m3" style="background:var(--bg-canvas); color:var(--text-primary);">baai/bge-m3 · multilingual</option>
+                                    <option value="snowflake/arctic-embed-l" style="background:var(--bg-canvas); color:var(--text-primary);">snowflake/arctic-embed-l</option>
+                                    <!-- Also surface any embedding models discovered from the live NVIDIA catalog -->
+                                    <template x-for="m in nvidiaEmbeddingModels()" :key="m.id">
+                                        <option :value="m.id" x-text="m.name || m.id" style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                    </template>
+                                </select>
+                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                            </div>
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>. Only retrieval/QA embedders are listed. Get a free key at <a href="https://build.nvidia.com" target="_blank" style="color:var(--accent);">build.nvidia.com</a></p>
+                        </div>
+
+                        <p style="font-size:10px; color:#f0b74a; margin-top:10px; display:flex; align-items:flex-start; gap:6px;">
+                            <i class="fa-solid fa-triangle-exclamation" style="margin-top:1px;"></i>
+                            <span>Changing the embedding model re-maps the vector space. Existing Knowledge Spaces must be re-indexed (Spaces → Re-index) before search works again.</span>
+                        </p>
                     </div>
 
                     <!-- User Persona -->
@@ -859,7 +902,7 @@
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
                                 <div style="position:relative;">
                                     <select x-model="prefs.atlas_nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                        <template x-for="m in models.filter(x => x.provider === 'nvidia')" :key="m.id">
+                                        <template x-for="m in nvidiaChatModels()" :key="m.id">
                                             <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.atlas_nvidia_model"
                                                 style="background:var(--bg-canvas); color:var(--text-primary);"></option>
                                         </template>

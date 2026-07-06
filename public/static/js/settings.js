@@ -739,6 +739,31 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
             } catch(e) { console.error(e); this.prefSaving = false; }
         },
 
+        // Embedding models discovered from the live NVIDIA catalog (/api/models),
+        // filtered to retrieval/embedding models and excluding the curated ones we
+        // already list statically. The generic model dropdowns show every NVIDIA
+        // model; for embeddings we only want the embedders.
+        nvidiaEmbeddingModels() {
+            const curated = new Set([
+                'nvidia/nv-embedqa-e5-v5', 'nvidia/llama-3.2-nv-embedqa-1b-v2',
+                'nvidia/nv-embedqa-mistral-7b-v2', 'baai/bge-m3', 'snowflake/arctic-embed-l',
+            ]);
+            return (this.models || []).filter(m =>
+                m.provider === 'nvidia' &&
+                /embed|bge|arctic|e5|gte/i.test(m.id) &&
+                !/rerank/i.test(m.id) &&
+                !curated.has(m.id)
+            );
+        },
+
+        // NVIDIA *chat* models only — hides embedding/rerank models from the
+        // conversational/Atlas model dropdowns (the raw catalog mixes them in).
+        nvidiaChatModels() {
+            return (this.models || []).filter(m =>
+                m.provider === 'nvidia' && !/embed|rerank|bge|arctic/i.test(m.id)
+            );
+        },
+
         async resetTourAndStart() {
             this.prefs.tour_completed = false;
             localStorage.removeItem('kokomi_tour_completed');

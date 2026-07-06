@@ -42,6 +42,23 @@ def _load_jsonl(path):
     return rows
 
 
+def migrate_embedding_model():
+    """One-time: rewrite the old, unstable default embedding model to the stable
+    GA model. The previous default `models/gemini-embedding-2` drifts over time,
+    silently invalidating stored vectors; `gemini-embedding-001` is stable.
+    Idempotent — safe to run every startup."""
+    try:
+        from app.storage import load_prefs, save_prefs
+        prefs = load_prefs()
+        if prefs.get("embedding_model") == "models/gemini-embedding-2":
+            prefs["embedding_model"] = "gemini-embedding-001"
+            save_prefs(prefs)
+            print("🔧 Migrated embedding_model → gemini-embedding-001 (stable). "
+                  "Existing knowledge spaces will need re-indexing.")
+    except Exception as e:
+        print(f"Embedding model migration skipped: {e}")
+
+
 async def auto_migrate_and_cleanup():
     # Legacy files in data/
     DATA_DIR = "data"

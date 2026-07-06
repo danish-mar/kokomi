@@ -34,11 +34,15 @@ async def lifespan(app):
     from app.db import init_db
     await init_db()
 
-    from app.migration import auto_migrate_and_cleanup
+    from app.migration import auto_migrate_and_cleanup, migrate_embedding_model
     try:
         await auto_migrate_and_cleanup()
     except Exception as mig_err:
         logger.warning(f"Auto-migration failed during startup: {mig_err}")
+    try:
+        migrate_embedding_model()
+    except Exception as emb_err:
+        logger.warning(f"Embedding-model migration failed during startup: {emb_err}")
 
     from app.cdn import download_vendor_assets_if_missing
     try:

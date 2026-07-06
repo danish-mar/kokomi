@@ -83,25 +83,86 @@ async def upload_file_to_space(
     with open(file_path, "wb") as f:
         f.write(content)
         
-    # Process document into Qdrant RAG
-    from app.rag import process_file_to_rag, delete_file_from_rag
+    # Process document into Qdrant RAG. This makes many blocking embedding
+    # network calls, so run it off the event loop. Surface failures to the caller
+    # instead of silently recording a file that never got embedded.
+    import asyncio
+    from app.rag import process_file_to_rag
     try:
-        process_file_to_rag(file_path, space_id, file_id)
+        await asyncio.to_thread(process_file_to_rag, file_path, space_id, file_id)
     except Exception as e:
         print(f"Error processing RAG: {e}")
-        # Note: In production we'd probably want to abort the upload, but let's allow it for now.
-    
+        try:
+            os.remove(file_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Failed to index document: {e}")
+
     new_file = {
         "id": file_id,
         "filename": file.filename,
         "size": len(content),
         "uploaded_at": datetime.datetime.utcnow().isoformat()
     }
-    
+
     space["files"].append(new_file)
     save_spaces(spaces)
-    
+
     return new_file
+
+
+@router.post("/{space_id}/query")
+async def query_space_endpoint(space_id: str, payload: dict):
+    """Lightweight semantic search against a space — returns the top matching
+    excerpts. Powers the inline 'Ask this Space' preview (no LLM, pure retrieval)."""
+    spaces = load_spaces()
+    if space_id not in spaces:
+        raise HTTPException(404, "Space not found")
+    query = (payload.get("query") or "").strip()
+    if not query:
+        raise HTTPException(400, "query is required")
+    top_k = int(payload.get("top_k", 5))
+    import asyncio
+    from app.rag import query_space, space_needs_reindex
+    chunks = await asyncio.to_thread(query_space, space_id, query, top_k)
+    return {"space_id": space_id, "query": query, "chunks": chunks,
+            "needs_reindex": space_needs_reindex(space_id)}
+
+
+@router.get("/{space_id}/status")
+async def space_index_status(space_id: str):
+    """Report whether a space's vectors are compatible with the active embedding
+    model (i.e. whether it needs re-indexing)."""
+    spaces = load_spaces()
+    if space_id not in spaces:
+        raise HTTPException(404, "Space not found")
+    from app.rag import space_needs_reindex, _current_embedding_client, qdrant
+    try:
+        vector_count = qdrant.count(space_id).count
+    except Exception:
+        vector_count = 0
+    return {
+        "space_id": space_id,
+        "needs_reindex": space_needs_reindex(space_id),
+        "embedding_id": _current_embedding_client().id,
+        "vector_count": vector_count,
+    }
+
+
+@router.post("/{space_id}/reindex")
+async def reindex_space_endpoint(space_id: str):
+    """Rebuild a space's vectors from its retained source files using the current
+    embedding model. Fixes spaces whose vectors were embedded with an old model."""
+    spaces = load_spaces()
+    if space_id not in spaces:
+        raise HTTPException(404, "Space not found")
+    import asyncio
+    from app.rag import reindex_space
+    try:
+        result = await asyncio.to_thread(reindex_space, space_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Re-index failed: {e}")
+    return result
 
 @router.delete("/{space_id}/files/{file_id}")
 async def delete_file_from_space(space_id: str, file_id: str):

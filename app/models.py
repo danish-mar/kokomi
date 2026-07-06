@@ -44,7 +44,9 @@ class PrefsUpdate(BaseModel):
     local_url: Optional[str] = "http://localhost:8080/v1"
     local_model: Optional[str] = "local-model"
     nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
-    embedding_model: Optional[str] = "models/gemini-embedding-2"
+    embedding_provider: Optional[str] = "google"
+    embedding_model: Optional[str] = "gemini-embedding-001"
+    nvidia_embedding_model: Optional[str] = "nvidia/nv-embedqa-e5-v5"
     whatsapp_enabled: bool = False
     whatsapp_character_id: str = "kokomi"
     whatsapp_api_url: str = "http://localhost:3013"
