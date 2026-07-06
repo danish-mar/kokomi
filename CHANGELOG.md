@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.0] - 2026-07-06
+
+### Added
+
+- **Atlas dry-run DAG + checkpoint gates**: Workflow runs now start as an editable **draft** plan instead of auto-executing — review or tweak the DAG, then press Run. Any task can be flagged as a **checkpoint**; the scheduler pauses the whole run before that node executes and waits for approval from the web UI or a Telegram `/approve <run_id>` / `/reject <run_id>` command (with a best-effort DM when a run pauses). The planner prompt now teaches the model when to gate a step (irreversible/sensitive side effects) versus leaving read-only steps ungated.
+- **NVIDIA NIM embeddings for RAG**: A second embedding provider alongside Gemini, selectable from Settings (provider toggle + curated/live NVIDIA model list), with a provider-aware embedding client handling each service's doc/query conventions.
+- **Redesigned Spaces page**: Glass cards matching the rest of the app, stat pills (file/chunk counts, Ready badge), a reindex banner + button for spaces flagged as needing it, an inline **"Ask this Space"** semantic search box, and a **"Chat"** button that deep-links a space straight into the main chat window as context.
+- **Inline PDF artifacts in chat**: The AI can emit a PDF artifact for content meant to be an actual document (report, resume, letter, invoice) instead of a chat reply. The card shows a title and estimated page count with View/Download — the PDF is only rendered on demand, nothing is generated just because the artifact appeared.
+- **Action-chip polish**: staggered entrance animation on finished chip rows, a shimmer skeleton while a chip block is still streaming in (replacing a raw-JSON flash), a "+N more" overflow guard past six chips, new `copy`/`set` verbs, `confirm` gates, and `primary`/`ghost`/`danger` variants.
+- **ChatGPT-style message editing & branching**: Editing a sent message (or regenerating a reply) archives the existing continuation as a branch variant instead of destroying it, then resends and attaches the new reply as a sibling. A `< i/N >` control navigates between variants instantly, with no LLM call.
+
+### Fixed
+
+- **RAG silent zero-retrieval failures**: the default embedding model (`models/gemini-embedding-2`) was an unstable identifier whose vectors drifted out of self-compatibility over time, quietly killing retrieval on existing spaces. Switched the default to the stable GA `gemini-embedding-001`, added a one-time migration for stored prefs, and added per-space embedding-identity tracking so a mismatch surfaces as a "needs reindex" state instead of crashing or returning nothing. Also lowered the overly strict cosine `score_threshold` (0.4 → 0.2) that was filtering out genuine matches, and moved file ingestion off the event loop.
+- **NVIDIA model dropdowns showing embedding/rerank models**: the chat and Atlas NVIDIA model pickers listed every NVIDIA model, embedders included; now filtered to chat-appropriate models only.
+- **PDF export duplicate table row**: a missing `continue` after table parsing let the stale first table line fall through and get re-appended as a stray paragraph beneath the rendered table.
+- **Software updater "branch doesn't exist" failures**: the updater ran git commands with no explicit working directory and no handling for a detached-HEAD checkout (common in Docker images built from CI), which produced errors that read as a missing branch. It now fetches origin first, detects and recovers from detached HEAD by checking out the remote's actual default branch, and pulls that branch explicitly rather than relying on ambient upstream-tracking config. Also fixed local changes being `git stash`ed before a pull and never restored afterward.
+- **Branch navigation losing its arrows / scroll position**: switching to the newest branch (or reloading the page) could make the `< i/N >` control disappear because branch metadata was never stamped onto the message itself; switching branches could also jump the viewport when the new variant had a different height. Both fixed.
+
 ## [v5.3.0] - 2026-06-28
 
 ### Added
@@ -9,7 +28,7 @@ All notable changes to this project will be documented in this file.
 - **Telegram Bot Bridge**: A full Telegram integration alongside the WhatsApp bridge. Point the bot at any character, talk to it 1:1, and reuse the same MCP tools, history, and thinking-mode forwarding as the web chat. Configure everything from Settings — bot token, target character, context-history depth, an optional user allowlist, and show/hide thinking.
   - **Polling mode (default)**: long-polls `getUpdates` in a background loop, so no public URL or webhook is required — it works on a laptop or behind NAT. Start/Stop from Settings with a live status badge.
   - **Webhook mode**: one-click `setWebhook` registration using the server's own origin for public deployments. The two modes are mutually exclusive, and the bridge clears a stale webhook before polling so `getUpdates` never 409s.
-  - **Profile sync**: pushes the selected character's name and description to the bot (the avatar is set manually via `@BotFather`, which Telegram's API can't automate — surfaced as a note).
+  - **Profile sync**: pushes the selected character's name and description to the bot (the avatar is set manually via BotFather, which Telegram's API can't automate — surfaced as a note).
 - **Rich Message Widgets**: AI message bubbles now upgrade plain markdown into interactive widgets, rendered through the same renderer + `MutationObserver` hydration used by charts/diagrams (everything degrades to text if a widget can't mount).
   - **Images**: markdown images become figures with captured pixel dimensions and a click-to-expand lightbox (with "open original"). Remote URLs are fronted by the `/api/img` proxy.
   - **Video**: a markdown link to a direct video file (`.mp4`/`.webm`/`.ogg`) auto-renders a player; a ```kokomi-video``` block adds poster/title.
