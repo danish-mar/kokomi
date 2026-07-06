@@ -11,6 +11,90 @@ from app.workflow import MultiAgentWorkflowEngine, load_workflows, save_workflow
 router = APIRouter(prefix="/api")
 
 
+# ── Recurring schedules ───────────────────────────────────────────────────
+# These must be registered ahead of the /workflows/{run_id} routes below:
+# FastAPI matches routes in registration order, so GET /workflows/schedules
+# would otherwise be swallowed by GET /workflows/{run_id} (run_id="schedules").
+@router.get("/workflows/schedules")
+async def list_schedules():
+    """List all recurring workflow schedules."""
+    from app.scheduler import load_schedules
+    return list(load_schedules().values())
+
+
+@router.put("/workflows/schedules/{schedule_id}")
+async def update_schedule(schedule_id: str, payload: dict):
+    """Patch a schedule's settings (repeat_mode/interval/cron/active)."""
+    from app.scheduler import load_schedules, save_schedules, calculate_next_run
+    schedules = load_schedules()
+    sched = schedules.get(schedule_id)
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    recompute = False
+    for field in ("repeat_mode", "interval", "cron"):
+        if field in payload and payload[field] != sched.get(field):
+            sched[field] = payload[field]
+            recompute = True
+    if "active" in payload:
+        sched["active"] = bool(payload["active"])
+
+    if recompute:
+        sched["next_run_ts"] = calculate_next_run(sched.get("interval", "daily"), sched.get("cron"))
+
+    schedules[schedule_id] = sched
+    save_schedules(schedules)
+    return sched
+
+
+@router.delete("/workflows/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str):
+    """Remove a recurring workflow schedule."""
+    from app.scheduler import load_schedules, save_schedules
+    schedules = load_schedules()
+    if schedule_id not in schedules:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    schedules.pop(schedule_id)
+    save_schedules(schedules)
+    return {"status": "deleted"}
+
+
+@router.post("/workflows/{run_id}/schedule")
+async def create_schedule(run_id: str, payload: dict):
+    """Create a recurring schedule that re-triggers this workflow run."""
+    import uuid
+    from app.scheduler import load_schedules, save_schedules, calculate_next_run
+
+    db = load_workflows()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+    state = db[run_id]
+
+    interval = payload.get("interval", "daily")
+    cron = payload.get("cron", "")
+    schedule_id = uuid.uuid4().hex[:8]
+    sched = {
+        "id": schedule_id,
+        "source_run_id": run_id,
+        "run_title": state.get("run_title", "Scheduled Run"),
+        "original_prompt": state.get("user_request", ""),
+        "repeat_mode": payload.get("repeat_mode", "re_execute"),
+        "interval": interval,
+        "cron": cron,
+        "active": True,
+        "created_at": datetime.datetime.now().isoformat(),
+        "next_run_ts": calculate_next_run(interval, cron),
+        "last_run_ts": None,
+        "last_run_id": None,
+        "last_run_status": None,
+    }
+
+    schedules = load_schedules()
+    schedules[schedule_id] = sched
+    save_schedules(schedules)
+    return sched
+
+
 @router.get("/workflows")
 async def get_workflows():
     """Retrieve all multi-agent LangGraph workflow execution runs."""
