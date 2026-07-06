@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.5] - 2026-07-07
+
+### Fixed
+
+- **Compiled documents duplicated every section**: the multi-agent PDF worker built its output by globbing every `.md` file in the run's workspace, which holds both each researcher's intermediate section file **and** the writer's already-merged report — so each topic appeared two or three times (once raw, once inside the merge, often with slightly different wording). It read like the agents were out of sync, but it was the same content duplicated. The PDF worker now assembles from its direct dependencies: if a writer/compiler dependency exists it renders only that merged output, otherwise it concatenates the researcher dependencies; the old workspace glob remains only as a last-resort fallback.
+
 ## [v5.4.4] - 2026-07-07
 
 ### Fixed
