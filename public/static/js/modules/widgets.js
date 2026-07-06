@@ -115,6 +115,39 @@ function videoHtml({ src, poster = '', title = '' }) {
 //   extra:  { label, icon, variant: "primary"|"ghost"|"danger", confirm: "prompt?" }
 const MAX_VISIBLE_CHIPS = 6;
 
+// The chat bubble re-renders via a wholesale innerHTML replace (Alpine's
+// x-html) on every streaming chunk, AND once more when msg.streaming flips to
+// false at the end — even when this block's content hasn't changed. Each
+// replace mounts brand-new DOM nodes, which replays the CSS entrance
+// animation. Track which exact (already-complete) block contents have played
+// their entrance once already, so a re-render of unchanged content renders
+// statically instead of animating again.
+const _animatedActionBlocks = new Set();
+function _hasAnimatedOnce(raw) {
+    if (_animatedActionBlocks.has(raw)) return true;
+    if (_animatedActionBlocks.size > 300) _animatedActionBlocks.clear(); // defensive cap
+    _animatedActionBlocks.add(raw);
+    return false;
+}
+
+// A block is still mid-stream (not genuinely malformed) if its brackets aren't
+// balanced yet, or it doesn't end on a closing bracket. Used to decide between
+// showing an animated shimmer (still typing) vs a real parse failure.
+function looksStructurallyIncomplete(raw) {
+    if (!raw) return true;
+    const opens = (raw.match(/[{\[]/g) || []).length;
+    const closes = (raw.match(/[}\]]/g) || []).length;
+    return opens === 0 || opens !== closes || !/[}\]]\s*$/.test(raw);
+}
+
+function renderActionsShimmer() {
+    return `<div class="kokomi-actions kokomi-actions--loading" data-kokomi-actions>
+        <div class="kokomi-chip-shimmer" style="width:96px;"></div>
+        <div class="kokomi-chip-shimmer" style="width:132px;"></div>
+        <div class="kokomi-chip-shimmer" style="width:80px;"></div>
+    </div>`;
+}
+
 export function renderActionsBlock(code) {
     const raw = (code || '').trim();
     let items = [];
@@ -122,32 +155,51 @@ export function renderActionsBlock(code) {
         const parsed = JSON.parse(raw);
         items = Array.isArray(parsed) ? parsed : (parsed.actions || []);
     } catch {
-        // Fallback: one action per line, "Label | send text"
+        // Streaming JSON is incomplete until the closing bracket lands — show a
+        // shimmer skeleton instead of the previous behavior (splitting the raw,
+        // half-written JSON into one ugly chip per line). Only fall back to the
+        // lenient newline parser once the block looks structurally finished but
+        // still fails to parse (a genuinely malformed block from the model).
+        if (looksStructurallyIncomplete(raw)) {
+            return renderActionsShimmer();
+        }
         items = raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
             const [label, payload] = line.split('|').map(s => s.trim());
             return { label, send: payload || label };
         });
     }
-    if (!items.length) return '';
+    // Empty list: either genuinely no actions (valid "[]", render nothing) or
+    // still-streaming with nothing parsed yet out of an incomplete block.
+    if (!items.length) return looksStructurallyIncomplete(raw) ? renderActionsShimmer() : '';
 
-    const chip = (a, hidden) => {
+    // Staggered entrance: each chip fades/slides in a beat after the previous
+    // one (via an inline animation-delay) so the final reveal feels alive
+    // instead of the whole row popping in at once. Only the FIRST time this
+    // exact (complete) content is rendered gets the animation — a later
+    // wholesale re-render of unchanged content (e.g. when streaming ends)
+    // renders statically instead of replaying it.
+    const animate = !_hasAnimatedOnce(raw);
+    const chip = (a, hidden, index) => {
         const detail = JSON.stringify({
             fill: a.fill, send: a.send, url: a.url, copy: a.copy, set: a.set,
             confirm: a.confirm, label: a.label
         });
         const icon = a.icon ? `<i class="${escapeAttr(a.icon)}"></i>` : '';
         const variant = ['primary', 'ghost', 'danger'].includes(a.variant) ? ` kokomi-chip--${a.variant}` : '';
-        return `<button type="button" class="kokomi-chip${variant}${hidden ? ' kokomi-chip--hidden' : ''}"
+        const delay = (hidden || !animate) ? '' : ` style="animation-delay:${Math.min(index, 8) * 45}ms"`;
+        const inClass = (hidden || !animate) ? '' : ' kokomi-chip--in';
+        return `<button type="button" class="kokomi-chip${variant}${hidden ? ' kokomi-chip--hidden' : inClass}"${delay}
             onclick='window.KokomiWidgets&&window.KokomiWidgets.action(this)'
             data-action="${escapeAttr(detail)}">${icon}<span>${escapeHtml(a.label || 'Action')}</span></button>`;
     };
 
-    const visible = items.slice(0, MAX_VISIBLE_CHIPS).map(a => chip(a, false));
+    const visible = items.slice(0, MAX_VISIBLE_CHIPS).map((a, i) => chip(a, false, i));
     const overflow = items.slice(MAX_VISIBLE_CHIPS);
     let tail = '';
     if (overflow.length) {
-        const hidden = overflow.map(a => chip(a, true)).join('');
-        tail = hidden + `<button type="button" class="kokomi-chip kokomi-chip--more"
+        const moreDelay = animate ? ` style="animation-delay:${Math.min(visible.length, 8) * 45}ms"` : '';
+        const hidden = overflow.map((a, i) => chip(a, true, i)).join('');
+        tail = hidden + `<button type="button" class="kokomi-chip kokomi-chip--more${animate ? ' kokomi-chip--in' : ''}"${moreDelay}
             onclick='window.KokomiWidgets&&window.KokomiWidgets.toggleMore(this)'>
             <i class="fa-solid fa-ellipsis"></i><span>+${overflow.length} more</span></button>`;
     }
@@ -326,11 +378,16 @@ const KokomiWidgets = {
         window.dispatchEvent(new CustomEvent('kokomi-action', { detail }));
     },
 
-    // Reveal the chips hidden behind a "+N more" toggle.
+    // Reveal the chips hidden behind a "+N more" toggle, staggered in the same
+    // style as the initial reveal.
     toggleMore(btn) {
         const wrap = btn.closest('.kokomi-actions');
         if (!wrap) return;
-        wrap.querySelectorAll('.kokomi-chip--hidden').forEach(c => c.classList.remove('kokomi-chip--hidden'));
+        wrap.querySelectorAll('.kokomi-chip--hidden').forEach((c, i) => {
+            c.classList.remove('kokomi-chip--hidden');
+            c.classList.add('kokomi-chip--in');
+            c.style.animationDelay = `${Math.min(i, 8) * 45}ms`;
+        });
         btn.remove();
     },
 
