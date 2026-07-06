@@ -1816,35 +1816,58 @@ async def execute_worker_task(task: TaskDict, prev_tasks_outputs: List[Dict[str,
                 if not already_done:
                     md_content = ""
                     parts_count = 0
-                    # 1. Try reading actual written markdown files from the workspace directory first!
-                    if sdir:
+
+                    def _dep_markdown(po: dict) -> str:
+                        """Pull a dependency's document, preferring its written .md
+                        artifact, then its output markdown."""
+                        for art in (po.get("artifacts") or []):
+                            if isinstance(art, str) and art.endswith(".md") and os.path.exists(art):
+                                try:
+                                    with open(art, "r") as f:
+                                        return clean_markdown_if_json(f.read())
+                                except Exception:
+                                    pass
+                        out = po.get("output", {})
+                        part = ""
+                        if isinstance(out, dict):
+                            part = out.get("markdown") or out.get("result") or ""
+                        elif isinstance(out, str):
+                            part = out
+                        return clean_markdown_if_json(part)
+
+                    # 1. Prefer the direct dependencies' documents. A well-formed plan
+                    #    has the pdf_worker depend on a single writer/compiler task whose
+                    #    output is the already-merged report. Globbing the whole
+                    #    workspace instead (the old behavior) also pulled in every
+                    #    researcher's intermediate section file, so each topic landed in
+                    #    the PDF two or three times — once raw, once inside the merge.
+                    #    If a writer dependency exists, use ONLY the writer output(s);
+                    #    otherwise concatenate all deps (plans with no separate compiler).
+                    writer_deps = [po for po in prev_tasks_outputs if po.get("worker_type") == "writer"]
+                    source_deps = writer_deps if writer_deps else prev_tasks_outputs
+                    parts = []
+                    for po in source_deps:
+                        part = _dep_markdown(po)
+                        if part and len(part.strip()) > 50:
+                            parts.append(part)
+                    if parts:
+                        md_content = "\n\n\\pagebreak\n\n".join(parts)
+                        parts_count = len(parts)
+
+                    # 2. Fallback: only if the dependency outputs gave us nothing usable,
+                    #    read whatever markdown is on disk in the workspace.
+                    if not md_content and sdir:
                         md_files = sorted([f for f in os.listdir(sdir) if f.endswith(".md")])
                         if md_files:
-                            parts = []
+                            file_parts = []
                             for mf in md_files:
                                 try:
                                     with open(os.path.join(sdir, mf), "r") as f:
-                                        parts.append(clean_markdown_if_json(f.read()))
+                                        file_parts.append(clean_markdown_if_json(f.read()))
                                 except Exception:
                                     pass
-                            md_content = "\n\n\\pagebreak\n\n".join(parts)
-                            parts_count = len(md_files)
-                            
-                    # 2. Fallback: join all dependent task outputs sequentially!
-                    if not md_content:
-                        parts = []
-                        for po in prev_tasks_outputs:
-                            out = po.get("output", {})
-                            part = ""
-                            if isinstance(out, dict):
-                                part = out.get("markdown") or out.get("result") or ""
-                            elif isinstance(out, str):
-                                part = out
-                            part = clean_markdown_if_json(part)
-                            if part and len(part.strip()) > 50:
-                                parts.append(part)
-                        md_content = "\n\n\\pagebreak\n\n".join(parts)
-                        parts_count = len(parts)
+                            md_content = "\n\n\\pagebreak\n\n".join(file_parts)
+                            parts_count = len(file_parts)
                         
                     if md_content:
                         # 1. Determine dynamic safe name
