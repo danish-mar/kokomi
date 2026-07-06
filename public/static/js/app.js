@@ -46,6 +46,17 @@ function aiApp() {
             if (id) await this.loadConversation(id);
         }
 
+        // Deep-link from the Spaces page: open a fresh chat with a space attached.
+        if (hash && hash.startsWith('#space=')) {
+            const sid = hash.split('=')[1];
+            if (sid && this.spaces.some(s => s.id === sid)) {
+                this.activeSpaceId = sid;
+                const sp = this.spaces.find(s => s.id === sid);
+                if (typeof this.showToast === 'function' && sp) this.showToast(`Knowledge space “${sp.name}” active`, 'success');
+            }
+            history.replaceState(null, '', window.location.pathname);
+        }
+
         this.updateSuggestions();
         this.initGlobalListeners();
 
