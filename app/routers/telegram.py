@@ -310,6 +310,42 @@ async def _process_telegram_message(prefs: dict, token: str, chat_id: int | str,
         await send_telegram_message(chat_id, f"System: thinking_show set to {val}", token)
         return
 
+    # ── Workflow checkpoint approval (/approve <run_id> | /reject <run_id>) ──
+    low = text.lower().strip()
+    if low.startswith("/approve") or low.startswith("/reject"):
+        approve = low.startswith("/approve")
+        parts = text.split()
+        run_id = parts[1].strip() if len(parts) > 1 else ""
+        from app.workflow import load_workflows, MultiAgentWorkflowEngine
+        db = load_workflows()
+        # If no run_id given, resolve the single run currently paused.
+        if not run_id:
+            paused = [rid for rid, s in db.items() if s.get("status") == "paused"]
+            if len(paused) == 1:
+                run_id = paused[0]
+            elif not paused:
+                await send_telegram_message(chat_id, "No workflow is waiting for approval.", token)
+                return
+            else:
+                listing = "\n".join(f"• {rid} — {db[rid].get('run_title', '')}" for rid in paused)
+                await send_telegram_message(chat_id, f"Several runs are paused. Specify which:\n{listing}", token)
+                return
+        state = db.get(run_id)
+        if not state:
+            await send_telegram_message(chat_id, f"Run '{run_id}' not found.", token)
+            return
+        task_id = state.get("paused_at_task")
+        if state.get("status") != "paused" or not task_id:
+            await send_telegram_message(chat_id, f"Run '{run_id}' is not paused at a checkpoint.", token)
+            return
+        try:
+            await MultiAgentWorkflowEngine.clear_checkpoint(run_id, task_id, approve)
+            verb = "approved ✅ resuming" if approve else "rejected 🛑 skipping step"
+            await send_telegram_message(chat_id, f"Checkpoint {verb} for '{state.get('run_title', run_id)}'.", token)
+        except Exception as e:
+            await send_telegram_message(chat_id, f"Could not resolve checkpoint: {e}", token)
+        return
+
     # ── Load / create conversation ────────────────────────────────────────
     convos = load_convos()
     conv_id = f"telegram_{chat_id}"

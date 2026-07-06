@@ -6,7 +6,7 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
-from app.workflow import MultiAgentWorkflowEngine, load_workflows
+from app.workflow import MultiAgentWorkflowEngine, load_workflows, save_workflows
 
 router = APIRouter(prefix="/api")
 
@@ -26,13 +26,102 @@ async def get_workflow_details(run_id: str):
 
 @router.post("/workflows")
 async def create_workflow_run(payload: dict):
-    """Directly launch a new multi-agent LangGraph workflow execution run."""
+    """Plan a new multi-agent workflow. Returns a reviewable DRAFT (the DAG is
+    generated but not executed). The user edits/approves it and calls
+    POST /workflows/{run_id}/start to run. Pass auto_start=true to run immediately."""
     query = payload.get("message")
     if not query:
         raise HTTPException(status_code=400, detail="Query message is required")
     run_id = await MultiAgentWorkflowEngine.create_run(query)
+    if payload.get("auto_start"):
+        db = load_workflows()
+        if run_id in db:
+            db[run_id]["status"] = "pending"
+            save_workflows(db)
+        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+        return {"run_id": run_id, "status": "pending"}
+    return {"run_id": run_id, "status": "draft"}
+
+
+@router.post("/workflows/{run_id}/start")
+async def start_workflow_run(run_id: str):
+    """Approve a draft plan and begin execution."""
+    db = load_workflows()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+    state = db[run_id]
+    if state.get("status") not in ("draft", "pending", "paused"):
+        raise HTTPException(status_code=409, detail=f"Cannot start run in status '{state.get('status')}'")
+    state["status"] = "pending"
+    state["notifications"].append("▶️ Plan approved — starting execution")
+    save_workflows(db)
     asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
     return {"run_id": run_id, "status": "pending"}
+
+
+@router.put("/workflows/{run_id}/plan")
+async def update_workflow_plan(run_id: str, payload: dict):
+    """Edit a draft/paused plan's task nodes before (or between) execution.
+    Body: { "tasks": [ {task_id, title, description, worker_type, depends_on,
+    allowed_tools, checkpoint}, ... ] }. Only allowed while draft or paused."""
+    db = load_workflows()
+    if run_id not in db:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+    state = db[run_id]
+    if state.get("status") not in ("draft", "paused"):
+        raise HTTPException(status_code=409, detail="Plan can only be edited while draft or paused")
+
+    incoming = payload.get("tasks")
+    if not isinstance(incoming, list) or not incoming:
+        raise HTTPException(status_code=400, detail="tasks must be a non-empty list")
+
+    existing = {t["task_id"]: t for t in state["tasks"]}
+    completed = set(state.get("completed_tasks", []))
+    new_tasks = []
+    seen = set()
+    for t in incoming:
+        tid = str(t.get("task_id") or "").strip()
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+        prev = existing.get(tid, {})
+        # Never let an edit mutate a task that already ran.
+        if tid in completed and prev:
+            new_tasks.append(prev)
+            continue
+        new_tasks.append({
+            **prev,
+            "task_id": tid,
+            "title": t.get("title", prev.get("title", tid)),
+            "description": t.get("description", prev.get("description", "")),
+            "worker_type": t.get("worker_type", prev.get("worker_type", "researcher")),
+            "depends_on": t.get("depends_on", prev.get("depends_on", [])),
+            "allowed_tools": t.get("allowed_tools", prev.get("allowed_tools", [])),
+            "checkpoint": bool(t.get("checkpoint", prev.get("checkpoint", False))),
+            "checkpoint_cleared": bool(prev.get("checkpoint_cleared", False)),
+            "status": prev.get("status", "pending"),
+            "retries": prev.get("retries", 0),
+            "artifacts": prev.get("artifacts", []),
+        })
+    if not new_tasks:
+        raise HTTPException(status_code=400, detail="No valid tasks after validation")
+
+    state["tasks"] = new_tasks
+    if isinstance(state.get("plan"), dict):
+        state["plan"]["tasks"] = new_tasks
+    state["notifications"].append("✏️ Plan updated")
+    save_workflows(db)
+    return {"run_id": run_id, "tasks": new_tasks}
+
+
+@router.post("/workflows/{run_id}/checkpoint/{task_id}")
+async def resolve_checkpoint(run_id: str, task_id: str, payload: dict):
+    """Approve or reject a checkpoint the run is paused at. Body: { "approve": bool }."""
+    approve = bool(payload.get("approve", True))
+    try:
+        return await MultiAgentWorkflowEngine.clear_checkpoint(run_id, task_id, approve)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 @router.post("/workflows/{run_id}/chat")
 async def chat_with_workflow_supervisor(run_id: str, payload: dict):

@@ -762,6 +762,84 @@ function atlasApp() {
       }
     },
 
+    // ── Dry-run DAG: approve a draft plan and begin execution ────────────────
+    async startWorkflow() {
+      if (!this.activeRunId) return;
+      try {
+        await this.api('POST', `/api/workflows/${this.activeRunId}/start`, {});
+        await this.loadWorkflowDetail();
+        await this.loadWorkflows();
+        this.restartDetailPolling();
+      } catch(e) {
+        alert('Failed to start workflow: ' + e.message);
+      }
+    },
+
+    // Persist edits to the draft/paused plan (task add/remove/edit/checkpoint).
+    async savePlan() {
+      if (!this.activeWorkflow) return;
+      const tasks = (this.activeWorkflow.tasks || []).map(t => ({
+        task_id: t.task_id, title: t.title, description: t.description,
+        worker_type: t.worker_type, depends_on: t.depends_on || [],
+        allowed_tools: t.allowed_tools || [], checkpoint: !!t.checkpoint,
+      }));
+      try {
+        const resp = await this.api('PUT', `/api/workflows/${this.activeRunId}/plan`, { tasks });
+        if (resp && resp.tasks) this.activeWorkflow.tasks = resp.tasks;
+        await this.loadWorkflowDetail();
+      } catch(e) {
+        alert('Failed to update plan: ' + e.message);
+      }
+    },
+
+    // Flip the human-approval checkpoint flag on a node (draft/paused only).
+    async toggleCheckpoint(taskId) {
+      const t = (this.activeWorkflow.tasks || []).find(x => x.task_id === taskId);
+      if (!t) return;
+      t.checkpoint = !t.checkpoint;
+      if (this.selectedTask && this.selectedTask.task_id === taskId) {
+        this.selectedTask.checkpoint = t.checkpoint;
+      }
+      await this.savePlan();
+    },
+
+    async deleteTaskNode(taskId) {
+      if (!confirm('Remove this task from the plan?')) return;
+      this.activeWorkflow.tasks = (this.activeWorkflow.tasks || []).filter(x => x.task_id !== taskId);
+      if (this.selectedTask && this.selectedTask.task_id === taskId) this.selectedTask = null;
+      await this.savePlan();
+    },
+
+    addTaskNode() {
+      const tasks = this.activeWorkflow.tasks = this.activeWorkflow.tasks || [];
+      const n = tasks.length + 1;
+      tasks.push({
+        task_id: 't_new_' + Date.now().toString(36),
+        title: 'New task ' + n,
+        description: '',
+        worker_type: 'researcher',
+        depends_on: [],
+        allowed_tools: ['web_search'],
+        checkpoint: false,
+        status: 'pending',
+      });
+      this.savePlan();
+    },
+
+    // Approve or reject the checkpoint the run is paused at.
+    async resolveCheckpoint(approve) {
+      const taskId = this.activeWorkflow && this.activeWorkflow.paused_at_task;
+      if (!this.activeRunId || !taskId) return;
+      try {
+        await this.api('POST', `/api/workflows/${this.activeRunId}/checkpoint/${taskId}`, { approve });
+        await this.loadWorkflowDetail();
+        await this.loadWorkflows();
+        this.restartDetailPolling();
+      } catch(e) {
+        alert('Failed to resolve checkpoint: ' + e.message);
+      }
+    },
+
     zoomIn() {
       this.zoomLevel = Math.min(this.zoomLevel + 0.1, 2.0);
     },

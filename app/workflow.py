@@ -169,6 +169,10 @@ class TaskDict(TypedDict, total=False):
     allowed_tools: List[str]
     success_criteria: str
     expected_output_schema: Dict[str, Any]
+    # Human-in-the-loop checkpoint: when True the run pauses BEFORE this node runs
+    # and waits for explicit approval. checkpoint_cleared flips true once approved.
+    checkpoint: bool
+    checkpoint_cleared: bool
     status: str  # "pending", "running", "completed", "retrying", "failed_transient", "failed_validation", "blocked", "failed_terminal", "aborted"
     output: Any
     artifacts: List[str]
@@ -203,7 +207,9 @@ class WorkflowState(TypedDict):
     notifications: List[str]
     debug_logs: List[str]
     final_result: Optional[str]
-    status: str  # "pending", "running", "completed", "failed", "paused"
+    status: str  # "draft", "pending", "running", "completed", "failed", "paused"
+    # task_id the run is paused at, awaiting checkpoint approval (None otherwise)
+    paused_at_task: Optional[str]
 
 
 # ── Worker Templates ─────────────────────────────────────────────────
@@ -1593,6 +1599,11 @@ async def run_supervisor_planner(user_request: str) -> dict:
         "The system will automatically route them to connected MCP servers.\n\n"
         "Respond ONLY with a valid JSON object. No markdown, no explanation.\n"
         "The worker_type and allowed_tools MUST match what is actually needed for the task — use researcher/writer/pdf_worker for research/reports, code_worker/shell_exec for system tasks, etc.\n"
+        "CHECKPOINTS: set \"checkpoint\": true on any task that has real-world, irreversible, "
+        "or sensitive side effects — sending email/messages, running shell commands that modify a "
+        "system, deleting data, spending money, or publishing externally. The run will PAUSE for "
+        "human approval before such a node executes. Leave it false (or omit it) for read-only or "
+        "internal steps like research, writing, and file/PDF generation.\n"
         "JSON SCHEMA (this is just a format example, adapt worker_type and tools to fit the actual request):\n"
         "{\n"
         '  "run_title": "Concise title of the plan",\n'
@@ -1605,7 +1616,8 @@ async def run_supervisor_planner(user_request: str) -> dict:
         '      "worker_type": "<pick the right worker for this task>",\n'
         '      "depends_on": [],\n'
         '      "allowed_tools": ["<tools this worker needs>"],\n'
-        '      "success_criteria": "Clear definition of done"\n'
+        '      "success_criteria": "Clear definition of done",\n'
+        '      "checkpoint": false\n'
         "    }\n"
         "  ]\n"
         "}"
@@ -2462,6 +2474,33 @@ def run_scheduler_step(state: WorkflowState) -> WorkflowState:
             
     return state
 
+async def _notify_checkpoint_telegram(run_id: str, state: WorkflowState, cp_task: TaskDict) -> None:
+    """Best-effort: DM the configured Telegram user(s) that a run paused at a
+    checkpoint, with the run_id so they can /approve or /reject from their phone.
+    Destinations are the entries in telegram_allowed_users."""
+    prefs = load_prefs()
+    if not prefs.get("telegram_enabled"):
+        return
+    token = prefs.get("telegram_bot_token", "")
+    dests = [str(u).strip() for u in (prefs.get("telegram_allowed_users") or []) if str(u).strip()]
+    if not token or not dests:
+        return
+    from app.routers.telegram import send_telegram_message
+    msg = (
+        f"⏸️ Workflow paused at a checkpoint\n\n"
+        f"Run: {state.get('run_title', run_id)}\n"
+        f"Next step: {cp_task.get('title', cp_task['task_id'])}\n"
+        f"{cp_task.get('description', '')[:300]}\n\n"
+        f"Reply /approve {run_id}  to continue\n"
+        f"Reply /reject {run_id}  to cancel this step"
+    )
+    for chat_id in dests:
+        try:
+            await send_telegram_message(chat_id, msg, token)
+        except Exception:
+            pass
+
+
 class MultiAgentWorkflowEngine:
     """Core multi-agent lifecycle coordinator orchestrating LangGraph plans."""
     active_tasks = {}  # run_id -> asyncio.Task
@@ -2561,6 +2600,54 @@ Respond in JSON exactly matching this schema:
         return failed_task
 
     @staticmethod
+    @staticmethod
+    async def clear_checkpoint(run_id: str, task_id: str, approve: bool) -> dict:
+        """Approve or reject a checkpoint the run is paused at, then resume.
+
+        Approve: mark the node's checkpoint as cleared and relaunch execution.
+        Reject:  abort the node (its dependents become blocked) and resume so the
+                 run finalizes cleanly.
+        Returns a small status dict; raises ValueError on bad state."""
+        db = load_workflows()
+        state = db.get(run_id)
+        if not state:
+            raise ValueError("Workflow run not found")
+        if state.get("status") != "paused":
+            raise ValueError(f"Run is not paused (status: {state.get('status')})")
+
+        task = next((t for t in state["tasks"] if t["task_id"] == task_id), None)
+        if not task:
+            raise ValueError("Checkpoint task not found")
+
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if approve:
+            task["checkpoint_cleared"] = True
+            state["notifications"].append(f"✅ Checkpoint approved: '{task['title']}' — resuming")
+            state.setdefault("collaborative_chat", []).append({
+                "role": "assistant", "sender": "Supervisor",
+                "message": f"Checkpoint for '{task['title']}' approved. Resuming execution.",
+                "timestamp": ts,
+            })
+        else:
+            task["status"] = "aborted"
+            task["error"] = "Rejected by user at checkpoint"
+            if task_id not in state["failed_tasks"]:
+                state["failed_tasks"].append(task_id)
+            state["notifications"].append(f"🛑 Checkpoint rejected: '{task['title']}' — step skipped")
+            state.setdefault("collaborative_chat", []).append({
+                "role": "assistant", "sender": "Supervisor",
+                "message": f"Checkpoint for '{task['title']}' rejected. Skipping this step and its dependents.",
+                "timestamp": ts,
+            })
+
+        state["paused_at_task"] = None
+        state["status"] = "pending"
+        db[run_id] = state
+        save_workflows(db)
+        asyncio.create_task(MultiAgentWorkflowEngine.execute_run(run_id))
+        return {"status": "resumed", "approved": approve, "task_id": task_id}
+
+    @staticmethod
     async def create_run(user_request: str, user_id: str = "admin") -> str:
         run_id = f"wf_{uuid.uuid4().hex[:8]}"
         
@@ -2581,6 +2668,8 @@ Respond in JSON exactly matching this schema:
                 "allowed_tools": t["allowed_tools"],
                 "success_criteria": t.get("success_criteria", ""),
                 "expected_output_schema": t.get("expected_output_schema", {}),
+                "checkpoint": bool(t.get("checkpoint", False)),
+                "checkpoint_cleared": False,
                 "status": "pending",
                 "retries": 0,
                 "artifacts": []
@@ -2624,7 +2713,11 @@ Respond in JSON exactly matching this schema:
             }],
             "debug_logs": [],
             "final_result": None,
-            "status": "pending",
+            # Plans are created as a reviewable DRAFT: the user inspects/edits the DAG
+            # and presses Run (POST .../start) to execute. Scheduler/recreate paths
+            # call execute_run directly, which flips this to "running" immediately.
+            "status": "draft",
+            "paused_at_task": None,
             "created_at": datetime.datetime.now().isoformat(),
             "storage_dir": wf_dir
         }
@@ -2725,9 +2818,36 @@ Respond in JSON exactly matching this schema:
                 db = load_workflows()
                 state = db[run_id]
                 continue
-                
+
+            # ── Human-in-the-loop checkpoint gate ────────────────────────────
+            # If any ready node is a checkpoint that hasn't been approved yet,
+            # pause the whole run before spawning anything and wait for the user
+            # (via the web UI or a Telegram /approve command) to resume.
+            checkpoint_tid = next(
+                (tid for tid in ready
+                 if (ct := next((x for x in state["tasks"] if x["task_id"] == tid), None))
+                 and ct.get("checkpoint") and not ct.get("checkpoint_cleared")),
+                None,
+            )
+            if checkpoint_tid:
+                cp_task = next(x for x in state["tasks"] if x["task_id"] == checkpoint_tid)
+                state["status"] = "paused"
+                state["paused_at_task"] = checkpoint_tid
+                state["ready_queue"] = []  # re-derived cleanly by the scheduler on resume
+                _dbg(state, f"⏸️ Checkpoint gate: paused before '{cp_task['title']}' ({checkpoint_tid}) — awaiting approval")
+                state["notifications"].append(f"⏸️ Paused at checkpoint: '{cp_task['title']}' — awaiting your approval")
+                db[run_id] = state
+                save_workflows(db)
+                try:
+                    await _notify_checkpoint_telegram(run_id, state, cp_task)
+                except Exception as _cp_e:
+                    _dbg(state, f"(telegram checkpoint notify failed: {_cp_e})")
+                    db[run_id] = state
+                    save_workflows(db)
+                break
+
             state["ready_queue"] = []
-            
+
             spawn_tasks = []
             for tid in ready:
                 state["running_tasks"].append(tid)

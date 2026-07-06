@@ -265,7 +265,40 @@
             <template x-if="activeWorkflow.status === 'running'"><i class="fa fa-circle-notch spinner-sm"></i></template>
             <span x-text="activeWorkflow.status || 'pending'"></span>
           </span>
-          
+
+          <!-- Draft plan: review & run -->
+          <template x-if="activeWorkflow.status === 'draft'">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button @click.stop="addTaskNode()" title="Add a task node to the plan"
+                style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: var(--text-secondary); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display:flex; align-items:center; gap:5px;">
+                <i class="fa fa-plus"></i> Add task
+              </button>
+              <button @click.stop="startWorkflow()" title="Approve this plan and run it"
+                style="background: rgba(111,207,151,0.18); border: 1px solid rgba(111,207,151,0.35); color: #6fcf97; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; display:flex; align-items:center; gap:5px;"
+                x-on:mouseover="$el.style.background='rgba(111,207,151,0.28)'" x-on:mouseout="$el.style.background='rgba(111,207,151,0.18)'">
+                <i class="fa fa-play"></i> Run Workflow
+              </button>
+            </div>
+          </template>
+
+          <!-- Paused at checkpoint: approve / reject -->
+          <template x-if="activeWorkflow.status === 'paused'">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:11px; color:#f0b74a; display:flex; align-items:center; gap:5px;">
+                <i class="fa fa-pause"></i>
+                <span x-text="'Awaiting approval: ' + ((activeWorkflow.tasks||[]).find(t => t.task_id === activeWorkflow.paused_at_task)?.title || activeWorkflow.paused_at_task)"></span>
+              </span>
+              <button @click.stop="resolveCheckpoint(true)" title="Approve and continue"
+                style="background: rgba(111,207,151,0.18); border: 1px solid rgba(111,207,151,0.35); color: #6fcf97; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; display:flex; align-items:center; gap:5px;">
+                <i class="fa fa-check"></i> Approve
+              </button>
+              <button @click.stop="resolveCheckpoint(false)" title="Reject and skip this step"
+                style="background: rgba(255,107,107,0.15); border: 1px solid rgba(255,107,107,0.3); color: #ff6b6b; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; display:flex; align-items:center; gap:5px;">
+                <i class="fa fa-xmark"></i> Reject
+              </button>
+            </div>
+          </template>
+
           <!-- Stop / Restart buttons in topbar -->
           <template x-if="activeWorkflow.status === 'running'">
             <button @click.stop="stopWorkflow()" title="Force Stop Workflow" style="background: rgba(255, 107, 107, 0.15); border: 1px solid rgba(255, 107, 107, 0.3); color: #ff6b6b; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" x-on:mouseover="$el.style.background='rgba(255,107,107,0.25)'" x-on:mouseout="$el.style.background='rgba(255,107,107,0.15)'">
@@ -660,7 +693,15 @@
                     <i :class="'fa ' + workerIcon(n.task.worker_type)"></i>
                   </div>
                   <div class="graph-node-title" x-text="n.task.title"></div>
-                  
+
+                  <!-- Checkpoint (human-approval) badge -->
+                  <template x-if="n.task.checkpoint">
+                    <div class="active-worker-badge" title="Requires approval before running"
+                         :style="'background:' + (n.task.checkpoint_cleared ? 'rgba(111,207,151,0.9)' : 'rgba(240,183,74,0.95)') + '; left:6px; right:auto;'">
+                      <i class="fa-solid" :class="n.task.checkpoint_cleared ? 'fa-check' : 'fa-hand'"></i>
+                    </div>
+                  </template>
+
                   <!-- Active worker badge with spinner -->
                   <template x-if="getTaskDisplayStatus(n.task) === 'working'">
                     <div class="active-worker-badge">
@@ -1233,11 +1274,32 @@
 
         <template x-if="selectedTask.status === 'failed'">
           <div style="margin-bottom:14px;">
-            <button class="action-btn-sm primary" 
+            <button class="action-btn-sm primary"
               style="width: 100%; justify-content: center; height: 38px; border-radius: 12px; font-size: 13px; font-weight: 600; gap: 8px; background: var(--accent); color: white;"
               @click="restartTaskNode(selectedTask.task_id)">
               <i class="fa-solid fa-arrows-rotate"></i>
               Restart Task Node & Resume Workflow
+            </button>
+          </div>
+        </template>
+
+        <!-- Plan editing: checkpoint toggle + delete (draft/paused only) -->
+        <template x-if="activeWorkflow && (activeWorkflow.status === 'draft' || activeWorkflow.status === 'paused')">
+          <div style="margin-bottom:14px; display:flex; flex-direction:column; gap:10px;">
+            <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; cursor:pointer;"
+                   :style="selectedTask.checkpoint ? 'background:rgba(240,183,74,0.12); border-color:rgba(240,183,74,0.4);' : ''">
+              <i class="fa" :class="selectedTask.checkpoint ? 'fa-hand text-warn' : 'fa-hand'" style="font-size:14px;" :style="selectedTask.checkpoint ? 'color:#f0b74a;' : 'color:var(--text-quaternary);'"></i>
+              <div style="flex:1;">
+                <div style="font-size:12.5px; font-weight:600; color:var(--text-primary);">Require approval before this step</div>
+                <div style="font-size:11px; color:var(--text-tertiary);">Pauses the run here and waits for you (web or Telegram).</div>
+              </div>
+              <input type="checkbox" :checked="selectedTask.checkpoint"
+                     @change.prevent="toggleCheckpoint(selectedTask.task_id)" />
+            </label>
+            <button class="action-btn-sm"
+              style="width:100%; justify-content:center; height:34px; border-radius:12px; font-size:12.5px; font-weight:600; gap:8px; background:rgba(255,107,107,0.12); border:1px solid rgba(255,107,107,0.3); color:#ff6b6b;"
+              @click="deleteTaskNode(selectedTask.task_id)">
+              <i class="fa-solid fa-trash-can"></i> Remove task from plan
             </button>
           </div>
         </template>
