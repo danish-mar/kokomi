@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.4.1] - 2026-07-07
+
+### Fixed
+
+- **Atlas recurring schedules 404**: the schedule sidebar (`loadSchedules`/`saveSchedule`/`toggleScheduleActive`/`deleteSchedule` in `atlas.js`) called `GET/POST/PUT/DELETE /api/workflows/schedules*`, but no such routes existed — `GET /api/workflows/schedules` was silently swallowed by the earlier `GET /api/workflows/{run_id}` route (matching `run_id="schedules"`), producing a 404 on every Atlas page load. Added the four schedule endpoints, backed by the existing `app/scheduler.py` engine, registered ahead of the `/workflows/{run_id}` routes so the literal path segment can't be shadowed again.
+
 ## [v5.4.0] - 2026-07-06
 
 ### Added
