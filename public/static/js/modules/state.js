@@ -35,6 +35,13 @@ export function getInitialState() {
         abortController: null,
         spaces: [],
         activeSpaceId: null,
+        // ChatGPT-style message editing: index of the message bubble currently
+        // showing its inline edit textarea (null = none), and its draft text.
+        editingIndex: null,
+        editDraft: '',
+        // Set while a branch switch/edit/regenerate network call is in flight,
+        // per message index, to disable the nav arrows against double-clicks.
+        branchBusyIndex: null,
 
         // Characters
         characters: [],

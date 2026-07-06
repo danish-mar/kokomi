@@ -343,6 +343,40 @@ export function getChatActions() {
             }
         },
 
+        // Shared by regenerate() and saveEditMessage(): archive messages[index:]
+        // as a branch variant (server-side, non-destructive), truncate locally,
+        // resend `newText` through the normal flow, then stamp the resulting new
+        // variant with the branch's group_id so nav arrows appear immediately.
+        async _branchAndResend(index, newText) {
+            let groupId = null;
+            if (this.currentConvId) {
+                try {
+                    const r = await fetch(`/api/conversations/${this.currentConvId}/messages/${index}/branch`, { method: 'POST' });
+                    if (r.ok) groupId = (await r.json()).group_id;
+                } catch (e) { console.error("Branch archive failed", e); }
+            }
+            this.messages = this.messages.slice(0, index);
+            this.input = newText;
+            await this.sendMessage();
+
+            if (groupId && this.currentConvId && this.messages[index]) {
+                try {
+                    const r = await fetch(`/api/conversations/${this.currentConvId}/messages/${index}/attach-group`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ group_id: groupId }),
+                    });
+                    if (r.ok) {
+                        const meta = await r.json();
+                        this.messages[index].group_id = meta.group_id;
+                        this.messages[index].branch_index = meta.branch_index;
+                        this.messages[index].branch_count = meta.branch_count;
+                        this.messages = this.messages.slice();
+                    }
+                } catch (e) { console.error("attach-group failed", e); }
+            }
+        },
+
         async regenerate(index) {
             if (this.loading) return;
             let userMsgIndex = -1;
@@ -354,14 +388,55 @@ export function getChatActions() {
             }
             if (userMsgIndex === -1) return;
             const userText = this.messages[userMsgIndex].content;
-            if (this.currentConvId) {
-                try {
-                    await fetch(`/api/conversations/${this.currentConvId}/pop`, { method: 'POST' });
-                } catch (e) { console.error("Could not pop messages on server", e); }
-            }
-            this.messages = this.messages.slice(0, userMsgIndex);
-            this.input = userText;
-            await this.sendMessage();
+            await this._branchAndResend(userMsgIndex, userText);
+        },
+
+        // ── Inline message editing (ChatGPT-style) ───────────────────────────
+        startEditMessage(index) {
+            this.editingIndex = index;
+            this.editDraft = this.messages[index].content;
+            this.$nextTick(() => {
+                const ta = document.getElementById('edit-textarea-' + index);
+                if (ta) { ta.focus(); ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; ta.setSelectionRange(ta.value.length, ta.value.length); }
+            });
+        },
+
+        cancelEditMessage() {
+            this.editingIndex = null;
+            this.editDraft = '';
+        },
+
+        async saveEditMessage(index) {
+            const draft = this.editDraft.trim();
+            if (!draft || this.loading) return;
+            const unchanged = draft === this.messages[index].content;
+            this.editingIndex = null;
+            this.editDraft = '';
+            if (unchanged) return;
+            await this._branchAndResend(index, draft);
+        },
+
+        // Navigate to the previous/next branch variant at this message's
+        // position. Instant — no LLM call, just swaps stored content back in.
+        async switchBranch(index, direction) {
+            if (!this.currentConvId || this.branchBusyIndex !== null || this.loading) return;
+            this.branchBusyIndex = index;
+            try {
+                const r = await fetch(`/api/conversations/${this.currentConvId}/messages/${index}/switch-branch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ direction }),
+                });
+                if (r.ok) {
+                    const data = await r.json();
+                    this.messages = data.messages;
+                    // The swapped-in variant can be taller/shorter than the one it
+                    // replaced — keep the branched message anchored in view instead
+                    // of letting the page jump wherever the new layout happens to land.
+                    this.$nextTick(() => this.scrollToMessage(index));
+                }
+            } catch (e) { console.error("switch-branch failed", e); }
+            finally { this.branchBusyIndex = null; }
         },
 
         async continueGeneration(index) {

@@ -135,6 +135,7 @@ async def get_conversation(conv_id: str):
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     c = dict(convos[conv_id])
+    _stamp_branch_metadata(c)
     c["_id"] = conv_id
     return c
 
@@ -188,6 +189,136 @@ async def delete_specific_message(conv_id: str, msg_index: int):
         save_convos(convos)
         return {"ok": True}
     raise HTTPException(400, "Invalid index")
+
+
+# ── ChatGPT-style edit/regenerate branching ──────────────────────────
+#
+# Editing a user message or regenerating an assistant reply both boil down to
+# the same operation: archive everything from `index` onward as a "variant" of
+# a branch group, then truncate storage back to `index` so the existing
+# send/regenerate flow can refill it — no changes needed to the (complex,
+# heavily-tested) streaming/tool-calling code path. Switching branches later
+# just swaps a stored variant back in; it's pure bookkeeping, no LLM call.
+
+def _branch_meta(conv: dict, group_id: str) -> dict:
+    g = conv.get("branches", {}).get(group_id) or {}
+    variants = g.get("variants", [])
+    return {"group_id": group_id, "branch_index": g.get("active_index", 0) + 1, "branch_count": len(variants)}
+
+
+def _stamp_branch_metadata(conv: dict) -> None:
+    """branch_index/branch_count are only ever computed on the fly (never
+    persisted onto the message itself), so any code path that hands `messages`
+    to the frontend must call this first — otherwise a switched-to or
+    reloaded branch message is missing the fields the UI needs to show its
+    `< i/N >` nav arrows, and they silently vanish."""
+    msgs = conv.get("messages", [])
+    for group_id, g in conv.get("branches", {}).items():
+        idx = g.get("anchor_index")
+        if idx is not None and 0 <= idx < len(msgs) and msgs[idx].get("group_id") == group_id:
+            msgs[idx]["branch_index"] = g.get("active_index", 0) + 1
+            msgs[idx]["branch_count"] = len(g.get("variants", []))
+
+
+@router.post("/conversations/{conv_id}/messages/{index}/branch")
+async def branch_at_message(conv_id: str, index: int):
+    """Archive messages[index:] as a branch variant and truncate storage to
+    `index`. Used by both 'edit message' and 'regenerate response' — the
+    caller resends via the normal chat flow to refill the truncated tail."""
+    convos = load_convos()
+    if conv_id not in convos:
+        raise HTTPException(404, "Conversation not found")
+    conv = convos[conv_id]
+    msgs = conv.get("messages", [])
+    if not (0 <= index < len(msgs)):
+        raise HTTPException(400, "Invalid index")
+
+    import copy
+    anchor = msgs[index]
+    group_id = anchor.get("group_id")
+    branches = conv.setdefault("branches", {})
+    suffix = copy.deepcopy(msgs[index:])
+
+    if group_id and group_id in branches:
+        g = branches[group_id]
+        g["variants"][g["active_index"]] = suffix  # freeze latest content of the outgoing variant
+        g["variants"].append([])                    # placeholder for the new variant, filled by the next turn
+        g["active_index"] = len(g["variants"]) - 1
+    else:
+        group_id = f"br_{uuid.uuid4().hex[:8]}"
+        branches[group_id] = {"anchor_index": index, "variants": [suffix, []], "active_index": 1}
+
+    conv["messages"] = msgs[:index]
+    save_convos(convos)
+    return {"ok": True, **_branch_meta(conv, group_id)}
+
+
+@router.post("/conversations/{conv_id}/messages/{index}/attach-group")
+async def attach_branch_group(conv_id: str, index: int, payload: dict):
+    """Called once a turn that refilled a truncated branch has finished
+    streaming: stamps the branch marker onto the new message and freezes its
+    now-complete content into the branch store so switching away and back
+    doesn't lose it."""
+    group_id = payload.get("group_id")
+    if not group_id:
+        raise HTTPException(400, "group_id is required")
+
+    convos = load_convos()
+    if conv_id not in convos:
+        raise HTTPException(404, "Conversation not found")
+    conv = convos[conv_id]
+    msgs = conv.get("messages", [])
+    if not (0 <= index < len(msgs)):
+        raise HTTPException(400, "Invalid index")
+    if group_id not in conv.get("branches", {}):
+        raise HTTPException(404, "Unknown branch group")
+
+    import copy
+    msgs[index]["group_id"] = group_id
+    g = conv["branches"][group_id]
+    g["variants"][g["active_index"]] = copy.deepcopy(msgs[index:])
+    save_convos(convos)
+    return {"ok": True, **_branch_meta(conv, group_id)}
+
+
+@router.post("/conversations/{conv_id}/messages/{index}/switch-branch")
+async def switch_branch(conv_id: str, index: int, payload: dict):
+    """Instantly swap in an adjacent branch variant — no LLM call."""
+    direction = payload.get("direction")
+    if direction not in ("prev", "next"):
+        raise HTTPException(400, "direction must be 'prev' or 'next'")
+
+    convos = load_convos()
+    if conv_id not in convos:
+        raise HTTPException(404, "Conversation not found")
+    conv = convos[conv_id]
+    msgs = conv.get("messages", [])
+    if not (0 <= index < len(msgs)):
+        raise HTTPException(400, "Invalid index")
+
+    group_id = msgs[index].get("group_id")
+    if not group_id or group_id not in conv.get("branches", {}):
+        raise HTTPException(400, "Message is not part of a branch")
+
+    import copy
+    g = conv["branches"][group_id]
+    anchor = g["anchor_index"]
+    variants = g["variants"]
+    active = g["active_index"]
+
+    target = active + (1 if direction == "next" else -1)
+    if not (0 <= target < len(variants)):
+        raise HTTPException(400, "No branch in that direction")
+
+    variants[active] = copy.deepcopy(msgs[anchor:])  # freeze outgoing variant's latest content
+    msgs[anchor:] = copy.deepcopy(variants[target])
+    if msgs[anchor:]:
+        msgs[anchor]["group_id"] = group_id
+    g["active_index"] = target
+    conv["messages"] = msgs
+    save_convos(convos)
+    _stamp_branch_metadata(conv)  # so the returned messages carry branch_index/branch_count too
+    return {"ok": True, "messages": msgs, **_branch_meta(conv, group_id)}
 
 
 @router.put("/conversations/{cid}/folder")

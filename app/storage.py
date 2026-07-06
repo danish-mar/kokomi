@@ -88,6 +88,7 @@ def _conv_row_to_dict(row: ConversationRow, messages: list) -> dict:
         "folder_id": row.folder_id,
         "updated_at": row.updated_at,
         "last_active": row.last_active,
+        "branches": j_loads(row.branches) or {},
         "messages": messages,
     }
 
@@ -104,6 +105,7 @@ def _msg_row_to_dict(row: MessageRow) -> dict:
         "character_name": row.character_name,
         "metrics": j_loads(row.metrics),
         "timestamp": row.timestamp,
+        "group_id": row.group_id,
     }
 
 
@@ -166,6 +168,7 @@ async def save_convos_async(convos: dict) -> None:
                     folder_id=conv.get("folder_id"),
                     updated_at=conv.get("updated_at") or now,
                     last_active=conv.get("last_active"),
+                    branches=j_dumps(conv.get("branches", {})),
                 ))
             else:
                 existing.title = conv.get("title", existing.title)
@@ -175,6 +178,7 @@ async def save_convos_async(convos: dict) -> None:
                 existing.folder_id = conv.get("folder_id")
                 existing.updated_at = conv.get("updated_at") or now
                 existing.last_active = conv.get("last_active")
+                existing.branches = j_dumps(conv.get("branches", {}))
 
             # Replace all messages for this conv (simplest correct approach)
             await sess.execute(
@@ -193,6 +197,7 @@ async def save_convos_async(convos: dict) -> None:
                     character_name=msg.get("character_name"),
                     metrics=j_dumps(msg.get("metrics")),
                     timestamp=msg.get("timestamp"),
+                    group_id=msg.get("group_id"),
                 ))
 
 

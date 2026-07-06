@@ -142,6 +142,14 @@ export function getUiActions() {
             const box = this.$refs.chatBox;
             if (box) box.scrollTop = box.scrollHeight;
         },
+        // Keep a specific message bubble anchored near the top of the viewport —
+        // used after editing/switching a branch so the message you were just
+        // looking at doesn't jump out of view when the swapped-in variant has a
+        // different height than the one it replaced.
+        scrollToMessage(index) {
+            const el = document.getElementById('msg-row-' + index);
+            if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        },
         async copyText(t) { 
             try { 
                 await navigator.clipboard.writeText(t); 

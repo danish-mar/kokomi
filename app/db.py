@@ -61,6 +61,7 @@ class ConversationRow(Base):
     folder_id   = Column(Text, nullable=True)
     updated_at  = Column(Text, nullable=True)
     last_active = Column(Text, nullable=True)
+    branches    = Column(Text, nullable=True)  # JSON {group_id: {anchor_index, variants, active_index}}
 
 
 class MessageRow(Base):
@@ -78,6 +79,7 @@ class MessageRow(Base):
     character_name  = Column(Text, nullable=True)
     metrics         = Column(Text, nullable=True)           # JSON {tps,ttft,...} — kept for compat
     timestamp       = Column(Text, nullable=True)
+    group_id        = Column(Text, nullable=True)           # ChatGPT-style edit/regenerate branch group
 
     __table_args__ = (
         Index("ix_messages_conversation_id", "conversation_id"),
@@ -207,6 +209,16 @@ async def init_db() -> None:
         # Schema migration: Ensure selected_tools column exists in characters table
         try:
             await conn.execute(text("ALTER TABLE characters ADD COLUMN selected_tools TEXT DEFAULT '[]'"))
+        except Exception:
+            pass
+
+        # Schema migration: branch (edit/regenerate history) support
+        try:
+            await conn.execute(text("ALTER TABLE conversations ADD COLUMN branches TEXT"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE messages ADD COLUMN group_id TEXT"))
         except Exception:
             pass
 
