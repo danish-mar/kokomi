@@ -78,6 +78,27 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from jose import JWTError
 
+def _static_cache_control(path: str):
+    """Pick a Cache-Control policy for a static asset by path.
+
+    Our own app code (`/static/js/`, `/static/css/`) is served `no-cache` so the
+    browser revalidates it on every load — StaticFiles answers a cheap 304 when
+    the file is unchanged, but the moment we ship a new build the browser fetches
+    it immediately. Long-caching these (the previous 7-day max-age) was exactly
+    why a freshly-deployed atlas.js/app.js kept being ignored: the browser ran
+    stale cached JS against fresh server-rendered HTML (e.g. an atlas.html that
+    calls startWorkflow() while the cached atlas.js had no such method).
+
+    Vendored libraries, images and icons rarely change and are large, so they
+    keep the long cache with revalidation.
+    """
+    if path.startswith("/static/js/") or path.startswith("/static/css/"):
+        return "no-cache"
+    if path.startswith("/static/") or path.startswith("/images/") or path == "/favicon.ico":
+        return "public, max-age=604800, must-revalidate"
+    return None
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     from app.storage import load_prefs
@@ -87,8 +108,9 @@ async def auth_middleware(request: Request, call_next):
     # If setup is not completed, disable auth constraints globally so user can onboard
     if not setup_completed:
         response = await call_next(request)
-        if request.url.path.startswith("/static/") or request.url.path.startswith("/images/") or request.url.path == "/favicon.ico":
-            response.headers["Cache-Control"] = "public, max-age=604800, must-revalidate"
+        cc = _static_cache_control(request.url.path)
+        if cc:
+            response.headers["Cache-Control"] = cc
         return response
 
     # Public paths that don't require authentication
@@ -120,9 +142,11 @@ async def auth_middleware(request: Request, call_next):
             return RedirectResponse(url="/auth/login")
 
     response = await call_next(request)
-    # Inject static content caching headers for all static files, images, and icons
-    if path.startswith("/static/") or path.startswith("/images/") or path == "/favicon.ico":
-        response.headers["Cache-Control"] = "public, max-age=604800, must-revalidate"
+    # Inject static content caching headers (short for our own JS/CSS so deploys
+    # are picked up immediately; long for vendored libs, images, and icons).
+    cc = _static_cache_control(path)
+    if cc:
+        response.headers["Cache-Control"] = cc
     return response
 
 @app.get("/health")
