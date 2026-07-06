@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.5.1] - 2026-07-07
+
+### Added
+
+- **Triton is now usable from chat**: v5.5.0 shipped the pairing/plumbing, but the conversational model had no way to use it (asked "do you have access to my computer?" it correctly said no). The chat model can now reach paired machines through three read-only tools — `triton_list_devices` (which machines are paired/online), `triton_list_dir` (browse a folder), and `triton_fetch_file` (pull a file back into the chat as a download link). Wired into both the blocking and streaming chat paths, gated on there being paired devices, with a system-prompt note listing the reachable moorings. The client's per-folder allowlist remains the security boundary.
+
 ## [v5.5.0] - 2026-07-07 — "triton's conch"
 
 ### Added
