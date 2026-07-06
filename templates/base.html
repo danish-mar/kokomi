@@ -6,6 +6,29 @@
     <title>{% block title %}Kokomi AI{% endblock %}</title>
     <link rel="icon" type="image/png" href="/images/image.png">
 
+    <!-- FOUC guard: Tailwind's in-browser JIT compiler injects its styles only
+         after it runs, so the raw page flashes unstyled for a beat. Hide the
+         body until the DOM is parsed + one frame (Tailwind has compiled by
+         then), with a hard 1.5s fallback so the page can never stay blank if
+         the reveal script somehow doesn't fire. -->
+    <style id="fouc-guard">body { visibility: hidden; }</style>
+    <script>
+        (function () {
+            function reveal() {
+                var g = document.getElementById('fouc-guard');
+                if (g) g.remove();
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () {
+                    requestAnimationFrame(reveal);
+                });
+            } else {
+                requestAnimationFrame(reveal);
+            }
+            setTimeout(reveal, 1500); // fail-safe: never leave the page hidden
+        })();
+    </script>
+
 
 
 
