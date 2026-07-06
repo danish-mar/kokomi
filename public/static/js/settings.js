@@ -30,6 +30,17 @@ function settingsApp() {
         updateClicks: 0,
         charSelectedTools: [],
         allPoolTools: [],
+        // ── Triton (remote client moorings) ──
+        tritonDevices: [],
+        tritonPending: [],
+        tritonCodes: {},          // conn_id -> typed 8-digit code
+        tritonLoading: false,
+        tritonPollTimer: null,
+        tritonBrowseOpen: null,   // device id whose file-browser is open
+        tritonPath: '~',
+        tritonEntries: [],
+        tritonBrowseBusy: false,
+        tritonBrowseError: '',
         prefs: {
             model_name: '',
             user_persona: '',
@@ -122,6 +133,90 @@ function settingsApp() {
             if (tabName === 'about') {
                 this.checkForUpdates();
             }
+            if (tabName === 'triton') {
+                this.loadTriton();
+            }
+        },
+
+        // ── Triton ───────────────────────────────────────────────────────────
+        async loadTriton() {
+            this.tritonLoading = true;
+            try {
+                const [dv, pd] = await Promise.all([
+                    fetch('/api/triton/devices').then(r => r.json()),
+                    fetch('/api/triton/discovered').then(r => r.json()),
+                ]);
+                this.tritonDevices = dv.devices || [];
+                this.tritonPending = pd.pending || [];
+            } catch (e) {
+                console.error('Triton load failed', e);
+            } finally {
+                this.tritonLoading = false;
+            }
+        },
+        startTritonPolling() {
+            this.loadTriton();
+            this.stopTritonPolling();
+            // Pending clients + online status change out-of-band, so poll while the tab is open.
+            this.tritonPollTimer = setInterval(() => this.loadTriton(), 4000);
+        },
+        stopTritonPolling() {
+            if (this.tritonPollTimer) { clearInterval(this.tritonPollTimer); this.tritonPollTimer = null; }
+        },
+        async pairTriton(p) {
+            const code = (this.tritonCodes[p.conn_id] || '').trim();
+            if (!/^\d{8}$/.test(code)) { this.showToast('Enter the 8-digit code shown by the client', 'error'); return; }
+            try {
+                const r = await fetch('/api/triton/pair', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code }),
+                });
+                if (r.ok) {
+                    const d = await r.json();
+                    this.showToast('Paired ' + (d.name || 'device'), 'success');
+                    this.tritonCodes[p.conn_id] = '';
+                    await this.loadTriton();
+                } else {
+                    const err = await r.json().catch(() => ({}));
+                    this.showToast(err.detail || 'Pairing failed — check the code', 'error');
+                }
+            } catch (e) { this.showToast('Pairing failed', 'error'); }
+        },
+        async revokeTriton(d) {
+            if (!confirm(`Revoke "${d.name}"? It will need to pair again with a new code.`)) return;
+            try {
+                await fetch('/api/triton/devices/' + encodeURIComponent(d.id), { method: 'DELETE' });
+                this.showToast('Revoked ' + d.name, 'success');
+                await this.loadTriton();
+            } catch (e) { this.showToast('Revoke failed', 'error'); }
+        },
+        async tritonListDir(d) {
+            this.tritonBrowseBusy = true;
+            this.tritonBrowseError = '';
+            this.tritonEntries = [];
+            try {
+                const r = await fetch('/api/triton/devices/' + encodeURIComponent(d.id) + '/command', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'list_dir', args: { path: this.tritonPath || '~' } }),
+                });
+                const res = await r.json();
+                if (res.ok) {
+                    this.tritonEntries = (res.data && res.data.entries) || [];
+                } else {
+                    this.tritonBrowseError = res.error || res.detail || 'Could not list that folder';
+                }
+            } catch (e) {
+                this.tritonBrowseError = 'Request failed';
+            } finally {
+                this.tritonBrowseBusy = false;
+            }
+        },
+        tritonHumanSize(bytes) {
+            if (bytes == null) return '';
+            const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let i = 0, n = bytes;
+            while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+            return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
         },
 
         goBackToCategories() {

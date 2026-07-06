@@ -24,7 +24,7 @@ from app.config import USER_PREFS_FILE, DEFAULT_PREFS
 from app.db import (
     _session, j_dumps, j_loads,
     ConversationRow, MessageRow, CharacterRow, McpServerRow,
-    SpaceRow, AgentTemplateRow, FolderRow,
+    SpaceRow, AgentTemplateRow, FolderRow, TritonDeviceRow,
 )
 from sqlalchemy import select, delete, update
 
@@ -487,3 +487,81 @@ def load_spaces() -> dict:
 
 def save_spaces(d: dict) -> None:
     _run_async(_save_spaces_async(d))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triton devices (paired remote client machines)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _triton_row_to_dict(row: TritonDeviceRow) -> dict:
+    return {
+        "id": row.id, "name": row.name, "platform": row.platform,
+        "capabilities": j_loads(row.capabilities) or [],
+        "paired_at": row.paired_at, "last_seen": row.last_seen,
+    }
+
+
+async def _list_triton_devices_async() -> list:
+    async with _session() as sess:
+        rows = (await sess.execute(select(TritonDeviceRow))).scalars().all()
+    return [_triton_row_to_dict(r) for r in rows]
+
+
+async def _get_triton_device_async(device_id: str) -> dict | None:
+    async with _session() as sess:
+        row = await sess.get(TritonDeviceRow, device_id)
+        return _triton_row_to_dict(row) if row else None
+
+
+async def _get_triton_token_hash_async(device_id: str) -> str | None:
+    async with _session() as sess:
+        row = await sess.get(TritonDeviceRow, device_id)
+        return row.token_hash if row else None
+
+
+async def _upsert_triton_device_async(device: dict) -> None:
+    async with _session() as sess:
+        row = await sess.get(TritonDeviceRow, device["id"])
+        if row is None:
+            sess.add(TritonDeviceRow(
+                id=device["id"], name=device.get("name", ""),
+                platform=device.get("platform"), token_hash=device["token_hash"],
+                capabilities=j_dumps(device.get("capabilities", [])),
+                paired_at=device.get("paired_at"), last_seen=device.get("last_seen"),
+            ))
+        else:
+            row.name = device.get("name", row.name)
+            row.platform = device.get("platform", row.platform)
+            if device.get("token_hash"):
+                row.token_hash = device["token_hash"]
+            if "capabilities" in device:
+                row.capabilities = j_dumps(device.get("capabilities", []))
+            if device.get("last_seen"):
+                row.last_seen = device["last_seen"]
+
+
+async def _delete_triton_device_async(device_id: str) -> None:
+    async with _session() as sess:
+        row = await sess.get(TritonDeviceRow, device_id)
+        if row:
+            await sess.delete(row)
+
+
+def list_triton_devices() -> list:
+    return _run_async(_list_triton_devices_async())
+
+
+def get_triton_device(device_id: str) -> dict | None:
+    return _run_async(_get_triton_device_async(device_id))
+
+
+def get_triton_token_hash(device_id: str) -> str | None:
+    return _run_async(_get_triton_token_hash_async(device_id))
+
+
+def upsert_triton_device(device: dict) -> None:
+    _run_async(_upsert_triton_device_async(device))
+
+
+def delete_triton_device(device_id: str) -> None:
+    _run_async(_delete_triton_device_async(device_id))

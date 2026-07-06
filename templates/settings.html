@@ -88,6 +88,10 @@
                     <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-midnight), var(--swatch-indigo));"><i class="fa-solid fa-server" style="font-size:11px;color:#fff;"></i></span>
                     Computer &amp; Docker
                 </button>
+                <button @click="selectTab('triton')" class="tahoe-nav-item" :class="tab === 'triton' ? 'active' : ''">
+                    <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-lavender));"><i class="fa-solid fa-circle-nodes" style="font-size:11px;color:#fff;"></i></span>
+                    Triton
+                </button>
             </div>
 
             <div class="tahoe-sidebar-section">
@@ -992,6 +996,106 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- ═══ TAB: TRITON ═══ -->
+            <div x-show="tab === 'triton'" x-transition class="tab-panel" x-init="$watch('tab', v => { if (v==='triton') startTritonPolling(); else stopTritonPolling(); })">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <h2 class="section-title"><i class="fa-solid fa-circle-nodes" style="margin-right:8px; color:var(--accent);"></i>Triton</h2>
+                        <p class="section-subtitle">Pair your own computers so Kokomi can reach in and act on them — find a file, list a folder, more soon. Atlas plans, Triton acts.</p>
+                    </div>
+                    <button @click="loadTriton()" class="btn-ghost" style="white-space:nowrap;">
+                        <i class="fa-solid fa-rotate" :class="tritonLoading ? 'fa-spin' : ''" style="font-size:11px;"></i> Refresh
+                    </button>
+                </div>
+
+                <!-- Discovered / awaiting pairing -->
+                <div class="glass-card" style="margin-top:8px;">
+                    <label class="apple-label" style="margin-bottom:4px;">Discovered clients</label>
+                    <p style="font-size:11px; color:var(--text-quaternary); margin-bottom:12px;">
+                        Clients on your network that have connected but aren't paired yet. Enter the 8-digit code the client printed on startup to pair it.
+                    </p>
+                    <template x-if="tritonPending.length === 0">
+                        <p style="font-size:12px; color:var(--text-tertiary); padding:8px 0;">
+                            No clients waiting. Run the Triton client on a Linux machine and it will appear here.
+                        </p>
+                    </template>
+                    <template x-for="p in tritonPending" :key="p.conn_id">
+                        <div class="card-row" style="display:flex; align-items:center; gap:12px; border-top:1px solid var(--border); padding-top:12px; margin-top:12px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width:160px;">
+                                <div style="font-weight:600; font-size:13px; color:var(--text-primary);">
+                                    <i class="fa-brands fa-linux" x-show="p.platform==='linux'" style="margin-right:6px;"></i>
+                                    <span x-text="p.name"></span>
+                                </div>
+                                <div style="font-size:10px; color:var(--text-quaternary);" x-text="(p.platform||'unknown') + ' · ' + p.device_id"></div>
+                            </div>
+                            <input type="text" maxlength="8" inputmode="numeric" x-model="tritonCodes[p.conn_id]"
+                                   placeholder="8-digit code" class="apple-field" style="max-width:150px; letter-spacing:2px; text-align:center; font-family:monospace;">
+                            <button @click="pairTriton(p)" class="btn-accent" style="white-space:nowrap;">
+                                <i class="fa-solid fa-link" style="font-size:10px;"></i> Pair
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Paired moorings -->
+                <div class="glass-card" style="margin-top:16px;">
+                    <label class="apple-label" style="margin-bottom:12px;">Paired moorings</label>
+                    <template x-if="tritonDevices.length === 0">
+                        <p style="font-size:12px; color:var(--text-tertiary); padding:8px 0;">No paired machines yet.</p>
+                    </template>
+                    <template x-for="d in tritonDevices" :key="d.id">
+                        <div style="border-top:1px solid var(--border); padding-top:14px; margin-top:14px;">
+                            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                                <span :style="'width:9px;height:9px;border-radius:50%;flex-shrink:0;background:' + (d.online ? '#22c55e' : 'var(--text-quaternary)')"
+                                      :title="d.online ? 'Online' : 'Offline'"></span>
+                                <div style="flex:1; min-width:160px;">
+                                    <div style="font-weight:600; font-size:13px; color:var(--text-primary);">
+                                        <i class="fa-brands fa-linux" x-show="d.platform==='linux'" style="margin-right:6px;"></i>
+                                        <span x-text="d.name"></span>
+                                    </div>
+                                    <div style="font-size:10px; color:var(--text-quaternary);">
+                                        <span x-text="d.online ? 'Online' : 'Offline'"></span>
+                                        <span x-show="d.last_seen"> · last seen <span x-text="d.last_seen ? d.last_seen.slice(0,16).replace('T',' ') : ''"></span></span>
+                                    </div>
+                                </div>
+                                <button @click="tritonBrowseOpen = (tritonBrowseOpen===d.id ? null : d.id)" x-show="d.online" class="btn-ghost" style="white-space:nowrap;">
+                                    <i class="fa-solid fa-folder-open" style="font-size:10px;"></i> Browse
+                                </button>
+                                <button @click="revokeTriton(d)" class="btn-ghost" style="white-space:nowrap; color:#ef4444;">
+                                    <i class="fa-solid fa-trash-can" style="font-size:10px;"></i> Revoke
+                                </button>
+                            </div>
+
+                            <!-- Inline file-browse tester -->
+                            <div x-show="tritonBrowseOpen===d.id" x-transition style="margin-top:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; padding:12px;">
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <input type="text" x-model="tritonPath" @keydown.enter="tritonListDir(d)"
+                                           placeholder="~/Downloads" class="apple-field" style="flex:1; min-width:180px; font-family:monospace; font-size:12px;">
+                                    <button @click="tritonListDir(d)" class="btn-accent" style="white-space:nowrap;">
+                                        <i class="fa-solid fa-magnifying-glass" :class="tritonBrowseBusy ? 'fa-spin fa-spinner' : ''" style="font-size:10px;"></i> List
+                                    </button>
+                                </div>
+                                <p x-show="tritonBrowseError" x-text="tritonBrowseError" style="font-size:11px; color:#ef4444; margin-top:8px;"></p>
+                                <div x-show="tritonEntries.length" style="margin-top:10px; max-height:220px; overflow:auto;">
+                                    <template x-for="e in tritonEntries" :key="e.name">
+                                        <div style="display:flex; align-items:center; gap:8px; padding:4px 2px; font-size:12px; font-family:monospace; color:var(--text-secondary);">
+                                            <i :class="e.is_dir ? 'fa-solid fa-folder' : 'fa-regular fa-file'" style="font-size:11px; color:var(--text-quaternary); width:14px;"></i>
+                                            <span x-text="e.name" style="flex:1;"></span>
+                                            <span x-show="!e.is_dir && e.size != null" style="font-size:10px; color:var(--text-quaternary);" x-text="tritonHumanSize(e.size)"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <p style="font-size:10px; color:var(--text-quaternary); margin-top:14px;">
+                    <i class="fa-solid fa-shield-halved" style="margin-right:5px;"></i>
+                    Each mooring enforces its own allowlist of readable folders. Triton only sees what that machine's client permits.
+                </p>
             </div>
 
             <!-- ═══ TAB: CHARACTERS ═══ -->

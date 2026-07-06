@@ -196,6 +196,19 @@ class FolderRow(Base):
     created_at       = Column(Text, nullable=True)
 
 
+class TritonDeviceRow(Base):
+    """A paired Triton client machine (the AI's remote 'hands' on a user device)."""
+    __tablename__ = "triton_devices"
+
+    id           = Column(Text, primary_key=True)  # stable device_id chosen by the client
+    name         = Column(Text, nullable=False)     # human label (hostname by default)
+    platform     = Column(Text, nullable=True)       # "linux" | "windows" | ...
+    token_hash   = Column(Text, nullable=False)      # sha256 of the device token (client keeps raw)
+    capabilities = Column(Text, nullable=False, default="[]")  # JSON list advertised by client
+    paired_at    = Column(Text, nullable=True)
+    last_seen    = Column(Text, nullable=True)
+
+
 # ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 async def init_db() -> None:
@@ -219,6 +232,12 @@ async def init_db() -> None:
             pass
         try:
             await conn.execute(text("ALTER TABLE messages ADD COLUMN group_id TEXT"))
+        except Exception:
+            pass
+
+        # Schema migration: Triton last_seen tracking (added after initial table)
+        try:
+            await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN last_seen TEXT"))
         except Exception:
             pass
 

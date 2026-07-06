@@ -60,13 +60,26 @@ async def lifespan(app):
     if _prefs.get("telegram_enabled") and not _prefs.get("telegram_use_webhook"):
         asyncio.create_task(start_polling())
 
+    # Triton: broadcast a LAN discovery beacon so client moorings can auto-find us.
+    try:
+        from app.triton import manager as triton_manager
+        app_port = int(os.getenv("PORT", "8000"))
+        await triton_manager.start_discovery(app_port)
+    except Exception as e:
+        logger.warning(f"Triton discovery beacon failed to start: {e}")
+
     yield
-    # Shutdown — tear down MCP sessions and telegram polling
+    # Shutdown — tear down MCP sessions, telegram polling, Triton discovery
     scheduler_task.cancel()
     from app.routers.telegram import stop_polling
     await stop_polling()
     from app.mcp import teardown_pool
     await teardown_pool()
+    try:
+        from app.triton import manager as triton_manager
+        await triton_manager.stop_discovery()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Kokomi AI", lifespan=lifespan)
@@ -113,8 +126,11 @@ async def auth_middleware(request: Request, call_next):
             response.headers["Cache-Control"] = cc
         return response
 
-    # Public paths that don't require authentication
-    public_paths = ["/auth/login", "/auth/logout", "/static", "/images", "/health", "/favicon.ico"]
+    # Public paths that don't require the admin cookie. The Triton agent WS
+    # authenticates with its own per-device token (or the 8-digit pairing code),
+    # so the browser-cookie check must not intercept it.
+    public_paths = ["/auth/login", "/auth/logout", "/static", "/images", "/health",
+                    "/favicon.ico", "/api/triton/agent"]
     
     path = request.url.path
     
@@ -166,7 +182,7 @@ app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 # Register all routers
-from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store  # noqa: E402
+from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(pages.router)
@@ -182,3 +198,4 @@ app.include_router(whatsapp.router)
 app.include_router(telegram.router)
 app.include_router(workflows.router)
 app.include_router(insights.router)
+app.include_router(triton.router)
