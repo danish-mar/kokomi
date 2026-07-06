@@ -215,6 +215,15 @@ async def chat(req: ChatRequest):
                 "renders inside the chat."
             )
 
+        # Triton: reach the user's paired computers (read-only file access)
+        from ._triton_tools import get_triton_tools
+        triton_tools, triton_note = get_triton_tools()
+        for t in triton_tools:
+            tool_defs.append(t)
+            builtin_tools[t.name] = t
+        if triton_note:
+            persona += triton_note
+
         persona += MEDIA_WIDGET_GUIDE
 
         # Re-initialize SystemMessage with updated persona (including MCP/RAG context)
@@ -476,6 +485,13 @@ async def chat_stream(req: ChatRequest):
                     tool_defs.append(open_url)
                     builtin_tools[open_url.name] = open_url
 
+                # Triton: reach the user's paired computers (read-only file access)
+                from ._triton_tools import get_triton_tools
+                triton_tools, triton_note = get_triton_tools()
+                for t in triton_tools:
+                    tool_defs.append(t)
+                    builtin_tools[t.name] = t
+
                 for err in mcp_errors:
                     await queue.put(f"data: {json.dumps({'type': 'warning', 'message': err})}\n\n")
 
@@ -620,6 +636,9 @@ async def chat_stream(req: ChatRequest):
                             "files or tables inline — for those, just write the markdown (see widget "
                             "guidance) so it renders inside the chat."
                         )
+
+                    if triton_note:
+                        p_persona += triton_note
 
                     p_persona += MEDIA_WIDGET_GUIDE
 
