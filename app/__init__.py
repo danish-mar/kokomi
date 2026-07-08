@@ -130,7 +130,11 @@ async def auth_middleware(request: Request, call_next):
     # authenticates with its own per-device token (or the 8-digit pairing code),
     # so the browser-cookie check must not intercept it.
     public_paths = ["/auth/login", "/auth/logout", "/static", "/images", "/health",
-                    "/favicon.ico", "/api/triton/agent"]
+                    "/favicon.ico",
+                    # Triton client transports authenticate with a per-device token
+                    # (or the 8-digit pairing code), not the admin cookie.
+                    "/api/triton/agent", "/api/triton/enroll", "/api/triton/pair-status",
+                    "/api/triton/poll", "/api/triton/result"]
     
     path = request.url.path
     

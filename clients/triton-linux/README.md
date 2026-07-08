@@ -7,19 +7,32 @@ folder, fetch a file. *Atlas plans, Triton acts.*
 ## Install & run
 
 ```bash
-pip install websockets
+pip install requests          # default (poll) transport
 python3 triton_client.py
 ```
 
 On the same LAN as your Kokomi server, it auto-discovers the server and prints
 an **8-digit pairing code**. Open **Kokomi → Settings → Triton**, find this
-machine under *Discovered clients*, type the code, and hit **Pair**.
+machine under *Discovered*, type the code, and hit **Pair**.
 
-Not on the same network (or discovery blocked)? Point it explicitly:
+Point it at a specific server (required for a remote/hosted Kokomi):
 
 ```bash
-python3 triton_client.py --server ws://YOUR_SERVER_IP:8000/api/triton/agent
-# or:  export KOKOMI_SERVER=ws://YOUR_SERVER_IP:8000/api/triton/agent
+python3 triton_client.py --server https://kokomi.example.com
+# or:  export KOKOMI_SERVER=https://kokomi.example.com
+```
+
+## Transports
+
+- **`poll` (default)** — plain HTTPS long-polling. Works through **nginx,
+  Cloudflare, and any reverse proxy** with no special WebSocket config. Needs
+  `pip install requests`. Use this for a hosted / proxied Kokomi.
+- **`ws`** — a WebSocket; lowest latency, best on a LAN. Needs
+  `pip install websockets`. Behind a proxy it requires `wss://` + WebSocket
+  upgrade headers, so prefer `poll` unless you're on the local network.
+
+```bash
+python3 triton_client.py --transport ws --server ws://192.168.1.67:8780
 ```
 
 ## Restrict what it can touch
