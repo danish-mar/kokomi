@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.8.0] - 2026-07-09 — "triton's reach"
+
+### Added
+
+- **Triton gains six new powers on paired machines** (each surfaced as a chat tool, each with its own gate). Always-on additions are read-only; the rest are opt-in per machine:
+  - **File writes** (`triton_write_file`) — off unless the client runs with `--allow-write`; confined to the shared `--allow` folders (a path outside is refused), creates parent folders, appends or overwrites, capped at 25 MB.
+  - **Open a URL in the browser** (`triton_open_url`) — off unless `--allow-gui`; only `http(s)` URLs.
+  - **Screenshot the desktop** (`triton_screenshot`) — off unless `--allow-gui`; grabs the screen via whatever's installed (`grim` on Wayland; `scrot`/`maim`/`gnome-screenshot`/`spectacle`/ImageMagick on X11) and embeds the image in chat.
+  - **Clipboard read/set** (`triton_clipboard_get` / `triton_clipboard_set`) — off unless `--allow-gui`; uses `wl-clipboard` or `xclip`/`xsel`.
+  - **Process watching** (`triton_list_processes`) — always on, **read-only**: a CPU-sorted snapshot via `ps`. Triton cannot kill processes.
+  - **Service watching** (`triton_list_services`) — always on, **read-only**: systemd unit states via `systemctl`. Triton cannot start or stop services.
+- Machines advertise exactly which of these they've enabled (via the `run_command`/`write_file`/`open_url`/… capabilities), and the chat system-prompt note lists per-machine which opt-in powers are live so Kokomi knows what it can attempt. A disabled or blocked action always returns a clear permission error rather than a silent success. New client flags: `--allow-write`, `--allow-gui` (plus `KOKOMI_ALLOW_WRITE` / `KOKOMI_ALLOW_GUI` env equivalents).
+
 ## [v5.7.0] - 2026-07-09 — "triton's hands"
 
 ### Added
