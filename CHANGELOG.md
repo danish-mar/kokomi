@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.9.0] - 2026-07-09 — "forward to mooring"
+
+### Added
+
+- **Forward an artifact straight to a paired computer**: the artifact viewer now has a **Forward** button next to Copy/Download. Clicking it drops down a list of your Triton machines that are currently online; picking one saves the artifact into that machine's `~/Documents` folder and toasts the path it landed at. New endpoint `POST /api/triton/devices/{id}/forward` ({filename, content}) — purpose-built so it only ever writes into `~/Documents` (filename is basename-sanitized, no traversal), and the write still has to clear the client's own `--allow-write` gate (a machine without writes enabled comes back with a clear "file writing is disabled" message rather than failing silently). Only online machines are listed, since an offline one can't receive the file.
+
 ## [v5.8.0] - 2026-07-09 — "triton's reach"
 
 ### Added
