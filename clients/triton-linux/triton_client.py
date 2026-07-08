@@ -11,16 +11,20 @@ Run this on a computer you want Kokomi to reach. It:
   4. once paired, executes ONLY the actions your policy allows
 
 Safety model — this client is the boundary, not the server:
-  • It only touches paths inside --allow directories (default: ~).
-  • Reads (list_dir, read_file) are always on.
-  • Command execution is OFF by default. Turn it on with --allow-exec, and
-    optionally restrict it to specific binaries with --allow-cmd (repeatable)
-    and to specific working directories (the same --allow folders).
+  • Path actions only touch inside --allow directories (default: ~).
+  • Reads (list_dir, read_file) and observability (process_list, service_list —
+    list only, never kill) are always on.
+  • Command execution is OFF by default → --allow-exec (+ optional --allow-cmd).
+  • File writes are OFF by default → --allow-write (confined to --allow dirs).
+  • Desktop actions (open a URL, screenshot, clipboard) are OFF by default →
+    --allow-gui. They expose/act on the live session, so they're opt-in.
   • The device token is stored at ~/.config/kokomi-triton/state.json (chmod 600).
 
 Dependencies:
   poll transport (default):  pip install requests
   ws transport:              pip install websockets
+  screenshot/clipboard use system tools (grim/scrot, wl-clipboard/xclip) — no
+  extra Python packages needed.
 """
 import argparse
 import asyncio
@@ -30,12 +34,15 @@ import os
 import re
 import secrets
 import shlex
+import shutil
 import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
+import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -52,17 +59,24 @@ _SHELL_METACHARS = re.compile(r"[;&|`\n<>]|\$\(|\$\{|>>")
 
 # ── Policy: what this machine is willing to do ───────────────────────────────
 class Policy:
-    def __init__(self, allow_roots, exec_enabled=False, allow_cmds=None):
+    def __init__(self, allow_roots, exec_enabled=False, allow_cmds=None,
+                 write_enabled=False, gui_enabled=False):
         self.allow_roots = allow_roots
         self.exec_enabled = exec_enabled
         # None/empty set => any binary (only reachable when exec_enabled is True).
         self.allow_cmds = set(allow_cmds) if allow_cmds else set()
+        self.write_enabled = write_enabled
+        self.gui_enabled = gui_enabled
 
     @property
     def capabilities(self):
-        caps = ["list_dir", "read_file"]
+        caps = ["list_dir", "read_file", "process_list", "service_list"]
         if self.exec_enabled:
             caps.append("run_command")
+        if self.write_enabled:
+            caps.append("write_file")
+        if self.gui_enabled:
+            caps += ["open_url", "screenshot", "clipboard_read", "clipboard_write"]
         return caps
 
     @property
@@ -216,6 +230,177 @@ def handle_run_command(args: dict, policy: Policy) -> dict:
                                  "stderr": err, "cwd": str(cwd_path), "truncated": truncated}}
 
 
+def handle_write_file(args: dict, policy: Policy) -> dict:
+    if not policy.write_enabled:
+        return {"ok": False, "error": "File writing is disabled on this machine. "
+                                      "Start the Triton client with --allow-write to enable it."}
+    raw_path = args.get("path", "")
+    if not raw_path:
+        return {"ok": False, "error": "No path provided"}
+    target = _resolve_allowed(raw_path, policy.allow_roots)
+    # The parent must also land inside the allowlist (guards against odd traversal).
+    _resolve_allowed(str(target.parent), policy.allow_roots)
+    if target.is_dir():
+        return {"ok": False, "error": "Path is a directory"}
+
+    content = args.get("content", "")
+    try:
+        raw = base64.b64decode(content) if args.get("b64") else str(content).encode("utf-8")
+    except Exception as e:
+        return {"ok": False, "error": f"Bad content encoding: {e}"}
+    if len(raw) > MAX_READ_BYTES:
+        return {"ok": False, "error": f"Content too large ({len(raw)} bytes, max {MAX_READ_BYTES})"}
+
+    append = bool(args.get("append"))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "ab" if append else "wb") as f:
+        f.write(raw)
+    return {"ok": True, "data": {"path": str(target), "bytes": len(raw), "appended": append}}
+
+
+def handle_open_url(args: dict, policy: Policy) -> dict:
+    if not policy.gui_enabled:
+        return {"ok": False, "error": "Desktop actions are disabled. Start the client with --allow-gui."}
+    url = (args.get("url") or "").strip()
+    if not re.match(r"^https?://", url, re.I):
+        return {"ok": False, "error": "Only http(s) URLs may be opened."}
+    try:
+        opened = webbrowser.open(url)
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    return {"ok": True, "data": {"url": url, "opened": bool(opened)}}
+
+
+def handle_screenshot(args: dict, policy: Policy) -> dict:
+    if not policy.gui_enabled:
+        return {"ok": False, "error": "Desktop actions are disabled. Start the client with --allow-gui."}
+    tmp = Path(tempfile.gettempdir()) / f"triton_shot_{uuid.uuid4().hex[:8]}.png"
+    # Try the common Wayland/X11 grabbers in order; use whatever is installed.
+    candidates = [
+        ["grim", str(tmp)],                           # Wayland
+        ["scrot", "-o", str(tmp)],                    # X11
+        ["maim", str(tmp)],                           # X11
+        ["gnome-screenshot", "-f", str(tmp)],
+        ["spectacle", "-b", "-n", "-o", str(tmp)],    # KDE
+        ["import", "-window", "root", str(tmp)],      # ImageMagick
+    ]
+    tried = []
+    try:
+        for cmd in candidates:
+            if not shutil.which(cmd[0]):
+                continue
+            tried.append(cmd[0])
+            try:
+                r = subprocess.run(cmd, capture_output=True, timeout=20)
+            except Exception:
+                continue
+            if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+                data = tmp.read_bytes()
+                return {"ok": True, "data": {"name": "screenshot.png", "tool": cmd[0],
+                                             "b64": base64.b64encode(data).decode()}}
+        if not tried:
+            return {"ok": False, "error": "No screenshot tool found. Install one of: "
+                                          "grim (Wayland), scrot/maim (X11), gnome-screenshot, spectacle, imagemagick."}
+        return {"ok": False, "error": f"Screenshot failed (tried: {', '.join(tried)}). "
+                                      "On Wayland grim needs a compositor that supports wlr-screencopy."}
+    finally:
+        try:
+            tmp.unlink()
+        except Exception:
+            pass
+
+
+def handle_clipboard_read(args: dict, policy: Policy) -> dict:
+    if not policy.gui_enabled:
+        return {"ok": False, "error": "Desktop actions are disabled. Start the client with --allow-gui."}
+    for cmd in (["wl-paste", "-n"], ["xclip", "-selection", "clipboard", "-o"], ["xsel", "-b"]):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        except Exception:
+            continue
+        if r.returncode == 0:
+            return {"ok": True, "data": {"text": r.stdout}}
+    return {"ok": False, "error": "No clipboard tool found. Install wl-clipboard (Wayland) or xclip/xsel (X11)."}
+
+
+def handle_clipboard_write(args: dict, policy: Policy) -> dict:
+    if not policy.gui_enabled:
+        return {"ok": False, "error": "Desktop actions are disabled. Start the client with --allow-gui."}
+    text = str(args.get("text", ""))
+    for cmd in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "-b", "-i"]):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            r = subprocess.run(cmd, input=text, text=True, capture_output=True, timeout=10)
+        except Exception:
+            continue
+        if r.returncode == 0:
+            return {"ok": True, "data": {"chars": len(text)}}
+    return {"ok": False, "error": "No clipboard tool found. Install wl-clipboard (Wayland) or xclip/xsel (X11)."}
+
+
+def handle_process_list(args: dict, policy: Policy) -> dict:
+    """Read-only snapshot of running processes. Never kills anything."""
+    if not shutil.which("ps"):
+        return {"ok": False, "error": "'ps' is not available on this machine."}
+    try:
+        r = subprocess.run(["ps", "-eo", "pid,ppid,user:20,pcpu,pmem,comm,args", "--sort=-pcpu"],
+                           capture_output=True, text=True, timeout=15)
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    lines = r.stdout.splitlines()
+    filt = (args.get("filter") or "").lower()
+    try:
+        limit = min(int(args.get("limit", 50) or 50), 500)
+    except (TypeError, ValueError):
+        limit = 50
+    procs = []
+    for line in lines[1:]:
+        parts = line.split(None, 6)
+        if len(parts) < 7:
+            continue
+        pid, ppid, user, cpu, mem, comm, cmdline = parts
+        if filt and filt not in comm.lower() and filt not in cmdline.lower():
+            continue
+        procs.append({"pid": pid, "ppid": ppid, "user": user, "cpu": cpu,
+                      "mem": mem, "name": comm, "cmd": cmdline[:200]})
+        if len(procs) >= limit:
+            break
+    return {"ok": True, "data": {"processes": procs}}
+
+
+def handle_service_list(args: dict, policy: Policy) -> dict:
+    """Read-only snapshot of systemd services. Never starts/stops anything."""
+    if not shutil.which("systemctl"):
+        return {"ok": False, "error": "systemctl is not available (no systemd on this machine)."}
+    try:
+        r = subprocess.run(["systemctl", "list-units", "--type=service", "--all",
+                            "--no-pager", "--no-legend", "--plain"],
+                           capture_output=True, text=True, timeout=15)
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    filt = (args.get("filter") or "").lower()
+    try:
+        limit = min(int(args.get("limit", 100) or 100), 500)
+    except (TypeError, ValueError):
+        limit = 100
+    svcs = []
+    for line in r.stdout.splitlines():
+        parts = line.split(None, 4)
+        if len(parts) < 4:
+            continue
+        unit, load, active, sub = parts[0], parts[1], parts[2], parts[3]
+        desc = parts[4] if len(parts) > 4 else ""
+        if filt and filt not in unit.lower() and filt not in desc.lower():
+            continue
+        svcs.append({"unit": unit, "load": load, "active": active, "sub": sub, "description": desc})
+        if len(svcs) >= limit:
+            break
+    return {"ok": True, "data": {"services": svcs}}
+
+
 def run_action(action: str, args: dict, policy: Policy) -> dict:
     try:
         if action == "ping":
@@ -226,6 +411,20 @@ def run_action(action: str, args: dict, policy: Policy) -> dict:
             return handle_read_file(args, policy)
         if action == "run_command":
             return handle_run_command(args, policy)
+        if action == "write_file":
+            return handle_write_file(args, policy)
+        if action == "open_url":
+            return handle_open_url(args, policy)
+        if action == "screenshot":
+            return handle_screenshot(args, policy)
+        if action == "clipboard_read":
+            return handle_clipboard_read(args, policy)
+        if action == "clipboard_write":
+            return handle_clipboard_write(args, policy)
+        if action == "process_list":
+            return handle_process_list(args, policy)
+        if action == "service_list":
+            return handle_service_list(args, policy)
         return {"ok": False, "error": f"Unsupported action: {action}"}
     except PermissionError as pe:
         return {"ok": False, "error": str(pe)}
@@ -236,6 +435,12 @@ def run_action(action: str, args: dict, policy: Policy) -> dict:
 def _summarize(action: str, args: dict) -> str:
     if action == "run_command":
         return (args.get("command", "") or "")[:80]
+    if action == "open_url":
+        return args.get("url", "") or ""
+    if action in ("process_list", "service_list"):
+        return args.get("filter", "") or "all"
+    if action in ("clipboard_read", "clipboard_write", "screenshot"):
+        return ""
     return args.get("path", "") or ""
 
 
@@ -402,15 +607,23 @@ def main():
     ap.add_argument("--allow-cmd", action="append", default=None, metavar="BINARY",
                     help="Restrict --allow-exec to this binary, e.g. --allow-cmd git --allow-cmd ls "
                          "(repeatable). Omit to allow any command (only with --allow-exec).")
+    ap.add_argument("--allow-write", action="store_true",
+                    default=os.getenv("KOKOMI_ALLOW_WRITE", "").lower() in ("1", "true", "yes"),
+                    help="Allow writing files inside the --allow folders (OFF by default).")
+    ap.add_argument("--allow-gui", action="store_true",
+                    default=os.getenv("KOKOMI_ALLOW_GUI", "").lower() in ("1", "true", "yes"),
+                    help="Allow desktop actions: open a URL, screenshot, clipboard (OFF by default).")
     args = ap.parse_args()
 
     allow_roots = [Path(os.path.expanduser(a)).resolve() for a in (args.allow or ["~"])]
     env_cmds = [c for c in re.split(r"[,\s]+", os.getenv("KOKOMI_ALLOW_CMD", "")) if c]
     allow_cmds = (args.allow_cmd or []) + env_cmds
-    policy = Policy(allow_roots, exec_enabled=args.allow_exec, allow_cmds=allow_cmds)
+    policy = Policy(allow_roots, exec_enabled=args.allow_exec, allow_cmds=allow_cmds,
+                    write_enabled=args.allow_write, gui_enabled=args.allow_gui)
 
     print("Allowed folders:", ", ".join(str(r) for r in allow_roots))
     print(f"Transport: {args.transport}")
+    print("Reads: on   |   Process/service watch: on (list only, never kill)")
     if policy.exec_enabled:
         if policy.allow_cmds:
             print("Command execution: ENABLED, restricted to:", ", ".join(sorted(policy.allow_cmds)))
@@ -419,6 +632,9 @@ def main():
                   "Anything Kokomi runs will run as your user — use --allow-cmd to narrow this.")
     else:
         print("Command execution: disabled (pass --allow-exec to enable).")
+    print(f"File writes: {'ENABLED (inside allowed folders)' if policy.write_enabled else 'disabled (pass --allow-write)'}")
+    print(f"Desktop (browser/screenshot/clipboard): "
+          f"{'ENABLED' if policy.gui_enabled else 'disabled (pass --allow-gui)'}")
 
     server = args.server
     if not server:

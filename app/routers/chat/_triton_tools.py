@@ -3,16 +3,17 @@ Triton chat tools — let the conversational model actually reach the user's
 paired computers (moorings). Without these, Kokomi has no idea a paired machine
 like "electro" exists and will (correctly) say it has no access.
 
-Exposed actions:
-  • triton_list_devices — what machines are paired and online
-  • triton_list_dir     — list a folder on a machine
-  • triton_fetch_file   — pull a file back into the chat as a download link
-  • triton_run_command  — run a shell command (only if the machine enabled exec)
+Always-on tools: list_devices, list_dir, fetch_file, list_processes,
+list_services (the last two are read-only — Triton never kills or stops).
+
+Opt-in tools, each enabled per machine by a client flag:
+  • run_command                  -> --allow-exec
+  • write_file                   -> --allow-write
+  • open_url / screenshot /
+    clipboard_get / clipboard_set -> --allow-gui
 
 The mooring's own allowlist is the security boundary; these tools just route.
-Command execution is opt-in per machine (client --allow-exec) and may be further
-restricted to specific binaries and folders — a disabled/blocked command comes
-back as a clear error, never as a silent success.
+A disabled/blocked action comes back as a clear error, never a silent success.
 """
 import base64
 import os
@@ -164,30 +165,181 @@ def get_triton_tools():
             parts.append("\n(output was truncated)")
         return "".join(parts)
 
-    exec_devices = [d.get("name", d["id"]) for d in devices
-                    if "run_command" in (d.get("capabilities") or [])]
-    exec_line = (
-        "- triton_run_command(device, command, cwd) — run a shell command. "
-        + (f"Enabled on: {', '.join(exec_devices)}. " if exec_devices
-           else "No paired machine has enabled command execution yet; calling this returns a "
-                "'disabled' error the user can fix by restarting the client with --allow-exec. ")
-        + "Blocked/disallowed commands return a permission error — never assume a command ran.\n"
-    )
+    @tool("triton_write_file")
+    async def triton_write_file(device: str, path: str, content: str, append: bool = False) -> str:
+        """Write text to a file on one of the user's paired computers.
+
+        Only works if the machine's owner started the client with --allow-write, and the
+        path must be inside a shared (--allow) folder. Creates the file (and parent folders)
+        if needed. Use append=True to add to the end instead of overwriting.
+
+        device: the computer's name or id.  path: full destination path.
+        content: the text to write.  append: append instead of overwrite.
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "write_file",
+                                     {"path": path, "content": content, "append": append}, timeout=60)
+        if not res.get("ok"):
+            return f"Couldn't write '{path}' on {device}: {res.get('error')}"
+        data = res.get("data", {})
+        verb = "Appended" if data.get("appended") else "Wrote"
+        return f"{verb} {data.get('bytes', 0)} bytes to {data.get('path', path)} on {device}."
+
+    @tool("triton_open_url")
+    async def triton_open_url(device: str, url: str) -> str:
+        """Open an http(s) URL in the default web browser on one of the user's paired computers
+        (e.g. 'pull up my calendar on electro'). Requires the client to be started with
+        --allow-gui. device: the computer's name or id.  url: the http(s) address to open.
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "open_url", {"url": url}, timeout=30)
+        if not res.get("ok"):
+            return f"Couldn't open the URL on {device}: {res.get('error')}"
+        return f"Opened {url} in the browser on {device}."
+
+    @tool("triton_screenshot")
+    async def triton_screenshot(device: str) -> str:
+        """Take a screenshot of the current desktop on one of the user's paired computers and
+        attach it to the chat as an image. Requires the client to be started with --allow-gui.
+        device: the computer's name or id. Returns markdown to embed the image in your reply.
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "screenshot", {}, timeout=45)
+        if not res.get("ok"):
+            return f"Couldn't screenshot {device}: {res.get('error')}"
+        data = res.get("data", {})
+        try:
+            raw = base64.b64decode(data.get("b64", ""))
+        except Exception:
+            return "The screenshot came back corrupted; try again."
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        stored = f"triton_{uuid.uuid4().hex[:8]}_screenshot.png"
+        with open(os.path.join(UPLOADS_DIR, stored), "wb") as f:
+            f.write(raw)
+        return (f"Captured the screen on {device}. "
+                f"Show the user this screenshot: ![screenshot on {device}](/uploads/{stored})")
+
+    @tool("triton_clipboard_get")
+    async def triton_clipboard_get(device: str) -> str:
+        """Read the clipboard contents of one of the user's paired computers. Requires the
+        client to be started with --allow-gui. device: the computer's name or id.
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "clipboard_read", {}, timeout=30)
+        if not res.get("ok"):
+            return f"Couldn't read the clipboard on {device}: {res.get('error')}"
+        text = res.get("data", {}).get("text", "")
+        if not text:
+            return f"The clipboard on {device} is empty."
+        return f"Clipboard on {device}:\n```\n{text[:8000]}\n```"
+
+    @tool("triton_clipboard_set")
+    async def triton_clipboard_set(device: str, text: str) -> str:
+        """Set the clipboard contents on one of the user's paired computers. Requires the
+        client to be started with --allow-gui. device: the computer's name or id.
+        text: the text to place on the clipboard.
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "clipboard_write", {"text": text}, timeout=30)
+        if not res.get("ok"):
+            return f"Couldn't set the clipboard on {device}: {res.get('error')}"
+        return f"Copied {res.get('data', {}).get('chars', len(text))} characters to the clipboard on {device}."
+
+    @tool("triton_list_processes")
+    async def triton_list_processes(device: str, filter: str = "", limit: int = 40) -> str:
+        """List running processes on one of the user's paired computers (read-only — Triton
+        cannot kill processes). Sorted by CPU usage.
+
+        device: the computer's name or id.
+        filter: optional substring to match against the process name/command.
+        limit: max processes to return (default 40).
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "process_list",
+                                     {"filter": filter, "limit": limit}, timeout=30)
+        if not res.get("ok"):
+            return f"Couldn't list processes on {device}: {res.get('error')}"
+        procs = res.get("data", {}).get("processes", [])
+        if not procs:
+            return f"No matching processes on {device}."
+        lines = [f"Processes on {device} (by CPU):", "PID    USER            %CPU  %MEM  COMMAND"]
+        for p in procs:
+            lines.append(f"{p.get('pid',''):<6} {p.get('user',''):<15} "
+                         f"{p.get('cpu',''):>4}  {p.get('mem',''):>4}  {p.get('name','')}")
+        return "\n".join(lines)
+
+    @tool("triton_list_services")
+    async def triton_list_services(device: str, filter: str = "", limit: int = 60) -> str:
+        """List systemd services and their state on one of the user's paired computers
+        (read-only — Triton cannot start/stop services).
+
+        device: the computer's name or id.
+        filter: optional substring to match against the unit name/description.
+        limit: max services to return (default 60).
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        res = await manager.dispatch(device_id, "service_list",
+                                     {"filter": filter, "limit": limit}, timeout=30)
+        if not res.get("ok"):
+            return f"Couldn't list services on {device}: {res.get('error')}"
+        svcs = res.get("data", {}).get("services", [])
+        if not svcs:
+            return f"No matching services on {device}."
+        lines = [f"Services on {device}:", "UNIT                                ACTIVE    SUB"]
+        for s in svcs:
+            lines.append(f"{s.get('unit',''):<35} {s.get('active',''):<9} {s.get('sub','')}")
+        return "\n".join(lines)
+
+    def _cap_devices(cap):
+        return [d.get("name", d["id"]) for d in devices if cap in (d.get("capabilities") or [])]
+
+    def _gated_line(desc, cap, flag):
+        on = _cap_devices(cap)
+        tail = (f"Enabled on: {', '.join(on)}." if on
+                else f"No paired machine has this enabled yet; calling it returns a "
+                     f"'disabled' error the user fixes by restarting the client with {flag}.")
+        return f"- {desc} {tail} A disabled/blocked action returns a permission error — never assume it succeeded.\n"
 
     note = (
         "\n\n[TRITON ENABLED]\n"
         f"The user has paired computer(s) with Triton — you CAN reach them: {roster}. "
-        "When they ask you to find, grab, check, or send a file from their computer "
-        "(e.g. 'grab the presentation from my Downloads', 'what's in my home folder', "
-        "'send me the file I worked on'), USE the Triton tools:\n"
+        "When they ask you to do something on their computer, USE the Triton tools. "
+        "Only 'online' machines can be reached; path actions are confined to folders the "
+        "client shares (--allow), and a permission error means the user must widen that.\n"
+        "Always-on tools:\n"
         "- triton_list_devices — see which machines are paired/online.\n"
-        "- triton_list_dir(device, path) — browse a folder to find the file.\n"
-        "- triton_fetch_file(device, path) — pull a file in; include the returned "
-        "markdown download link in your reply so the user can download it.\n"
-        + exec_line +
-        "Only 'online' machines can be reached. If the target folder isn't shared "
-        "you'll get a permission error — tell the user to widen the client's --allow "
-        "list.\n"
-        "[/TRITON ENABLED]"
+        "- triton_list_dir(device, path) — browse a folder.\n"
+        "- triton_fetch_file(device, path) — pull a file into the chat; include the returned "
+        "markdown download link in your reply.\n"
+        "- triton_list_processes(device, filter) — read-only process snapshot (cannot kill).\n"
+        "- triton_list_services(device, filter) — read-only systemd service states (cannot start/stop).\n"
+        "Opt-in tools (each machine must enable them):\n"
+        + _gated_line("triton_run_command(device, command, cwd) — run a shell command.",
+                      "run_command", "--allow-exec")
+        + _gated_line("triton_write_file(device, path, content, append) — write a file.",
+                      "write_file", "--allow-write")
+        + _gated_line("triton_open_url(device, url) — open a URL in the browser.",
+                      "open_url", "--allow-gui")
+        + _gated_line("triton_screenshot(device) — capture the screen (embed the returned image).",
+                      "screenshot", "--allow-gui")
+        + _gated_line("triton_clipboard_get(device) / triton_clipboard_set(device, text) — read/set the clipboard.",
+                      "clipboard_read", "--allow-gui")
+        + "[/TRITON ENABLED]"
     )
-    return [triton_list_devices, triton_list_dir, triton_fetch_file, triton_run_command], note
+    return [triton_list_devices, triton_list_dir, triton_fetch_file, triton_run_command,
+            triton_write_file, triton_open_url, triton_screenshot, triton_clipboard_get,
+            triton_clipboard_set, triton_list_processes, triton_list_services], note
