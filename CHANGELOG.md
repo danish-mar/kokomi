@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.7.0] - 2026-07-09 — "triton's hands"
+
+### Added
+
+- **Triton can now run commands on paired machines (opt-in, doubly gated)**: beyond reading files, the chat model can execute shell commands on a mooring via a new `triton_run_command(device, command, cwd)` tool. Safety is enforced entirely on the client (the boundary), not the server:
+  - Execution is **off by default** — the Linux client must be started with `--allow-exec` (or `KOKOMI_ALLOW_EXEC=1`).
+  - An optional **command whitelist** (`--allow-cmd git --allow-cmd ls`, repeatable, or `KOKOMI_ALLOW_CMD`) restricts which binaries may run; when set, shell operators (`| ; & > \` $()`) are rejected so a command can't chain past the allowlist.
+  - Every command's **working directory is pinned inside an `--allow` folder**; a `cwd` outside the shared roots is refused.
+  - Commands are capped at **300 s** and their output at **100 KB per stream**; results come back with exit code, stdout, and stderr.
+  - Machines advertise the `run_command` capability so the chat prompt knows which moorings have exec enabled; a disabled or blocked command returns a clear permission error rather than a silent success.
+
 ## [v5.6.0] - 2026-07-09
 
 ### Added
