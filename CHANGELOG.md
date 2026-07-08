@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.6.0] - 2026-07-09
+
+### Added
+
+- **Triton poll transport (works through nginx / Cloudflare)**: the WebSocket transport needs `wss://` + upgrade headers and breaks on proxy idle timeouts, so remote/hosted setups failed with "not a valid url scheme". Added an HTTP long-poll transport that is just plain HTTPS and passes through any reverse proxy or CDN. The Linux client now defaults to `--transport poll` (`pip install requests`); `--transport ws` remains for low-latency LAN use. Point the client at a hosted server with `--server https://your-host`. New endpoints: `enroll`, `pair-status`, `poll`, `result`. Under the hood both transports share one per-device command queue + result-future registry.
+
+### Fixed
+
+- **Client falsely reported "Reconnected" and could get stuck unpairable**: the client printed success the moment it had a saved token, without waiting for the server to accept it — so a revoked/stale token left it "connected" with no way to pair (no code shown). The handshake now waits for the server's verdict: a valid token → online; an invalid one → the server replies `unpaired` and the client discards the stale token and shows a fresh 8-digit code; no token → shows the code. Applies to both transports.
+- **Triton settings UI restyled** to match the rest of the app: a hero card with an icon chip, device rows with rounded platform chips, online/offline status pills, and proper empty states — instead of the previous boxy panels.
+
 ## [v5.5.1] - 2026-07-07
 
 ### Added
