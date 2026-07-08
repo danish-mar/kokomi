@@ -3,12 +3,16 @@ Triton chat tools — let the conversational model actually reach the user's
 paired computers (moorings). Without these, Kokomi has no idea a paired machine
 like "electro" exists and will (correctly) say it has no access.
 
-Phase 1 exposes read-only actions:
+Exposed actions:
   • triton_list_devices — what machines are paired and online
   • triton_list_dir     — list a folder on a machine
   • triton_fetch_file   — pull a file back into the chat as a download link
+  • triton_run_command  — run a shell command (only if the machine enabled exec)
 
 The mooring's own allowlist is the security boundary; these tools just route.
+Command execution is opt-in per machine (client --allow-exec) and may be further
+restricted to specific binaries and folders — a disabled/blocked command comes
+back as a clear error, never as a silent success.
 """
 import base64
 import os
@@ -121,6 +125,55 @@ def get_triton_tools():
         return (f"Fetched **{name}** ({kb} KB) from {device}. "
                 f"Give the user this download link: [{name}](/uploads/{stored})")
 
+    @tool("triton_run_command")
+    async def triton_run_command(device: str, command: str, cwd: str = "") -> str:
+        """Run a shell command on one of the user's paired computers and return its output.
+
+        This only works if the machine's owner started the Triton client with command
+        execution enabled (--allow-exec). The machine may further restrict which binaries
+        are allowed and which folders commands may run in; if so, a blocked command comes
+        back as a permission error — relay it and suggest the user widen the client's
+        --allow-cmd / --allow list.
+
+        device: the computer's name (e.g. 'electro') or id.
+        command: the shell command to run, e.g. 'git status' or 'ls -la'.
+        cwd: optional working directory (must be within a shared folder). Defaults to the
+        machine's first allowed folder.
+        """
+        device_id, err = _resolve_device(device)
+        if err:
+            return err
+        cargs = {"command": command}
+        if cwd:
+            cargs["cwd"] = cwd
+        res = await manager.dispatch(device_id, "run_command", cargs, timeout=310)
+        if not res.get("ok"):
+            return f"Couldn't run `{command}` on {device}: {res.get('error')}"
+        data = res.get("data", {})
+        code = data.get("exit_code", "?")
+        out = (data.get("stdout") or "").rstrip()
+        errout = (data.get("stderr") or "").rstrip()
+        parts = [f"`{command}` on {device} exited with code {code} (cwd: {data.get('cwd', cwd or '~')})."]
+        if out:
+            parts.append(f"\nstdout:\n```\n{out}\n```")
+        if errout:
+            parts.append(f"\nstderr:\n```\n{errout}\n```")
+        if not out and not errout:
+            parts.append("\n(no output)")
+        if data.get("truncated"):
+            parts.append("\n(output was truncated)")
+        return "".join(parts)
+
+    exec_devices = [d.get("name", d["id"]) for d in devices
+                    if "run_command" in (d.get("capabilities") or [])]
+    exec_line = (
+        "- triton_run_command(device, command, cwd) — run a shell command. "
+        + (f"Enabled on: {', '.join(exec_devices)}. " if exec_devices
+           else "No paired machine has enabled command execution yet; calling this returns a "
+                "'disabled' error the user can fix by restarting the client with --allow-exec. ")
+        + "Blocked/disallowed commands return a permission error — never assume a command ran.\n"
+    )
+
     note = (
         "\n\n[TRITON ENABLED]\n"
         f"The user has paired computer(s) with Triton — you CAN reach them: {roster}. "
@@ -131,9 +184,10 @@ def get_triton_tools():
         "- triton_list_dir(device, path) — browse a folder to find the file.\n"
         "- triton_fetch_file(device, path) — pull a file in; include the returned "
         "markdown download link in your reply so the user can download it.\n"
+        + exec_line +
         "Only 'online' machines can be reached. If the target folder isn't shared "
         "you'll get a permission error — tell the user to widen the client's --allow "
-        "list. These actions are read-only.\n"
+        "list.\n"
         "[/TRITON ENABLED]"
     )
-    return [triton_list_devices, triton_list_dir, triton_fetch_file], note
+    return [triton_list_devices, triton_list_dir, triton_fetch_file, triton_run_command], note

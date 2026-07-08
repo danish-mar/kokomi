@@ -8,11 +8,14 @@ Run this on a computer you want Kokomi to reach. It:
        • poll (default) — plain HTTPS, works through nginx / Cloudflare / any proxy
        • ws             — a WebSocket, lowest latency, best on a LAN
   3. prints an 8-digit pairing code — enter it in Kokomi → Settings → Triton
-  4. once paired, executes ONLY allowlisted, read-only actions the server sends
+  4. once paired, executes ONLY the actions your policy allows
 
 Safety model — this client is the boundary, not the server:
-  • It only reads paths inside --allow directories (default: ~).
-  • Phase-1 actions are read-only: list_dir, read_file. No writes, no shell.
+  • It only touches paths inside --allow directories (default: ~).
+  • Reads (list_dir, read_file) are always on.
+  • Command execution is OFF by default. Turn it on with --allow-exec, and
+    optionally restrict it to specific binaries with --allow-cmd (repeatable)
+    and to specific working directories (the same --allow folders).
   • The device token is stored at ~/.config/kokomi-triton/state.json (chmod 600).
 
 Dependencies:
@@ -26,8 +29,10 @@ import json
 import os
 import re
 import secrets
+import shlex
 import socket
 import stat
+import subprocess
 import sys
 import time
 import uuid
@@ -38,8 +43,31 @@ DISCOVERY_PORT = 47201
 DISCOVERY_MAGIC = "kokomi-triton-server"
 STATE_DIR = Path.home() / ".config" / "kokomi-triton"
 STATE_FILE = STATE_DIR / "state.json"
-MAX_READ_BYTES = 25 * 1024 * 1024  # 25 MB cap on a single file fetch
-CAPABILITIES = ["list_dir", "read_file"]
+MAX_READ_BYTES = 25 * 1024 * 1024      # 25 MB cap on a single file fetch
+MAX_OUTPUT_BYTES = 100 * 1024          # 100 KB cap on captured command output (each stream)
+MAX_CMD_TIMEOUT = 300                  # hard ceiling on how long a command may run
+# Shell operators that could chain past a command whitelist.
+_SHELL_METACHARS = re.compile(r"[;&|`\n<>]|\$\(|\$\{|>>")
+
+
+# ── Policy: what this machine is willing to do ───────────────────────────────
+class Policy:
+    def __init__(self, allow_roots, exec_enabled=False, allow_cmds=None):
+        self.allow_roots = allow_roots
+        self.exec_enabled = exec_enabled
+        # None/empty set => any binary (only reachable when exec_enabled is True).
+        self.allow_cmds = set(allow_cmds) if allow_cmds else set()
+
+    @property
+    def capabilities(self):
+        caps = ["list_dir", "read_file"]
+        if self.exec_enabled:
+            caps.append("run_command")
+        return caps
+
+    @property
+    def default_cwd(self):
+        return str(self.allow_roots[0]) if self.allow_roots else str(Path.home())
 
 
 # ── Local state ──────────────────────────────────────────────────────────────
@@ -88,7 +116,7 @@ def discover_server(timeout: float = 8.0):
     return None
 
 
-# ── Allowlist enforcement + read-only handlers ───────────────────────────────
+# ── Allowlist enforcement + action handlers ──────────────────────────────────
 def _resolve_allowed(path: str, allow_roots: list) -> Path:
     p = Path(os.path.expanduser(path)).resolve()
     for root in allow_roots:
@@ -100,8 +128,8 @@ def _resolve_allowed(path: str, allow_roots: list) -> Path:
     raise PermissionError(f"'{path}' is outside the allowed folders")
 
 
-def handle_list_dir(args: dict, allow_roots: list) -> dict:
-    target = _resolve_allowed(args.get("path", "~"), allow_roots)
+def handle_list_dir(args: dict, policy: Policy) -> dict:
+    target = _resolve_allowed(args.get("path", "~"), policy.allow_roots)
     if not target.is_dir():
         return {"ok": False, "error": "Not a directory"}
     entries = []
@@ -116,8 +144,8 @@ def handle_list_dir(args: dict, allow_roots: list) -> dict:
     return {"ok": True, "data": {"path": str(target), "entries": entries}}
 
 
-def handle_read_file(args: dict, allow_roots: list) -> dict:
-    target = _resolve_allowed(args.get("path", ""), allow_roots)
+def handle_read_file(args: dict, policy: Policy) -> dict:
+    target = _resolve_allowed(args.get("path", ""), policy.allow_roots)
     if not target.is_file():
         return {"ok": False, "error": "Not a file"}
     size = target.stat().st_size
@@ -127,19 +155,88 @@ def handle_read_file(args: dict, allow_roots: list) -> dict:
                                  "b64": base64.b64encode(target.read_bytes()).decode()}}
 
 
-def run_action(action: str, args: dict, allow_roots: list) -> dict:
+def handle_run_command(args: dict, policy: Policy) -> dict:
+    if not policy.exec_enabled:
+        return {"ok": False, "error": "Command execution is disabled on this machine. "
+                                      "Start the Triton client with --allow-exec to enable it."}
+    command = (args.get("command") or "").strip()
+    if not command:
+        return {"ok": False, "error": "No command provided"}
+
+    # Working directory must be inside an allowed folder.
+    cwd = args.get("cwd") or policy.default_cwd
+    try:
+        cwd_path = _resolve_allowed(cwd, policy.allow_roots)
+    except PermissionError as pe:
+        return {"ok": False, "error": str(pe)}
+    if not cwd_path.is_dir():
+        return {"ok": False, "error": f"Working directory '{cwd}' does not exist"}
+
+    # If a command whitelist is set, forbid shell chaining and check the binary.
+    if policy.allow_cmds:
+        if _SHELL_METACHARS.search(command):
+            return {"ok": False, "error": "Shell operators (| ; & > < `` $()) are not allowed "
+                                          "when a command whitelist is in effect."}
+        try:
+            tokens = shlex.split(command)
+        except ValueError as e:
+            return {"ok": False, "error": f"Could not parse command: {e}"}
+        if not tokens:
+            return {"ok": False, "error": "Empty command"}
+        binary = os.path.basename(tokens[0])
+        if binary not in policy.allow_cmds:
+            allowed = ", ".join(sorted(policy.allow_cmds))
+            return {"ok": False, "error": f"'{binary}' is not in this machine's allowed commands. "
+                                          f"Allowed: {allowed}"}
+
+    timeout = args.get("timeout")
+    try:
+        timeout = min(int(timeout), MAX_CMD_TIMEOUT) if timeout else 60
+    except (TypeError, ValueError):
+        timeout = 60
+    if timeout <= 0:
+        timeout = 60
+
+    try:
+        proc = subprocess.run(command, shell=True, cwd=str(cwd_path),
+                              capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"Command timed out after {timeout}s"}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    out = proc.stdout or ""
+    err = proc.stderr or ""
+    truncated = False
+    if len(out) > MAX_OUTPUT_BYTES:
+        out = out[:MAX_OUTPUT_BYTES]; truncated = True
+    if len(err) > MAX_OUTPUT_BYTES:
+        err = err[:MAX_OUTPUT_BYTES]; truncated = True
+    return {"ok": True, "data": {"exit_code": proc.returncode, "stdout": out,
+                                 "stderr": err, "cwd": str(cwd_path), "truncated": truncated}}
+
+
+def run_action(action: str, args: dict, policy: Policy) -> dict:
     try:
         if action == "ping":
             return {"ok": True, "data": {"pong": True}}
         if action == "list_dir":
-            return handle_list_dir(args, allow_roots)
+            return handle_list_dir(args, policy)
         if action == "read_file":
-            return handle_read_file(args, allow_roots)
+            return handle_read_file(args, policy)
+        if action == "run_command":
+            return handle_run_command(args, policy)
         return {"ok": False, "error": f"Unsupported action: {action}"}
     except PermissionError as pe:
         return {"ok": False, "error": str(pe)}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def _summarize(action: str, args: dict) -> str:
+    if action == "run_command":
+        return (args.get("command", "") or "")[:80]
+    return args.get("path", "") or ""
 
 
 # ── Transport: HTTP long-poll (default, proxy/CDN friendly) ──────────────────
@@ -150,7 +247,7 @@ def http_base(server: str) -> str:
     return urlunparse((scheme, u.netloc or u.path, "", "", "", "")).rstrip("/")
 
 
-def run_poll(server: str, allow_roots: list):
+def run_poll(server: str, policy: Policy):
     try:
         import requests
     except ImportError:
@@ -172,7 +269,7 @@ def run_poll(server: str, allow_roots: list):
         code = f"{secrets.randbelow(10**8):08d}"
         try:
             r = post("/api/triton/enroll", {"device_id": device_id, "name": name,
-                                            "platform": "linux", "capabilities": CAPABILITIES,
+                                            "platform": "linux", "capabilities": policy.capabilities,
                                             "code": code}, 15)
             status = r.json().get("status")
         except Exception as e:
@@ -202,15 +299,15 @@ def run_poll(server: str, allow_roots: list):
             if r.status_code == 401:
                 print("✗ Token rejected (device revoked?). Clearing and re-pairing.")
                 state.pop("token", None); save_state(state)
-                return run_poll(server, allow_roots)
+                return run_poll(server, policy)
             cmd = r.json()
         except Exception as e:
             print(f"! poll error ({e}); retrying in 3s…"); time.sleep(3); continue
 
         if cmd.get("type") != "command":
             continue
-        result = run_action(cmd.get("action", ""), cmd.get("args", {}), allow_roots)
-        print(f"→ {cmd.get('action')}({cmd.get('args',{}).get('path','')}) => "
+        result = run_action(cmd.get("action", ""), cmd.get("args", {}), policy)
+        print(f"→ {cmd.get('action')}({_summarize(cmd.get('action',''), cmd.get('args',{}))}) => "
               f"{'ok' if result.get('ok') else result.get('error')}")
         try:
             post("/api/triton/result", {"device_id": device_id, "token": token,
@@ -221,7 +318,7 @@ def run_poll(server: str, allow_roots: list):
 
 
 # ── Transport: WebSocket (LAN / low latency) ─────────────────────────────────
-async def run_ws(server: str, allow_roots: list):
+async def run_ws(server: str, policy: Policy):
     try:
         import websockets
     except ImportError:
@@ -243,7 +340,7 @@ async def run_ws(server: str, allow_roots: list):
 
     async with websockets.connect(ws_url, max_size=None) as ws:
         hello = {"type": "hello", "device_id": device_id, "name": name,
-                 "platform": "linux", "capabilities": CAPABILITIES}
+                 "platform": "linux", "capabilities": policy.capabilities}
         if token:
             hello["token"] = token
         else:
@@ -265,7 +362,8 @@ async def run_ws(server: str, allow_roots: list):
                 state.pop("token", None); save_state(state)
                 code = f"{secrets.randbelow(10**8):08d}"
                 await ws.send(json.dumps({"type": "hello", "device_id": device_id, "name": name,
-                                          "platform": "linux", "capabilities": CAPABILITIES, "code": code}))
+                                          "platform": "linux", "capabilities": policy.capabilities,
+                                          "code": code}))
             elif mtype == "pending":
                 print_code(code)
             elif mtype == "paired":
@@ -278,8 +376,8 @@ async def run_ws(server: str, allow_roots: list):
                 print("✗ This device was revoked. Re-run to pair again.")
                 return
             elif mtype == "command":
-                result = run_action(msg.get("action", ""), msg.get("args", {}), allow_roots)
-                print(f"→ {msg.get('action')}({msg.get('args',{}).get('path','')}) => "
+                result = run_action(msg.get("action", ""), msg.get("args", {}), policy)
+                print(f"→ {msg.get('action')}({_summarize(msg.get('action',''), msg.get('args',{}))}) => "
                       f"{'ok' if result.get('ok') else result.get('error')}")
                 await ws.send(json.dumps({"type": "result", "req_id": msg.get("req_id"),
                                           "ok": result.get("ok", False),
@@ -297,12 +395,30 @@ def main():
     ap.add_argument("--transport", choices=["poll", "ws"], default=os.getenv("KOKOMI_TRANSPORT", "poll"),
                     help="poll (default; works through nginx/Cloudflare) or ws (LAN, low latency)")
     ap.add_argument("--allow", action="append", default=None,
-                    help="A folder Triton may read (repeatable). Default: your home directory.")
+                    help="A folder Triton may read / run commands in (repeatable). Default: your home directory.")
+    ap.add_argument("--allow-exec", action="store_true",
+                    default=os.getenv("KOKOMI_ALLOW_EXEC", "").lower() in ("1", "true", "yes"),
+                    help="Enable remote command execution on this machine (OFF by default).")
+    ap.add_argument("--allow-cmd", action="append", default=None, metavar="BINARY",
+                    help="Restrict --allow-exec to this binary, e.g. --allow-cmd git --allow-cmd ls "
+                         "(repeatable). Omit to allow any command (only with --allow-exec).")
     args = ap.parse_args()
 
     allow_roots = [Path(os.path.expanduser(a)).resolve() for a in (args.allow or ["~"])]
+    env_cmds = [c for c in re.split(r"[,\s]+", os.getenv("KOKOMI_ALLOW_CMD", "")) if c]
+    allow_cmds = (args.allow_cmd or []) + env_cmds
+    policy = Policy(allow_roots, exec_enabled=args.allow_exec, allow_cmds=allow_cmds)
+
     print("Allowed folders:", ", ".join(str(r) for r in allow_roots))
     print(f"Transport: {args.transport}")
+    if policy.exec_enabled:
+        if policy.allow_cmds:
+            print("Command execution: ENABLED, restricted to:", ", ".join(sorted(policy.allow_cmds)))
+        else:
+            print("Command execution: ENABLED for ANY command (no --allow-cmd whitelist). "
+                  "Anything Kokomi runs will run as your user — use --allow-cmd to narrow this.")
+    else:
+        print("Command execution: disabled (pass --allow-exec to enable).")
 
     server = args.server
     if not server:
@@ -315,9 +431,9 @@ def main():
     while True:
         try:
             if args.transport == "ws":
-                asyncio.run(run_ws(server, allow_roots))
+                asyncio.run(run_ws(server, policy))
             else:
-                run_poll(server, allow_roots)
+                run_poll(server, policy)
         except KeyboardInterrupt:
             print("\nBye."); return
         except Exception as e:

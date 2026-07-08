@@ -46,13 +46,36 @@ python3 triton_client.py --allow ~/Downloads --allow ~/Documents
 Any request for a path outside the allowed folders is refused **on this machine**
 — the server never gets to see it.
 
-## What it can do (Phase 1)
+## Command execution (opt-in)
+
+Reads are always on. **Running shell commands is off by default.** Turn it on with
+`--allow-exec`, and — strongly recommended — restrict it to specific binaries:
+
+```bash
+# only these commands, only inside ~/projects
+python3 triton_client.py --allow-exec \
+  --allow-cmd git --allow-cmd ls --allow-cmd cat \
+  --allow ~/projects
+```
+
+Rules enforced **on this machine** (the server can't override them):
+
+- Without `--allow-exec`, any command request is refused.
+- With `--allow-cmd` set, only those binaries run, and shell operators
+  (`|`, `;`, `&`, `>`, `` ` ``, `$()`) are rejected so a command can't chain past
+  the whitelist.
+- Every command runs with its working directory pinned inside an `--allow` folder.
+- Commands are capped at 300 s and their output at 100 KB per stream.
+
+Passing `--allow-exec` **without** any `--allow-cmd` lets Kokomi run *any* command
+as your user — convenient, but only do this on a machine you trust that trust to.
+Env equivalents: `KOKOMI_ALLOW_EXEC=1`, `KOKOMI_ALLOW_CMD="git ls cat"`.
+
+## What it can do
 
 - `list_dir` — list a permitted folder
 - `read_file` — fetch a file (≤ 25 MB) back into the chat
-
-Read-only. No writes, no shell, no automation yet — those come later, behind
-explicit approval gates.
+- `run_command` — run an allowlisted shell command (only with `--allow-exec`)
 
 ## Where things live
 
