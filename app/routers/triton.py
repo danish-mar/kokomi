@@ -162,7 +162,8 @@ async def triton_forward(device_id: str, payload: dict):
         raise HTTPException(status_code=400, detail="content required")
     filename = _safe_filename((payload or {}).get("filename", ""))
     res = await manager.dispatch(device_id, "write_file",
-                                 {"path": f"~/Documents/{filename}", "content": content},
+                                 {"path": f"~/Documents/{filename}", "content": content,
+                                  "b64": bool((payload or {}).get("b64"))},
                                  timeout=60.0)
     if not res.get("ok"):
         # Bubble the client's reason (write disabled, folder not shared, etc.) up as 422.

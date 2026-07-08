@@ -852,6 +852,10 @@ export function getChatActions() {
                                     onclick="window.KokomiPdf.download('${art.id}', this)">
                                 <i class="fa-solid fa-download"></i>
                             </button>
+                            <button class="kokomi-chart-btn" title="Forward to a paired computer"
+                                    onclick="window.KokomiPdf.forward('${art.id}', this)">
+                                <i class="fa-solid fa-share-from-square"></i>
+                            </button>
                         </div>
                     </div>
                 </div>`;
@@ -1413,8 +1417,125 @@ const KokomiPdf = {
             a.remove();
         });
     },
+
+    // Base64 of the rendered PDF, for forwarding the actual bytes to a machine.
+    async _blobBase64(id) {
+        const url = await this._blobUrl(id);
+        if (!url) throw new Error('no pdf');
+        const blob = await (await fetch(url)).blob();
+        return await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onloadend = () => resolve(String(r.result).split(',')[1] || '');
+            r.onerror = reject;
+            r.readAsDataURL(blob);
+        });
+    },
+
+    forward(id, btn) {
+        const card = this._card(id);
+        const title = (card && card.getAttribute('data-pdf-title')) || 'document';
+        const safeName = title.replace(/[^a-zA-Z0-9_\-]+/g, '_').slice(0, 60) || 'document';
+        window.KokomiForward.open(btn, `${safeName}.pdf`, async () => ({
+            content: await this._blobBase64(id), b64: true,
+        }));
+    },
 };
 window.KokomiPdf = KokomiPdf;
+
+/**
+ * KokomiForward — a small imperative popover that lists the user's online Triton
+ * machines and forwards a generated artifact to one (saved to its ~/Documents).
+ * Used by raw-HTML cards (PDF etc.) that aren't Alpine-reactive. `getPayload`
+ * returns { content, b64 } lazily so the file is only rendered when a machine is
+ * actually picked.
+ */
+const KokomiForward = {
+    _menu: null,
+    _onDoc: null,
+
+    _platIcon(p) {
+        p = (p || '').toLowerCase();
+        if (p.includes('linux')) return 'fa-brands fa-linux';
+        if (p.includes('mac')) return 'fa-brands fa-apple';
+        if (p.includes('win')) return 'fa-solid fa-desktop';
+        return 'fa-solid fa-server';
+    },
+
+    close() {
+        if (this._menu) { this._menu.remove(); this._menu = null; }
+        if (this._onDoc) { document.removeEventListener('mousedown', this._onDoc, true); this._onDoc = null; }
+    },
+
+    async open(btn, filename, getPayload) {
+        if (this._menu) { this.close(); return; }
+        const menu = document.createElement('div');
+        menu.className = 'kokomi-forward-menu';
+        menu.innerHTML =
+            `<div class="kfwd-head">Send to a computer<span>Saves to ~/Documents</span></div>` +
+            `<div class="kfwd-list"><div class="kfwd-note"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading devices…</div></div>`;
+        document.body.appendChild(menu);
+        const r = btn.getBoundingClientRect();
+        const width = 264;
+        menu.style.top = `${r.bottom + window.scrollY + 6}px`;
+        menu.style.left = `${Math.max(8, Math.min(r.right + window.scrollX - width, window.innerWidth - width - 8))}px`;
+        this._menu = menu;
+        this._onDoc = (e) => { if (this._menu && !this._menu.contains(e.target) && !btn.contains(e.target)) this.close(); };
+        setTimeout(() => document.addEventListener('mousedown', this._onDoc, true), 0);
+
+        let devices = [];
+        try {
+            const resp = await fetch('/api/triton/devices');
+            const data = await resp.json();
+            devices = (data.devices || []).filter(d => d.online);
+        } catch (e) { /* handled below */ }
+        if (!this._menu) return; // closed while loading
+        const list = menu.querySelector('.kfwd-list');
+        if (!devices.length) {
+            list.innerHTML = `<div class="kfwd-note">No computers online. Pair one in Settings → Triton and run it with <code>--allow-write</code>.</div>`;
+            return;
+        }
+        list.innerHTML = '';
+        devices.forEach(dev => {
+            const item = document.createElement('button');
+            item.className = 'kfwd-item';
+            item.innerHTML =
+                `<i class="${this._platIcon(dev.platform)}"></i>` +
+                `<span class="kfwd-name">${(dev.name || dev.id).replace(/</g, '&lt;')}</span>` +
+                `<i class="fa-solid fa-arrow-right kfwd-arrow"></i>`;
+            item.onclick = async (ev) => {
+                ev.stopPropagation();
+                const arrow = item.querySelector('.kfwd-arrow');
+                arrow.className = 'fa-solid fa-circle-notch fa-spin kfwd-arrow';
+                try {
+                    const payload = await getPayload();
+                    const resp = await fetch(`/api/triton/devices/${encodeURIComponent(dev.id)}/forward`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename, ...payload }),
+                    });
+                    const d = await resp.json().catch(() => ({}));
+                    if (resp.ok) {
+                        list.innerHTML = `<div class="kfwd-note kfwd-ok"><i class="fa-solid fa-check"></i> Saved to ${(d.path || '~/Documents')} on ${(dev.name || dev.id).replace(/</g, '&lt;')}</div>`;
+                        setTimeout(() => this.close(), 1600);
+                    } else {
+                        arrow.className = 'fa-solid fa-arrow-right kfwd-arrow';
+                        this._err(menu, d.detail || 'Failed to forward');
+                    }
+                } catch (e) {
+                    arrow.className = 'fa-solid fa-arrow-right kfwd-arrow';
+                    this._err(menu, 'Network error');
+                }
+            };
+            list.appendChild(item);
+        });
+    },
+
+    _err(menu, msg) {
+        let e = menu.querySelector('.kfwd-err');
+        if (!e) { e = document.createElement('div'); e.className = 'kfwd-err'; menu.appendChild(e); }
+        e.textContent = msg;
+    },
+};
+window.KokomiForward = KokomiForward;
 
 // Global helper for inline artifact cards
 window.openArtifactFromCard = (id, el) => {

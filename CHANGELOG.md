@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.9.1] - 2026-07-09
+
+### Fixed
+
+- **Forward button now appears on PDF (and other document) artifacts too**: the Forward action added in v5.9.0 only lived in the expanded artifact viewer, but PDF artifacts render as their own card and never open that viewer — so there was no Forward button on them. PDF cards now have a Forward button alongside View/Download; clicking it renders the actual PDF bytes and, via a small device-picker popover, saves them to the chosen online machine's `~/Documents`. The forward endpoint now accepts base64 content so binary files (not just text artifacts) forward correctly. The picker is a reusable component (`KokomiForward`) so future document cards can reuse it.
+
 ## [v5.9.0] - 2026-07-09
 
 ### Added
