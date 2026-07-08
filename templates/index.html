@@ -2207,6 +2207,46 @@
                     <button @click="downloadArtifact()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover-surface text-sm font-medium text-2 t-apple">
                         <i class="fa-solid fa-download text-xs"></i> <span class="hidden sm:inline">Download</span>
                     </button>
+                    <!-- Forward to a paired Triton machine -->
+                    <div class="relative" @click.outside="artifactForward.open = false">
+                        <button @click="toggleArtifactForward()"
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover-surface text-sm font-medium text-2 t-apple"
+                                :class="artifactForward.open && 'bg-black/5 dark:bg-white/10'">
+                            <i class="fa-solid fa-share-from-square text-xs"></i>
+                            <span class="hidden sm:inline">Forward</span>
+                        </button>
+                        <div x-show="artifactForward.open" x-cloak x-transition.opacity.duration.150ms
+                             class="absolute right-0 top-full mt-2 w-64 rounded-xl bg-canvas border border-themed shadow-xl z-[60] overflow-hidden">
+                            <div class="px-3 py-2 border-b border-themed">
+                                <p class="text-xs font-semibold text-2">Send to a computer</p>
+                                <p class="text-[10px] text-4">Saves to that machine's <span class="font-mono">~/Documents</span></p>
+                            </div>
+                            <div class="max-h-64 overflow-y-auto py-1">
+                                <template x-if="artifactForward.loading">
+                                    <div class="px-3 py-3 text-xs text-4 flex items-center gap-2">
+                                        <i class="fa-solid fa-circle-notch fa-spin"></i> Loading devices…
+                                    </div>
+                                </template>
+                                <template x-if="!artifactForward.loading && artifactForward.devices.length === 0">
+                                    <div class="px-3 py-3 text-xs text-4">No computers online. Pair one in Settings → Triton and make sure it's running with <span class="font-mono">--allow-write</span>.</div>
+                                </template>
+                                <template x-for="dev in artifactForward.devices" :key="dev.id">
+                                    <button @click="forwardArtifactTo(dev)"
+                                            :disabled="artifactForward.sendingId"
+                                            class="w-full flex items-center gap-2.5 px-3 py-2 hover-surface text-left t-apple disabled:opacity-60">
+                                        <i class="text-accent-t text-xs"
+                                           :class="(dev.platform || '').toLowerCase().includes('linux') ? 'fa-brands fa-linux' : ((dev.platform || '').toLowerCase().includes('mac') ? 'fa-brands fa-apple' : 'fa-solid fa-desktop')"></i>
+                                        <span class="flex-grow text-sm text-1 truncate" x-text="dev.name || dev.id"></span>
+                                        <i x-show="artifactForward.sendingId === dev.id" class="fa-solid fa-circle-notch fa-spin text-xs text-4"></i>
+                                        <i x-show="artifactForward.sendingId !== dev.id" class="fa-solid fa-arrow-right text-[10px] text-4"></i>
+                                    </button>
+                                </template>
+                            </div>
+                            <template x-if="artifactForward.error">
+                                <div class="px-3 py-2 border-t border-themed text-[11px] text-red-500" x-text="artifactForward.error"></div>
+                            </template>
+                        </div>
+                    </div>
                     <div class="w-px h-6 bg-themed mx-1"></div>
                     <button @click="closeArtifactModal()" class="w-9 h-9 rounded-full flex items-center justify-center hover-surface text-3 hover:text-1 transition-colors">
                         <i class="fa-solid fa-xmark"></i>

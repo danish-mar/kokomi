@@ -241,6 +241,10 @@ export function getUiActions() {
             this.artifactModal.executing = false;
             this.artifactModal.tab = 'code'; 
             
+            this.artifactForward.open = false;
+            this.artifactForward.error = '';
+            this.artifactForward.sendingId = null;
+
             this.renderArtifactInModal();
             this.artifactModal.show = true;
         },
@@ -326,6 +330,57 @@ export function getUiActions() {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        },
+
+        // -- Forward an artifact to a paired Triton machine (~/Documents) --
+        async toggleArtifactForward() {
+            this.artifactForward.open = !this.artifactForward.open;
+            if (this.artifactForward.open) {
+                await this.loadForwardDevices();
+            }
+        },
+        async loadForwardDevices() {
+            this.artifactForward.loading = true;
+            this.artifactForward.error = '';
+            try {
+                const r = await fetch('/api/triton/devices');
+                const data = await r.json();
+                // Only online machines can actually receive a file.
+                this.artifactForward.devices = (data.devices || []).filter(d => d.online);
+            } catch (e) {
+                this.artifactForward.error = 'Could not load devices';
+                this.artifactForward.devices = [];
+            } finally {
+                this.artifactForward.loading = false;
+            }
+        },
+        async forwardArtifactTo(device) {
+            if (this.artifactForward.sendingId) return;
+            this.artifactForward.sendingId = device.id;
+            this.artifactForward.error = '';
+            try {
+                const r = await fetch('/api/triton/devices/' + encodeURIComponent(device.id) + '/forward', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: this.artifactModal.title || 'artifact.txt',
+                        content: this.artifactModal.content || ''
+                    })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (r.ok) {
+                    this.artifactForward.open = false;
+                    if (this.showToast) {
+                        this.showToast('Saved to ' + (data.path || '~/Documents') + ' on ' + (device.name || device.id));
+                    }
+                } else {
+                    this.artifactForward.error = data.detail || 'Failed to forward';
+                }
+            } catch (e) {
+                this.artifactForward.error = 'Network error';
+            } finally {
+                this.artifactForward.sendingId = null;
+            }
         },
 
         // -- Attachments --

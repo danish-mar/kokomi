@@ -8,6 +8,7 @@ Management (admin cookie auth, via the global middleware):
   POST   /api/triton/devices/{id}/rename   {name}
   DELETE /api/triton/devices/{id}          revoke (unpair)
   POST   /api/triton/devices/{id}/command  {action,args} -> dispatch & await result
+  POST   /api/triton/devices/{id}/forward  {filename,content} -> save to ~/Documents
 
 Client transports (own auth, added to public paths in app/__init__.py):
   WS     /api/triton/agent                 LAN / low-latency
@@ -18,6 +19,7 @@ Client transports (own auth, added to public paths in app/__init__.py):
 """
 import asyncio
 import datetime
+import re
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
@@ -136,6 +138,37 @@ async def triton_command(device_id: str, payload: dict):
         raise HTTPException(status_code=400, detail=f"Unsupported action: {action}")
     return await manager.dispatch(device_id, action, args,
                                   timeout=float((payload or {}).get("timeout", 30)))
+
+
+def _safe_filename(name: str, fallback: str = "artifact.txt") -> str:
+    """Basename only, stripped of path separators and control chars."""
+    base = (name or "").replace("\\", "/").split("/")[-1].strip()
+    base = re.sub(r"[\x00-\x1f]", "", base)
+    base = re.sub(r'[<>:"|?*]', "_", base)
+    return base or fallback
+
+
+@router.post("/devices/{device_id}/forward")
+async def triton_forward(device_id: str, payload: dict):
+    """Save an artifact to a paired machine's ~/Documents folder. Purpose-built for
+    the chat 'Forward' button: it only ever writes into ~/Documents, and the write
+    still has to clear the client's own --allow-write / allowlist gate."""
+    if not get_triton_device(device_id):
+        raise HTTPException(status_code=404, detail="Device not found")
+    if not manager.is_online(device_id):
+        raise HTTPException(status_code=409, detail="Device is offline")
+    content = (payload or {}).get("content")
+    if content is None:
+        raise HTTPException(status_code=400, detail="content required")
+    filename = _safe_filename((payload or {}).get("filename", ""))
+    res = await manager.dispatch(device_id, "write_file",
+                                 {"path": f"~/Documents/{filename}", "content": content},
+                                 timeout=60.0)
+    if not res.get("ok"):
+        # Bubble the client's reason (write disabled, folder not shared, etc.) up as 422.
+        raise HTTPException(status_code=422, detail=res.get("error") or "Write failed")
+    data = res.get("data", {})
+    return {"ok": True, "path": data.get("path"), "bytes": data.get("bytes"), "filename": filename}
 
 
 # ─── Poll transport (proxy / CDN friendly) ───────────────────────────────────

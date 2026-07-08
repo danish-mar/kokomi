@@ -28,6 +28,10 @@ export function getInitialState() {
             content: '', renderedContent: '', output: '', executing: false,
             tab: 'code'
         },
+        // "Forward to a Triton machine" dropdown on the artifact modal
+        artifactForward: {
+            open: false, loading: false, devices: [], sendingId: null, error: ''
+        },
         // Fullscreen image viewer for AI-generated galleries
         lightbox: { show: false, images: [], index: 0, src: '' },
         // Resizable sidebar width (px), persisted client-side
