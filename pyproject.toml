@@ -1,7 +1,7 @@
 [project]
 name = "kokomi"
 version = "5.9.0"
-release-name = "forward to mooring"
+release-name = "triton's conch"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
 requires-python = ">=3.12"

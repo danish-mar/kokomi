@@ -2,13 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v5.9.0] - 2026-07-09 — "forward to mooring"
+## [v5.9.0] - 2026-07-09
 
 ### Added
 
 - **Forward an artifact straight to a paired computer**: the artifact viewer now has a **Forward** button next to Copy/Download. Clicking it drops down a list of your Triton machines that are currently online; picking one saves the artifact into that machine's `~/Documents` folder and toasts the path it landed at. New endpoint `POST /api/triton/devices/{id}/forward` ({filename, content}) — purpose-built so it only ever writes into `~/Documents` (filename is basename-sanitized, no traversal), and the write still has to clear the client's own `--allow-write` gate (a machine without writes enabled comes back with a clear "file writing is disabled" message rather than failing silently). Only online machines are listed, since an offline one can't receive the file.
 
-## [v5.8.0] - 2026-07-09 — "triton's reach"
+## [v5.8.0] - 2026-07-09
 
 ### Added
 
@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file.
   - **Service watching** (`triton_list_services`) — always on, **read-only**: systemd unit states via `systemctl`. Triton cannot start or stop services.
 - Machines advertise exactly which of these they've enabled (via the `run_command`/`write_file`/`open_url`/… capabilities), and the chat system-prompt note lists per-machine which opt-in powers are live so Kokomi knows what it can attempt. A disabled or blocked action always returns a clear permission error rather than a silent success. New client flags: `--allow-write`, `--allow-gui` (plus `KOKOMI_ALLOW_WRITE` / `KOKOMI_ALLOW_GUI` env equivalents).
 
-## [v5.7.0] - 2026-07-09 — "triton's hands"
+## [v5.7.0] - 2026-07-09
 
 ### Added
 
