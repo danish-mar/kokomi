@@ -383,6 +383,48 @@ export function getUiActions() {
             }
         },
 
+        // -- Pending clarifying question (floating card above the composer) --
+        // A question artifact is only "live" while it's on the very last message and
+        // no reply has followed it yet; reloading history re-derives this so an
+        // unanswered question survives a refresh, and answering makes it vanish the
+        // moment the user's reply message is appended.
+        evaluatePendingQuestion() {
+            const last = this.messages[this.messages.length - 1];
+            if (!last || last.role !== 'assistant' || !last.artifacts) {
+                this.pendingQuestion = null;
+                return;
+            }
+            const art = last.artifacts.find(a => (a.type || '').toLowerCase() === 'question' && !a.streaming);
+            if (!art) { this.pendingQuestion = null; return; }
+            let spec;
+            try { spec = JSON.parse(art.content || ''); } catch (e) { spec = null; }
+            if (!spec || !Array.isArray(spec.options)) { this.pendingQuestion = null; return; }
+            this.pendingQuestion = {
+                id: art.id, msgId: last.id,
+                question: spec.question || art.title || 'Quick question',
+                options: spec.options.map(String),
+                allowOther: spec.allowOther !== false,
+                allowSkip: spec.allowSkip !== false,
+            };
+            this.pendingQuestionOther = '';
+        },
+        answerPendingQuestion(value) {
+            if (!value || !this.pendingQuestion || this.loading) return;
+            this.pendingQuestion = null;
+            this.input = value;
+            this.sendMessage();
+        },
+        answerPendingQuestionOther() {
+            const value = (this.pendingQuestionOther || '').trim();
+            if (value) this.answerPendingQuestion(value);
+        },
+        skipPendingQuestion() {
+            this.answerPendingQuestion("Skip that — just go ahead with your best guess.");
+        },
+        dismissPendingQuestion() {
+            this.pendingQuestion = null;
+        },
+
         // -- Attachments --
         triggerFileUpload() {
             this.$refs.fileInput.click();

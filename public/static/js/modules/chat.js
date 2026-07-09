@@ -10,8 +10,9 @@ export function getChatActions() {
             const text = this.input.trim();
             if (!text || this.loading) return;
 
+            this.pendingQuestion = null;
             const currentAttachments = [...this.attachments];
-            this.messages.push({ 
+            this.messages.push({
                 id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                 role: 'user', 
                 content: text,
@@ -246,6 +247,11 @@ export function getChatActions() {
                                             this.artifactModal.content = art.content;
                                             this.renderArtifactInModal();
                                         }
+                                        // A finished "question" artifact becomes the live overlay
+                                        // above the composer instead of an inline card.
+                                        if ((art.type || '').toLowerCase() === 'question') {
+                                            this.evaluatePendingQuestion();
+                                        }
                                     }
                                 }
                             } else if (data.type === 'tool_end') {
@@ -464,6 +470,7 @@ export function getChatActions() {
             this.input = '';
             this.currentStreamingCharId = null;
             this.isAnonymous = false;
+            this.pendingQuestion = null;
             window.location.hash = '';
             if (this.groupParticipants.length === 0) {
                 this.groupParticipants = [this.activeCharId];
@@ -488,6 +495,7 @@ export function getChatActions() {
                 this.groupParticipants = doc.participants || [doc.character_id || 'kokomi'];
                 if (doc.character_id) this.activeCharId = doc.character_id;
                 else if (this.groupParticipants.length > 0) this.activeCharId = this.groupParticipants[0];
+                this.evaluatePendingQuestion();
 
                 // Show messages (triggers CSS fade-in), then immediately jump to bottom.
                 // Double-nextTick + rAF ensures Alpine has finished rendering the x-for
@@ -864,55 +872,18 @@ export function getChatActions() {
                 </div>`;
         },
 
-        // An interactive question card: numbered single-choice options, an optional
-        // free-text "something else" row, and an optional Skip. Tapping a choice sends
-        // it as the user's next message via the global kokomi-action bus. Rendering +
-        // click handling live in window.KokomiQuiz because message HTML is re-rendered
-        // on every streamed token and can't hold Alpine state.
+        // Question artifacts are answered via a floating overlay docked above the
+        // composer (see pendingQuestion in ui.js), not an inline card — a question is
+        // a UI prompt, not a document to revisit. While it's the live, unanswered
+        // question this renders nothing inline (the overlay owns it); once answered
+        // (or once it's an older message) it collapses to a quiet one-line summary.
         renderQuestionCard(art) {
-            const title = art.title || 'Quick question';
-            const content = art.content || '';
-            if (art.streaming || !content.trim()) {
-                return `
-                <div class="kokomi-quiz kokomi-quiz--loading mt-4 mb-2">
-                    <div class="kokomi-quiz-q"><i class="fa-solid fa-circle-question"></i> ${this.escapeHtml(title)}</div>
-                    <div class="kokomi-quiz-shimmer"></div>
-                </div>`;
-            }
+            if (this.pendingQuestion && this.pendingQuestion.id === art.id) return '';
+            if (art.streaming) return '';
             let spec;
-            try { spec = JSON.parse(content); } catch (e) { spec = null; }
-            if (!spec || !Array.isArray(spec.options)) {
-                // Malformed — fall back to showing the raw text so nothing is lost.
-                return `<div class="kokomi-quiz mt-4 mb-2"><div class="kokomi-quiz-q">${this.escapeHtml(title)}</div>
-                        <div class="kokomi-quiz-note">${this.escapeHtml(content)}</div></div>`;
-            }
-            const q = this.escapeHtml(spec.question || title);
-            const answered = window.KokomiQuiz ? window.KokomiQuiz.answerOf(art.id) : null;
-            const optionsHtml = spec.options.map((opt, i) => {
-                const label = this.escapeHtml(String(opt));
-                const chosen = answered && answered === String(opt);
-                return `<button class="kokomi-quiz-opt${chosen ? ' is-chosen' : ''}" ${answered ? 'disabled' : ''}
-                            onclick="window.KokomiQuiz.pick('${art.id}', this)" data-value="${window.KokomiCharts.escapeAttr(String(opt))}">
-                            <span class="kokomi-quiz-num">${i + 1}</span>
-                            <span class="kokomi-quiz-label">${label}</span>
-                            ${chosen ? '<i class="fa-solid fa-check kokomi-quiz-check"></i>' : ''}
-                        </button>`;
-            }).join('');
-            const otherHtml = (spec.allowOther === false) ? '' : `
-                <div class="kokomi-quiz-other">
-                    <i class="fa-solid fa-pen"></i>
-                    <input type="text" class="kokomi-quiz-input" placeholder="Something else…" ${answered ? 'disabled' : ''}
-                           onkeydown="window.KokomiQuiz.otherKey(event, '${art.id}', this)">
-                </div>`;
-            const skipHtml = (spec.allowSkip === false) ? '' : `
-                <button class="kokomi-quiz-skip" ${answered ? 'disabled' : ''}
-                        onclick="window.KokomiQuiz.skip('${art.id}')">Skip</button>`;
-            return `
-                <div class="kokomi-quiz mt-4 mb-2${answered ? ' is-answered' : ''}" data-quiz-id="${art.id}">
-                    <div class="kokomi-quiz-q">${q}</div>
-                    <div class="kokomi-quiz-opts">${optionsHtml}</div>
-                    <div class="kokomi-quiz-foot">${otherHtml}${skipHtml}</div>
-                </div>`;
+            try { spec = JSON.parse(art.content || ''); } catch (e) { spec = null; }
+            const q = (spec && spec.question) || art.title || 'Quick question';
+            return `<div class="kokomi-quiz-history"><i class="fa-solid fa-circle-question"></i> ${this.escapeHtml(q)}</div>`;
         }
     };
     return actions;
@@ -1590,48 +1561,6 @@ const KokomiForward = {
     },
 };
 window.KokomiForward = KokomiForward;
-
-/**
- * KokomiQuiz — handles interactive question cards. A pick (option, free-text, or
- * skip) is sent as the user's next message through the global `kokomi-action`
- * bus, exactly like a suggestion chip. Answered cards are remembered per artifact
- * id so a re-render (charts/pdf/quiz cards are re-rendered from HTML on every
- * streamed token, and on conversation reload) keeps the card locked to its choice.
- */
-const KokomiQuiz = {
-    _answered: new Map(),   // artifact id -> chosen value
-
-    answerOf(id) { return this._answered.get(id) || null; },
-
-    _send(id, value) {
-        if (!value || this._answered.has(id)) return;
-        this._answered.set(id, value);
-        // Lock the specific card in the DOM immediately (before the re-render).
-        const card = document.querySelector(`.kokomi-quiz[data-quiz-id="${id}"]`);
-        if (card) {
-            card.classList.add('is-answered');
-            card.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
-        }
-        window.dispatchEvent(new CustomEvent('kokomi-action', { detail: { send: value } }));
-    },
-
-    pick(id, btn) {
-        const value = btn && btn.getAttribute('data-value');
-        this._send(id, value);
-    },
-
-    otherKey(ev, id, input) {
-        if (ev.key !== 'Enter') return;
-        ev.preventDefault();
-        const value = (input.value || '').trim();
-        if (value) this._send(id, value);
-    },
-
-    skip(id) {
-        this._send(id, "Skip that — just go ahead with your best guess.");
-    },
-};
-window.KokomiQuiz = KokomiQuiz;
 
 // Global helper for inline artifact cards
 window.openArtifactFromCard = (id, el) => {

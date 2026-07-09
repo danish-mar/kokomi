@@ -721,29 +721,29 @@ async def chat_stream(req: ChatRequest):
                         )
                         p_persona = pdf_instr + "\n\n" + p_persona
 
-                        # Question capability: when you need the user to make a choice or
-                        # clarify before you can answer well, emit an interactive QUESTION
-                        # card instead of a wall of text. The user taps an option (or types
-                        # their own, or skips) and their choice comes back as their next
-                        # message. Added once (no multiplier).
-                        question_instr = (
-                            "[QUESTIONS ENABLED]\n"
-                            "When you genuinely need the user to choose between options or clarify "
-                            "something before you can give a good answer, DON'T write a long paragraph "
-                            "of questions — emit an interactive QUESTION card as a special artifact:\n"
-                            "<Artifact id=\"unique_id\" title=\"Quick question\" type=\"question\">{...json...}</Artifact>.\n"
-                            "The body MUST be a single valid JSON object (no markdown, no comments) with this schema:\n"
-                            "{\"question\": \"The question text\", "
-                            "\"options\": [\"First choice\", \"Second choice\", \"Third choice\"], "
-                            "\"allowOther\": true, \"allowSkip\": true}\n"
-                            "Give 2–5 short, distinct options. Set allowOther:true to offer a free-text "
-                            "'something else' row, allowSkip:true to offer a Skip button. Ask ONE question "
-                            "at a time. After emitting the card, STOP — do not keep talking; wait for the "
-                            "user's choice, which arrives as their next message. Only use this when a choice "
-                            "actually changes your answer; if you can reasonably proceed, just answer.\n"
-                            "[/QUESTIONS ENABLED]"
-                        )
-                        p_persona = question_instr + "\n\n" + p_persona
+                    # Question capability: an interactive QUESTION card the user answers by
+                    # tapping an option instead of typing a reply. This is independent of the
+                    # Artifacts toggle (it's a UI affordance, not a document/code artifact) —
+                    # always available, and parsed regardless of prefs.artifacts below.
+                    question_instr = (
+                        "[QUESTIONS ENABLED]\n"
+                        "When you genuinely need the user to choose between options or clarify "
+                        "something before you can give a good answer, DON'T write a long paragraph "
+                        "of questions — emit an interactive QUESTION card as a special artifact:\n"
+                        "<Artifact id=\"unique_id\" title=\"Quick question\" type=\"question\">{...json...}</Artifact>.\n"
+                        "The body MUST be a single valid JSON object (no markdown, no comments) with this schema:\n"
+                        "{\"question\": \"The question text\", "
+                        "\"options\": [\"First choice\", \"Second choice\", \"Third choice\"], "
+                        "\"allowOther\": true, \"allowSkip\": true}\n"
+                        "Give 2–5 short, distinct options. Set allowOther:true to offer a free-text "
+                        "'something else' row, allowSkip:true to offer a Skip button. Ask ONE question "
+                        "at a time. After emitting the card, STOP — do not keep talking; wait for the "
+                        "user's choice, which arrives as their next message. Only use this when a choice "
+                        "actually changes your answer; if you can reasonably proceed, just answer. This "
+                        "works even if the user has Artifacts turned off.\n"
+                        "[/QUESTIONS ENABLED]"
+                    )
+                    p_persona = question_instr + "\n\n" + p_persona
 
                     # Process attachments for the prompt (Vision + Text)
                     text_parts = [req.message]
@@ -873,64 +873,64 @@ async def chat_stream(req: ChatRequest):
                                     'context': (len(req.message) // 4) + t_comp
                                 })}\n\n")
 
-                            if not prefs.get("artifacts", True):
-                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': chunk.content, 'character_id': pid, 'model': p_active_model})}\n\n")
-                            else:
-                                pending_buffer += chunk.content
-                                while True:
-                                    if not art_active:
-                                        open_idx = pending_buffer.find("<Artifact")
-                                        if open_idx != -1:
-                                            pre_text = pending_buffer[:open_idx]
-                                            if pre_text:
-                                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
-                                            # Slice buffer here to avoid re-sending pre_text
-                                            pending_buffer = pending_buffer[open_idx:]
-                                            tag_end_idx = pending_buffer.find(">")
-                                            if tag_end_idx != -1:
-                                                tag_content = pending_buffer[:tag_end_idx+1]
-                                                attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
-                                                art_active = True
-                                                art_id = attrs.get("id", str(uuid.uuid4())[:8])
-                                                art_meta = attrs
-                                                art_content = ""
-                                                # Send the anchor placeholder to the frontend content so it renders inline during streaming
-                                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': f'\n\n[[ARTIFACT:{art_id}]]\n\n', 'character_id': pid, 'model': p_active_model})}\n\n")
-                                                await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
-                                                pending_buffer = pending_buffer[tag_end_idx+1:]
-                                                continue
-                                            else:
-                                                break
-                                        else:
-                                            send_limit = max(0, len(pending_buffer) - 10)
-                                            to_send = pending_buffer[:send_limit]
-                                            if to_send:
-                                                await queue.put(f"data: {json.dumps({'type': 'content', 'delta': to_send, 'character_id': pid, 'model': p_active_model})}\n\n")
-                                                pending_buffer = pending_buffer[send_limit:]
-                                            break
-                                    else:
-                                        close_idx = pending_buffer.find("</Artifact>")
-                                        if close_idx != -1:
-                                            inside_text = pending_buffer[:close_idx]
-                                            if inside_text:
-                                                art_content += inside_text
-                                                await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': inside_text})}\n\n")
-                                            current_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
-                                            char_artifacts_log.append(current_art)
-                                            await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
-                                            if prefs.get("insights", True):
-                                                await queue.put(f"data: {json.dumps({'type': 'debug', 'message': f'Artifact generated: {art_id} ({len(art_content) // 4} tokens)'})}\n\n")
-                                            art_active = False
-                                            pending_buffer = pending_buffer[close_idx + len("</Artifact>"):]
+                            # Tag parsing always runs, regardless of the Artifacts toggle: this is what
+                            # lets <Artifact type="question"> cards keep working even when Artifacts is
+                            # off (the model only emits other artifact types when prefs.artifacts is True).
+                            pending_buffer += chunk.content
+                            while True:
+                                if not art_active:
+                                    open_idx = pending_buffer.find("<Artifact")
+                                    if open_idx != -1:
+                                        pre_text = pending_buffer[:open_idx]
+                                        if pre_text:
+                                            await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                        # Slice buffer here to avoid re-sending pre_text
+                                        pending_buffer = pending_buffer[open_idx:]
+                                        tag_end_idx = pending_buffer.find(">")
+                                        if tag_end_idx != -1:
+                                            tag_content = pending_buffer[:tag_end_idx+1]
+                                            attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
+                                            art_active = True
+                                            art_id = attrs.get("id", str(uuid.uuid4())[:8])
+                                            art_meta = attrs
+                                            art_content = ""
+                                            # Send the anchor placeholder to the frontend content so it renders inline during streaming
+                                            await queue.put(f"data: {json.dumps({'type': 'content', 'delta': f'\n\n[[ARTIFACT:{art_id}]]\n\n', 'character_id': pid, 'model': p_active_model})}\n\n")
+                                            await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
+                                            pending_buffer = pending_buffer[tag_end_idx+1:]
                                             continue
                                         else:
-                                            send_limit = max(0, len(pending_buffer) - 12)
-                                            to_send = pending_buffer[:send_limit]
-                                            if to_send:
-                                                art_content += to_send
-                                                await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': to_send})}\n\n")
-                                                pending_buffer = pending_buffer[send_limit:]
                                             break
+                                    else:
+                                        send_limit = max(0, len(pending_buffer) - 10)
+                                        to_send = pending_buffer[:send_limit]
+                                        if to_send:
+                                            await queue.put(f"data: {json.dumps({'type': 'content', 'delta': to_send, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                            pending_buffer = pending_buffer[send_limit:]
+                                        break
+                                else:
+                                    close_idx = pending_buffer.find("</Artifact>")
+                                    if close_idx != -1:
+                                        inside_text = pending_buffer[:close_idx]
+                                        if inside_text:
+                                            art_content += inside_text
+                                            await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': inside_text})}\n\n")
+                                        current_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
+                                        char_artifacts_log.append(current_art)
+                                        await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                                        if prefs.get("insights", True):
+                                            await queue.put(f"data: {json.dumps({'type': 'debug', 'message': f'Artifact generated: {art_id} ({len(art_content) // 4} tokens)'})}\n\n")
+                                        art_active = False
+                                        pending_buffer = pending_buffer[close_idx + len("</Artifact>"):]
+                                        continue
+                                    else:
+                                        send_limit = max(0, len(pending_buffer) - 12)
+                                        to_send = pending_buffer[:send_limit]
+                                        if to_send:
+                                            art_content += to_send
+                                            await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': to_send})}\n\n")
+                                            pending_buffer = pending_buffer[send_limit:]
+                                        break
 
                     # FINAL FLUSH
                     if pending_buffer:
@@ -1059,63 +1059,63 @@ async def chat_stream(req: ChatRequest):
                                         })}\n\n")
 
                                     # Artifact Parsing Logic (Inner Loop)
-                                    if not prefs.get("artifacts", True):
-                                        await queue.put(f"data: {json.dumps({'type': 'content', 'delta': c.content, 'character_id': pid, 'model': p_active_model})}\n\n")
-                                    else:
-                                        pending_buffer += c.content
-                                        while True:
-                                            if not art_active:
-                                                open_idx = pending_buffer.find("<Artifact")
-                                                if open_idx != -1:
-                                                    pre_text = pending_buffer[:open_idx]
-                                                    if pre_text:
-                                                        await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
-                                                    tag_end_idx = pending_buffer.find(">", open_idx)
-                                                    if tag_end_idx != -1:
-                                                        tag_content = pending_buffer[open_idx:tag_end_idx+1]
-                                                        attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
-                                                        art_active = True
-                                                        art_id = attrs.get("id", str(uuid.uuid4())[:8])
-                                                        art_meta = attrs
-                                                        art_content = ""
+                                    # Tag parsing always runs, regardless of the Artifacts toggle: this is what
+                                    # lets <Artifact type="question"> cards keep working even when Artifacts is
+                                    # off (the model only emits other artifact types when prefs.artifacts is True).
+                                    pending_buffer += c.content
+                                    while True:
+                                        if not art_active:
+                                            open_idx = pending_buffer.find("<Artifact")
+                                            if open_idx != -1:
+                                                pre_text = pending_buffer[:open_idx]
+                                                if pre_text:
+                                                    await queue.put(f"data: {json.dumps({'type': 'content', 'delta': pre_text, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                                tag_end_idx = pending_buffer.find(">", open_idx)
+                                                if tag_end_idx != -1:
+                                                    tag_content = pending_buffer[open_idx:tag_end_idx+1]
+                                                    attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag_content))
+                                                    art_active = True
+                                                    art_id = attrs.get("id", str(uuid.uuid4())[:8])
+                                                    art_meta = attrs
+                                                    art_content = ""
 
-                                                        await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
-                                                        pending_buffer = pending_buffer[tag_end_idx+1:]
-                                                        continue
-                                                    else:
-                                                        break
-                                                else:
-                                                    send_limit = max(0, len(pending_buffer) - 10)
-                                                    to_send = pending_buffer[:send_limit]
-                                                    if to_send:
-                                                        await queue.put(f"data: {json.dumps({'type': 'content', 'delta': to_send, 'character_id': pid, 'model': p_active_model})}\n\n")
-                                                        pending_buffer = pending_buffer[send_limit:]
-                                                    break
-                                            else:
-                                                close_idx = pending_buffer.find("</Artifact>")
-                                                if close_idx != -1:
-                                                    inside_text = pending_buffer[:close_idx]
-                                                    if inside_text:
-                                                        art_content += inside_text
-                                                        await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': inside_text})}\n\n")
-                                                    current_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
-                                                    char_artifacts_log.append(current_art)
-                                                    await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
-                                                    if prefs.get("insights", True):
-                                                        v_str = art_meta.get("version", "1")
-                                                        msg_dbg = f"Artifact generated: {art_id} v{v_str} ({len(art_content) // 4} tokens)"
-                                                        await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg_dbg})}\n\n")
-                                                    art_active = False
-                                                    pending_buffer = pending_buffer[close_idx + len("</Artifact>"):]
+                                                    await queue.put(f"data: {json.dumps({'type': 'artifact_open', 'id': art_id, 'metadata': art_meta, 'character_id': pid})}\n\n")
+                                                    pending_buffer = pending_buffer[tag_end_idx+1:]
                                                     continue
                                                 else:
-                                                    send_limit = max(0, len(pending_buffer) - 12)
-                                                    to_send = pending_buffer[:send_limit]
-                                                    if to_send:
-                                                        art_content += to_send
-                                                        await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': to_send})}\n\n")
-                                                        pending_buffer = pending_buffer[send_limit:]
                                                     break
+                                            else:
+                                                send_limit = max(0, len(pending_buffer) - 10)
+                                                to_send = pending_buffer[:send_limit]
+                                                if to_send:
+                                                    await queue.put(f"data: {json.dumps({'type': 'content', 'delta': to_send, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                                    pending_buffer = pending_buffer[send_limit:]
+                                                break
+                                        else:
+                                            close_idx = pending_buffer.find("</Artifact>")
+                                            if close_idx != -1:
+                                                inside_text = pending_buffer[:close_idx]
+                                                if inside_text:
+                                                    art_content += inside_text
+                                                    await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': inside_text})}\n\n")
+                                                current_art = {**art_meta, "content": art_content, "timestamp": datetime.datetime.utcnow().isoformat()}
+                                                char_artifacts_log.append(current_art)
+                                                await queue.put(f"data: {json.dumps({'type': 'artifact_close', 'id': art_id, 'content': art_content})}\n\n")
+                                                if prefs.get("insights", True):
+                                                    v_str = art_meta.get("version", "1")
+                                                    msg_dbg = f"Artifact generated: {art_id} v{v_str} ({len(art_content) // 4} tokens)"
+                                                    await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg_dbg})}\n\n")
+                                                art_active = False
+                                                pending_buffer = pending_buffer[close_idx + len("</Artifact>"):]
+                                                continue
+                                            else:
+                                                send_limit = max(0, len(pending_buffer) - 12)
+                                                to_send = pending_buffer[:send_limit]
+                                                if to_send:
+                                                    art_content += to_send
+                                                    await queue.put(f"data: {json.dumps({'type': 'artifact_chunk', 'id': art_id, 'delta': to_send})}\n\n")
+                                                    pending_buffer = pending_buffer[send_limit:]
+                                                break
 
                             if is_debug:
                                 print("\n[DEBUG] Inner chunk generation finished.")

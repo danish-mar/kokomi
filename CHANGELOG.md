@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.10.1] - 2026-07-10
+
+### Changed
+
+- **Question cards now float above the composer instead of appearing as an inline artifact**, and work regardless of the Artifacts toggle. Previously the clarifying-question card rendered inline in the message transcript and only worked when Artifacts was on; it now docks as its own card directly above the message box (expanding the input area upward, closable with an X), and question-tag parsing runs unconditionally so it keeps working even with Artifacts disabled — the model just won't emit other artifact types (charts/PDF/code) in that case. Once answered, the historical question collapses to a quiet one-line note in the transcript instead of staying as a full interactive card.
+
 ## [v5.10.0] - 2026-07-10
 
 ### Added

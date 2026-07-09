@@ -32,6 +32,10 @@ export function getInitialState() {
         artifactForward: {
             open: false, loading: false, devices: [], sendingId: null, error: ''
         },
+        // The AI's live, unanswered clarifying question — rendered as a floating
+        // card docked above the composer (not an inline artifact card).
+        pendingQuestion: null,
+        pendingQuestionOther: '',
         // Fullscreen image viewer for AI-generated galleries
         lightbox: { show: false, images: [], index: 0, src: '' },
         // Resizable sidebar width (px), persisted client-side
