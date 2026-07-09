@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.10.0] - 2026-07-10
+
+### Added
+
+- **Interactive question cards**: when the AI needs you to make a choice or clarify something before it can answer well, it can now pop an interactive question card instead of writing a paragraph of questions — a titled question with 2–5 numbered options, an optional free-text "Something else…" row, and an optional Skip button. Tapping a choice (or typing your own, or skipping) sends it as your next message and the AI continues with your answer in hand. Built on the existing artifact pipeline as a new `type="question"` artifact whose body is a small JSON spec (`{question, options, allowOther, allowSkip}`); answered cards lock to the chosen option and stay that way across re-renders and conversation reloads. Gated by the existing Artifacts toggle.
+
 ## [v5.9.1] - 2026-07-09
 
 ### Fixed

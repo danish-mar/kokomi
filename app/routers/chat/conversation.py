@@ -721,6 +721,30 @@ async def chat_stream(req: ChatRequest):
                         )
                         p_persona = pdf_instr + "\n\n" + p_persona
 
+                        # Question capability: when you need the user to make a choice or
+                        # clarify before you can answer well, emit an interactive QUESTION
+                        # card instead of a wall of text. The user taps an option (or types
+                        # their own, or skips) and their choice comes back as their next
+                        # message. Added once (no multiplier).
+                        question_instr = (
+                            "[QUESTIONS ENABLED]\n"
+                            "When you genuinely need the user to choose between options or clarify "
+                            "something before you can give a good answer, DON'T write a long paragraph "
+                            "of questions — emit an interactive QUESTION card as a special artifact:\n"
+                            "<Artifact id=\"unique_id\" title=\"Quick question\" type=\"question\">{...json...}</Artifact>.\n"
+                            "The body MUST be a single valid JSON object (no markdown, no comments) with this schema:\n"
+                            "{\"question\": \"The question text\", "
+                            "\"options\": [\"First choice\", \"Second choice\", \"Third choice\"], "
+                            "\"allowOther\": true, \"allowSkip\": true}\n"
+                            "Give 2–5 short, distinct options. Set allowOther:true to offer a free-text "
+                            "'something else' row, allowSkip:true to offer a Skip button. Ask ONE question "
+                            "at a time. After emitting the card, STOP — do not keep talking; wait for the "
+                            "user's choice, which arrives as their next message. Only use this when a choice "
+                            "actually changes your answer; if you can reasonably proceed, just answer.\n"
+                            "[/QUESTIONS ENABLED]"
+                        )
+                        p_persona = question_instr + "\n\n" + p_persona
+
                     # Process attachments for the prompt (Vision + Text)
                     text_parts = [req.message]
                     image_blocks = []

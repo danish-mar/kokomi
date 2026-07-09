@@ -561,6 +561,9 @@ export function getChatActions() {
             if (atype === 'pdf') {
                 return this.renderPdfCard(art);
             }
+            if (atype === 'question') {
+                return this.renderQuestionCard(art);
+            }
 
             const icon = art.icon || 'fa-solid fa-file-code';
             const title = art.title || 'Untitled Artifact';
@@ -858,6 +861,57 @@ export function getChatActions() {
                             </button>
                         </div>
                     </div>
+                </div>`;
+        },
+
+        // An interactive question card: numbered single-choice options, an optional
+        // free-text "something else" row, and an optional Skip. Tapping a choice sends
+        // it as the user's next message via the global kokomi-action bus. Rendering +
+        // click handling live in window.KokomiQuiz because message HTML is re-rendered
+        // on every streamed token and can't hold Alpine state.
+        renderQuestionCard(art) {
+            const title = art.title || 'Quick question';
+            const content = art.content || '';
+            if (art.streaming || !content.trim()) {
+                return `
+                <div class="kokomi-quiz kokomi-quiz--loading mt-4 mb-2">
+                    <div class="kokomi-quiz-q"><i class="fa-solid fa-circle-question"></i> ${this.escapeHtml(title)}</div>
+                    <div class="kokomi-quiz-shimmer"></div>
+                </div>`;
+            }
+            let spec;
+            try { spec = JSON.parse(content); } catch (e) { spec = null; }
+            if (!spec || !Array.isArray(spec.options)) {
+                // Malformed — fall back to showing the raw text so nothing is lost.
+                return `<div class="kokomi-quiz mt-4 mb-2"><div class="kokomi-quiz-q">${this.escapeHtml(title)}</div>
+                        <div class="kokomi-quiz-note">${this.escapeHtml(content)}</div></div>`;
+            }
+            const q = this.escapeHtml(spec.question || title);
+            const answered = window.KokomiQuiz ? window.KokomiQuiz.answerOf(art.id) : null;
+            const optionsHtml = spec.options.map((opt, i) => {
+                const label = this.escapeHtml(String(opt));
+                const chosen = answered && answered === String(opt);
+                return `<button class="kokomi-quiz-opt${chosen ? ' is-chosen' : ''}" ${answered ? 'disabled' : ''}
+                            onclick="window.KokomiQuiz.pick('${art.id}', this)" data-value="${window.KokomiCharts.escapeAttr(String(opt))}">
+                            <span class="kokomi-quiz-num">${i + 1}</span>
+                            <span class="kokomi-quiz-label">${label}</span>
+                            ${chosen ? '<i class="fa-solid fa-check kokomi-quiz-check"></i>' : ''}
+                        </button>`;
+            }).join('');
+            const otherHtml = (spec.allowOther === false) ? '' : `
+                <div class="kokomi-quiz-other">
+                    <i class="fa-solid fa-pen"></i>
+                    <input type="text" class="kokomi-quiz-input" placeholder="Something else…" ${answered ? 'disabled' : ''}
+                           onkeydown="window.KokomiQuiz.otherKey(event, '${art.id}', this)">
+                </div>`;
+            const skipHtml = (spec.allowSkip === false) ? '' : `
+                <button class="kokomi-quiz-skip" ${answered ? 'disabled' : ''}
+                        onclick="window.KokomiQuiz.skip('${art.id}')">Skip</button>`;
+            return `
+                <div class="kokomi-quiz mt-4 mb-2${answered ? ' is-answered' : ''}" data-quiz-id="${art.id}">
+                    <div class="kokomi-quiz-q">${q}</div>
+                    <div class="kokomi-quiz-opts">${optionsHtml}</div>
+                    <div class="kokomi-quiz-foot">${otherHtml}${skipHtml}</div>
                 </div>`;
         }
     };
@@ -1536,6 +1590,48 @@ const KokomiForward = {
     },
 };
 window.KokomiForward = KokomiForward;
+
+/**
+ * KokomiQuiz — handles interactive question cards. A pick (option, free-text, or
+ * skip) is sent as the user's next message through the global `kokomi-action`
+ * bus, exactly like a suggestion chip. Answered cards are remembered per artifact
+ * id so a re-render (charts/pdf/quiz cards are re-rendered from HTML on every
+ * streamed token, and on conversation reload) keeps the card locked to its choice.
+ */
+const KokomiQuiz = {
+    _answered: new Map(),   // artifact id -> chosen value
+
+    answerOf(id) { return this._answered.get(id) || null; },
+
+    _send(id, value) {
+        if (!value || this._answered.has(id)) return;
+        this._answered.set(id, value);
+        // Lock the specific card in the DOM immediately (before the re-render).
+        const card = document.querySelector(`.kokomi-quiz[data-quiz-id="${id}"]`);
+        if (card) {
+            card.classList.add('is-answered');
+            card.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
+        }
+        window.dispatchEvent(new CustomEvent('kokomi-action', { detail: { send: value } }));
+    },
+
+    pick(id, btn) {
+        const value = btn && btn.getAttribute('data-value');
+        this._send(id, value);
+    },
+
+    otherKey(ev, id, input) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        const value = (input.value || '').trim();
+        if (value) this._send(id, value);
+    },
+
+    skip(id) {
+        this._send(id, "Skip that — just go ahead with your best guess.");
+    },
+};
+window.KokomiQuiz = KokomiQuiz;
 
 // Global helper for inline artifact cards
 window.openArtifactFromCard = (id, el) => {
