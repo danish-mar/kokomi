@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.10.2] - 2026-07-10
+
+### Changed
+
+- **Merged the clarifying-question panel into the composer itself**: rather than floating as its own separate card above the message box, the question now lives inside the same rounded composer, in the slot the Space Selector bar normally occupies — expanding the composer's height fluidly (via the app's existing `x-collapse` animation) instead of stacking a second box on top. If a Space is active when a question appears, the Space Selector bar is hidden while the question is showing (no double bar) and reappears once it's answered or dismissed.
+
 ## [v5.10.1] - 2026-07-10
 
 ### Changed

@@ -248,8 +248,9 @@
     }
     .kokomi-quiz-history > i { color: var(--accent); opacity: 0.8; }
 
-    /* Clarifying-question card: floats above the composer (expands the input area
-       upward) rather than appearing inline in the message transcript. */
+    /* Clarifying-question panel: lives inside the composer itself, in the same slot
+       as the Space Selector bar, expanding the composer's height fluidly (x-collapse)
+       rather than appearing inline in the message transcript. */
     .kokomi-quiz-card { padding: 14px 16px 12px; }
     .kokomi-quiz-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
     .kokomi-quiz-card-title { font-size: 14.5px; font-weight: 650; color: var(--text-primary); line-height: 1.4; }
@@ -2038,49 +2039,45 @@
         <!-- ═══════════════ INPUT ═══════════════ -->
         <footer id="tour-input" class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
             <div class="max-w-[680px] mx-auto">
-                <!-- Clarifying question card — floats above the composer, expanding the
-                     chatbox area upward, instead of appearing as an inline artifact. -->
-                <div x-show="pendingQuestion" x-cloak
-                     x-transition:enter="transition ease-out duration-200"
-                     x-transition:enter-start="opacity-0 translate-y-3"
-                     x-transition:enter-end="opacity-100 translate-y-0"
-                     x-transition:leave="transition ease-in duration-150"
-                     x-transition:leave-end="opacity-0 translate-y-2"
-                     class="kokomi-quiz-card material-elevated border border-themed rounded-squircle-lg mb-2 overflow-hidden">
-                    <template x-if="pendingQuestion">
-                        <div>
-                            <div class="kokomi-quiz-card-head">
-                                <span class="kokomi-quiz-card-title" x-text="pendingQuestion.question"></span>
-                                <button @click="dismissPendingQuestion()" class="kokomi-quiz-card-close" title="Dismiss">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                            <div class="kokomi-quiz-card-opts">
-                                <template x-for="(opt, i) in pendingQuestion.options" :key="i">
-                                    <button class="kokomi-quiz-card-opt" @click="answerPendingQuestion(opt)">
-                                        <span class="kokomi-quiz-card-num" x-text="i + 1"></span>
-                                        <span class="kokomi-quiz-card-label" x-text="opt"></span>
-                                    </button>
-                                </template>
-                            </div>
-                            <div class="kokomi-quiz-card-foot" x-show="pendingQuestion.allowOther || pendingQuestion.allowSkip">
-                                <div class="kokomi-quiz-card-other" x-show="pendingQuestion.allowOther">
-                                    <i class="fa-solid fa-pen"></i>
-                                    <input type="text" x-model="pendingQuestionOther" placeholder="Something else…"
-                                           @keydown.enter="answerPendingQuestionOther()">
-                                </div>
-                                <button x-show="pendingQuestion.allowSkip" @click="skipPendingQuestion()" class="kokomi-quiz-card-skip">Skip</button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
                 <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple flex flex-col"
                     style="transition: border-color 0.2s, box-shadow 0.2s;">
 
+                    <!-- Clarifying question — expands the composer itself (fluid height via
+                         x-collapse) in the same slot as the Space Selector bar, which it
+                         hides while active rather than stacking on top of it. -->
+                    <div x-show="pendingQuestion" x-collapse.duration.250ms>
+                        <template x-if="pendingQuestion">
+                            <div class="kokomi-quiz-card border-b border-themed">
+                                <div class="kokomi-quiz-card-head">
+                                    <span class="kokomi-quiz-card-title" x-text="pendingQuestion.question"></span>
+                                    <button @click="dismissPendingQuestion()" class="kokomi-quiz-card-close" title="Dismiss">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+                                <div class="kokomi-quiz-card-opts">
+                                    <template x-for="(opt, i) in pendingQuestion.options" :key="i">
+                                        <button class="kokomi-quiz-card-opt" @click="answerPendingQuestion(opt)">
+                                            <span class="kokomi-quiz-card-num" x-text="i + 1"></span>
+                                            <span class="kokomi-quiz-card-label" x-text="opt"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div class="kokomi-quiz-card-foot" x-show="pendingQuestion.allowOther || pendingQuestion.allowSkip">
+                                    <div class="kokomi-quiz-card-other" x-show="pendingQuestion.allowOther">
+                                        <i class="fa-solid fa-pen"></i>
+                                        <input type="text" x-model="pendingQuestionOther" placeholder="Something else…"
+                                               @keydown.enter="answerPendingQuestionOther()">
+                                    </div>
+                                    <button x-show="pendingQuestion.allowSkip" @click="skipPendingQuestion()" class="kokomi-quiz-card-skip">Skip</button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
                     <!-- Space Selector (Top Bar) -->
-                    <div x-show="spaces.length > 0" class="px-4 py-2 border-b border-themed bg-black/[0.02] dark:bg-white/[0.02] flex items-center gap-2.5">
+                    <div x-show="spaces.length > 0 && !pendingQuestion" class="px-4 py-2 border-b border-themed bg-black/[0.02] dark:bg-white/[0.02] flex items-center gap-2.5">
                         <i class="fa-regular fa-object-ungroup text-[10px] text-accent-c"></i>
-                        <select x-model="activeSpaceId" 
+                        <select x-model="activeSpaceId"
                             class="bg-transparent border-none text-[11px] font-semibold text-2 outline-none cursor-pointer hover:text-accent-c transition-colors">
                             <option :value="null">No Space Active</option>
                             <template x-for="s in spaces" :key="s.id">
@@ -2088,7 +2085,7 @@
                             </template>
                         </select>
                     </div>
-                    
+
                     <!-- Attachment Preview Bar -->
                     <template x-if="attachments.length > 0">
                         <div class="px-4 py-2 border-b border-themed bg-black/[0.01] dark:bg-white/[0.01] flex flex-wrap gap-2 overflow-x-auto max-h-32 hide-scrollbar">
