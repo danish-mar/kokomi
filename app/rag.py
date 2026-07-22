@@ -119,9 +119,21 @@ def space_needs_reindex(space_id: str) -> bool:
     return stored != _current_embedding_client().id
 
 
+class _LegacyEmbeddingsAdapter:
+    """Adapts _EmbeddingClient's embed_one(text, is_query) to the older
+    embed_query(text)-style interface some callers (app/memory.py) still use."""
+
+    def __init__(self, client: "_EmbeddingClient", is_query: bool):
+        self._client = client
+        self._is_query = is_query
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._client.embed_one(text, is_query=self._is_query)
+
+
 # Backwards-compatible shim: some callers may still import get_embeddings.
 def get_embeddings(task_type: str = "RETRIEVAL_DOCUMENT"):
-    return _current_embedding_client()
+    return _LegacyEmbeddingsAdapter(_current_embedding_client(), is_query=(task_type == "RETRIEVAL_QUERY"))
 
 def ensure_collection(collection_name: str, vector_size: int):
     collections = qdrant.get_collections().collections
