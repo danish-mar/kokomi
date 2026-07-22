@@ -3,12 +3,20 @@
  */
 
 import { parseWithMath } from './markdown.js';
+import { isCanvasArtifact } from './canvas.js';
 
 export function getChatActions() {
     const actions = {
         async sendMessage() {
             const text = this.input.trim();
             if (!text || this.loading) return;
+
+            // Flush unsaved canvas edits first — the backend reads the stored
+            // artifact to show the model what the user is looking at, so a
+            // pending debounce would send it a stale version.
+            if (this.canvas.open && this.canvas.dirty) {
+                await this.saveCanvas();
+            }
 
             this.pendingQuestion = null;
             const currentAttachments = [...this.attachments];
@@ -49,7 +57,8 @@ export function getChatActions() {
                         space_id: this.activeSpaceId,
                         is_anonymous: this.isAnonymous,
                         use_web_search: this.useWebSearch,
-                        attachments: currentAttachments
+                        attachments: currentAttachments,
+                        canvas_id: this.canvas.open ? this.canvas.id : null
                     }),
                     signal: this.abortController.signal,
                 });
@@ -111,7 +120,8 @@ export function getChatActions() {
                         space_id: this.activeSpaceId,
                         is_anonymous: this.isAnonymous,
                         use_web_search: this.useWebSearch,
-                        attachments: attachments
+                        attachments: attachments,
+                        canvas_id: this.canvas.open ? this.canvas.id : null
                     }),
                     signal: this.abortController.signal
                 });
@@ -214,9 +224,20 @@ export function getChatActions() {
                                         title: meta.title || 'Untitled Artifact',
                                         type: meta.type || 'file',
                                         icon: meta.icon || 'fa-solid fa-file-code',
+                                        // Canvas artifacts carry the editor mode + language
+                                        mode: meta.mode || null,
+                                        language: meta.language || null,
                                         content: '',
                                         streaming: true
                                     });
+                                    // Open the canvas right away so the model's
+                                    // writing types out live instead of appearing
+                                    // all at once when it finishes.
+                                    const justAdded = this.messages[targetIdx].artifacts[
+                                        this.messages[targetIdx].artifacts.length - 1];
+                                    if (isCanvasArtifact(justAdded)) {
+                                        this.beginCanvasStream(justAdded);
+                                    }
                                 }
                             } else if (data.type === 'artifact_chunk') {
                                 if (targetIdx !== undefined && this.messages[targetIdx].artifacts) {
@@ -224,6 +245,9 @@ export function getChatActions() {
                                     const art = arts.find(a => a.id === data.id);
                                     if (art) {
                                         art.content += data.delta;
+                                        if (isCanvasArtifact(art)) {
+                                            this.streamCanvasChunk(art.id, data.delta);
+                                        }
                                         // Update modal in real-time if open
                                         if (this.artifactModal.show && this.artifactModal.id === data.id) {
                                             this.artifactModal.content = art.content;
@@ -251,6 +275,19 @@ export function getChatActions() {
                                         // above the composer instead of an inline card.
                                         if ((art.type || '').toLowerCase() === 'question') {
                                             this.evaluatePendingQuestion();
+                                        }
+                                        // A canvas opens the side-by-side editor. If that same
+                                        // canvas is already open, the model just revised it —
+                                        // refresh in place rather than remounting the editor.
+                                        if (isCanvasArtifact(art)) {
+                                            if (this.canvas.open && this.canvas.id === art.id) {
+                                                // Was streaming live, or the model
+                                                // revised an already-open canvas.
+                                                if (this.canvas.streaming) this.endCanvasStream(art);
+                                                else this.refreshCanvasFromArtifact(art);
+                                            } else {
+                                                this.openCanvas(art);
+                                            }
                                         }
                                     }
                                 }
@@ -536,9 +573,7 @@ export function getChatActions() {
                     msg.artifacts.forEach(art => {
                         const placeholder = `[[ARTIFACT:${art.id}]]`;
                         if (html.includes(placeholder)) {
-                            // Inject msg id into card for reliable click handling
-                            const cardHtml = this.renderArtifactCard(art).replace('class="artifact-box', `data-msg-id="${msg.id}" class="artifact-box`);
-                            html = html.replace(placeholder, cardHtml);
+                            html = html.replace(placeholder, this.renderArtifactCardForMsg(art, msg.id));
                         }
                     });
                 }
@@ -557,6 +592,17 @@ export function getChatActions() {
             } catch { return rawContent; }
         },
 
+        // Same dispatcher, but with the owning message id injected onto generic (code/file)
+        // cards so the global mousedown listener can reliably open the artifact modal.
+        // Used both for inline [[ARTIFACT:id]] placeholders AND the fallback list below
+        // (artifacts whose placeholder never made it into msg.content — e.g. ones
+        // generated right after a tool call) so every artifact type — PDF, chart,
+        // mermaid, question, or plain file — always renders through its real card,
+        // never as raw text.
+        renderArtifactCardForMsg(art, msgId) {
+            return this.renderArtifactCard(art).replace('class="artifact-box', `data-msg-id="${msgId}" class="artifact-box`);
+        },
+
         renderArtifactCard(art) {
             // Charts, diagrams and PDFs are special artifact types rendered live on the frontend.
             const atype = (art.type || '').toLowerCase();
@@ -572,6 +618,9 @@ export function getChatActions() {
             if (atype === 'question') {
                 return this.renderQuestionCard(art);
             }
+            if (isCanvasArtifact(art)) {
+                return this.renderCanvasCard(art);
+            }
 
             const icon = art.icon || 'fa-solid fa-file-code';
             const title = art.title || 'Untitled Artifact';
@@ -580,6 +629,7 @@ export function getChatActions() {
 
             return `
                 <div class="artifact-box mt-4 mb-2" data-art-id="${art.id}">
+                    ${art.streaming ? '<div class="artifact-shimmer"></div>' : ''}
                     <div class="artifact-header">
                         <div class="artifact-info">
                             <div class="artifact-icon">
@@ -587,7 +637,9 @@ export function getChatActions() {
                             </div>
                             <div>
                                 <p class="artifact-title">${title}</p>
-                                <p class="artifact-meta uppercase tracking-wider">${type}</p>
+                                <p class="artifact-meta uppercase tracking-wider">
+                                    ${type}${art.streaming ? ' <span class="mx-1">•</span> <span class="animate-pulse text-accent">Generating...</span>' : ''}
+                                </p>
                             </div>
                         </div>
                         <div class="text-4">
@@ -882,8 +934,37 @@ export function getChatActions() {
             if (art.streaming) return '';
             let spec;
             try { spec = JSON.parse(art.content || ''); } catch (e) { spec = null; }
-            const q = (spec && spec.question) || art.title || 'Quick question';
+            const q = Array.isArray(spec && spec.questions)
+                ? spec.questions.map(x => x && x.title).filter(Boolean).join(' · ') || art.title || 'Quick questions'
+                : (spec && spec.question) || art.title || 'Quick question';
             return `<div class="kokomi-quiz-history"><i class="fa-solid fa-circle-question"></i> ${this.escapeHtml(q)}</div>`;
+        },
+
+        /**
+         * Canvas artifacts live in the side pane, not inline. The message just gets a
+         * compact card to (re)open it — the content itself is never dumped in the chat.
+         */
+        renderCanvasCard(art) {
+            const isDoc = (art.mode || 'code').toLowerCase() === 'document';
+            const icon = isDoc ? 'fa-file-word' : 'fa-code';
+            const kind = isDoc ? 'Document' : (art.language || 'Code');
+            const label = art.streaming ? 'Writing…' : 'Click to open in canvas';
+            const lines = (art.content || '').split('\n').length;
+            const meta = art.streaming ? '' : ` · ${lines} line${lines === 1 ? '' : 's'}`;
+
+            return `<div class="artifact-box kokomi-canvas-card" data-art-id="${this.escapeHtml(art.id)}">
+                ${art.streaming ? '<div class="artifact-shimmer"></div>' : ''}
+                <div class="artifact-header">
+                    <div class="artifact-info">
+                        <div class="artifact-icon"><i class="fa-solid ${icon}"></i></div>
+                        <div>
+                            <div class="artifact-title">${this.escapeHtml(art.title || 'Canvas')}</div>
+                            <div class="artifact-meta">${this.escapeHtml(kind)}${meta} · ${label}</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-up-right-and-down-left-from-center" style="font-size:11px; opacity:0.5;"></i>
+                </div>
+            </div>`;
         }
     };
     return actions;

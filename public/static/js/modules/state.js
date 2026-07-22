@@ -32,10 +32,35 @@ export function getInitialState() {
         artifactForward: {
             open: false, loading: false, devices: [], sendingId: null, error: ''
         },
+        // Canvas — an editable artifact opened beside the chat (chat 40% / canvas 60%).
+        // mode 'code' mounts Monaco, mode 'document' mounts a Word-style Quill page.
+        // The editor instances themselves live in KokomiCanvas (canvas.js), not here:
+        // Alpine's reactive proxy must never wrap them or the editors break.
+        canvas: {
+            open: false, id: null, mode: 'code', language: 'plaintext',
+            title: '', content: '',
+            dirty: false, saving: false, savedAt: null,
+            // True while the model is writing into the canvas (live typing)
+            streaming: false,
+            // Download-format dropdown
+            exportOpen: false,
+            // True while a targeted AI edit is being generated
+            editing: false,
+            // % of the row given to the chat column; the canvas takes the rest
+            splitPct: (parseFloat(localStorage.getItem('canvasSplitPct')) || 40),
+            wordCount: 0
+        },
+        // Right-click AI menu inside the document canvas
+        canvasMenu: { open: false, x: 0, y: 0, selection: '' },
+        // Ctrl+Space inline instruction box
+        canvasPrompt: { open: false, x: 0, y: 0, text: '', selection: '' },
         // The AI's live, unanswered clarifying question — rendered as a floating
         // card docked above the composer (not an inline artifact card).
         pendingQuestion: null,
         pendingQuestionOther: '',
+        // True for the brief moment between tabs while the body fades/slides out
+        // and back in — see _switchQuestionTab in ui.js.
+        pendingQuestionAnimating: false,
         // Fullscreen image viewer for AI-generated galleries
         lightbox: { show: false, images: [], index: 0, src: '' },
         // Resizable sidebar width (px), persisted client-side

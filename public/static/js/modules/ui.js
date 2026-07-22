@@ -2,6 +2,9 @@
  * UI Interactions and Helpers
  */
 
+import { isCanvasArtifact } from './canvas.js';
+
+
 export function getUiActions() {
     return {
         // Drag-to-resize the sidebar (desktop). Width persists in localStorage.
@@ -100,6 +103,8 @@ export function getUiActions() {
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
             document.getElementById('hljs-theme').href =
                 `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${isDark ? 'github-dark' : 'github'}.min.css`;
+            // Monaco carries its own theme registry — repaint an open code canvas.
+            this.syncCanvasTheme?.();
         },
 
         // -- Navigation & Layout --
@@ -266,9 +271,13 @@ export function getUiActions() {
         openArtifact(msg, id) {
             if (!msg || !msg.artifacts) return;
             const art = msg.artifacts.find(a => a.id === id);
-            if (art) {
-                this.openArtifactModal(art);
+            if (!art) return;
+            // A canvas belongs in the side-by-side editor, not the centred modal.
+            if (isCanvasArtifact(art)) {
+                this.openCanvas(art);
+                return;
             }
+            this.openArtifactModal(art);
         },
 
         initGlobalListeners() {
@@ -383,11 +392,12 @@ export function getUiActions() {
             }
         },
 
-        // -- Pending clarifying question (floating card above the composer) --
+        // -- Pending clarifying question(s) (floating card above the composer) --
         // A question artifact is only "live" while it's on the very last message and
         // no reply has followed it yet; reloading history re-derives this so an
         // unanswered question survives a refresh, and answering makes it vanish the
-        // moment the user's reply message is appended.
+        // moment the user's reply message is appended. Supports a single question OR
+        // a batch ({"questions": [...]}) shown as tabs, answered one at a time.
         evaluatePendingQuestion() {
             const last = this.messages[this.messages.length - 1];
             if (!last || last.role !== 'assistant' || !last.artifacts) {
@@ -398,28 +408,131 @@ export function getUiActions() {
             if (!art) { this.pendingQuestion = null; return; }
             let spec;
             try { spec = JSON.parse(art.content || ''); } catch (e) { spec = null; }
-            if (!spec || !Array.isArray(spec.options)) { this.pendingQuestion = null; return; }
-            this.pendingQuestion = {
-                id: art.id, msgId: last.id,
-                question: spec.question || art.title || 'Quick question',
-                options: spec.options.map(String),
-                allowOther: spec.allowOther !== false,
-                allowSkip: spec.allowSkip !== false,
-            };
+            if (!spec) { this.pendingQuestion = null; return; }
+            const rawItems = Array.isArray(spec.questions) ? spec.questions
+                : (Array.isArray(spec.options) ? [spec] : null);
+            if (!rawItems) { this.pendingQuestion = null; return; }
+            const items = rawItems
+                .filter(q => q && Array.isArray(q.options))
+                .map((q, i) => {
+                    // The model doesn't always remember to set the multiSelect JSON flag
+                    // even when it phrases the question as one ("select all that apply") —
+                    // since the user only ever sees that text, honor it as ground truth:
+                    // detect the phrasing as a fallback so the UI never contradicts what
+                    // the question literally says.
+                    const impliesMulti = /(select|check|choose|pick|mark)\s+(all|any|multiple|several)\b|that apply\b|select two or more|more than one (?:option|answer|choice)/i.test(q.question || '');
+                    const multiSelect = !!q.multiSelect || impliesMulti;
+                    return {
+                        title: q.title || `Q${i + 1}`,
+                        question: q.question || art.title || 'Quick question',
+                        options: q.options.map(String),
+                        allowOther: q.allowOther !== false,
+                        allowSkip: q.allowSkip !== false,
+                        answer: null,
+                        // Quiz/Kahoot mode: one objectively correct option, revealed on pick.
+                        // Mutually exclusive with multiSelect.
+                        quiz: !multiSelect && !!q.quiz && Number.isInteger(q.correctIndex) && q.correctIndex >= 0 && q.correctIndex < q.options.length,
+                        correctIndex: Number.isInteger(q.correctIndex) ? q.correctIndex : null,
+                        explanation: q.explanation || '',
+                        revealed: false,
+                        selectedIndex: null,
+                        // Multi-select ("pick several"): checkboxes + a Continue button
+                        // instead of answering on the first tap.
+                        multiSelect,
+                        selectedIndices: [],
+                    };
+                });
+            if (!items.length) { this.pendingQuestion = null; return; }
+            this.pendingQuestion = { id: art.id, msgId: last.id, items, activeIndex: 0 };
             this.pendingQuestionOther = '';
         },
-        answerPendingQuestion(value) {
+        // Swaps the active tab with a brief fade-out/fade-in instead of an instant
+        // snap: the body hides (leave transition), the data changes while it's
+        // invisible, then it reappears (enter transition). See the x-show on the
+        // question body in the template, gated on !pendingQuestionAnimating.
+        _switchQuestionTab(i) {
+            if (!this.pendingQuestion || !this.pendingQuestion.items[i]) return;
+            this.pendingQuestionAnimating = true;
+            setTimeout(() => {
+                if (!this.pendingQuestion) return;
+                this.pendingQuestion.activeIndex = i;
+                this.pendingQuestionOther = '';
+                this.pendingQuestionAnimating = false;
+            }, 120);
+        },
+        selectQuestionTab(i) {
+            if (!this.pendingQuestion || i === this.pendingQuestion.activeIndex) return;
+            this._switchQuestionTab(i);
+        },
+        // Records the active tab's answer, then either advances to the next
+        // unanswered tab or — once everything's answered/skipped — compiles all
+        // answers into one message and sends it.
+        _recordQuestionAnswer(value) {
             if (!value || !this.pendingQuestion || this.loading) return;
+            const pq = this.pendingQuestion;
+            pq.items[pq.activeIndex].answer = value;
+            const nextIdx = pq.items.findIndex(it => it.answer === null);
+            if (nextIdx !== -1) {
+                this._switchQuestionTab(nextIdx);
+                return;
+            }
+            const message = pq.items.length === 1
+                ? pq.items[0].answer
+                : pq.items.map(it => `${it.title}: ${it.answer}`).join('\n');
             this.pendingQuestion = null;
-            this.input = value;
+            this.input = message;
             this.sendMessage();
+        },
+        // index is only needed for quiz mode (to compare against correctIndex and to
+        // drive the correct/incorrect highlight); plain clarifying questions ignore it.
+        answerPendingQuestion(value, index) {
+            const pq = this.pendingQuestion;
+            if (!pq || this.loading) return;
+            const item = pq.items[pq.activeIndex];
+            if (item.quiz && !item.revealed) {
+                item.revealed = true;
+                item.selectedIndex = index;
+                const isCorrect = index === item.correctIndex;
+                // Hold the reveal on screen (Kahoot-style flash of correct/incorrect)
+                // before advancing to the next tab or sending.
+                setTimeout(() => {
+                    this._recordQuestionAnswer(this._formatQuizAnswer(item, value, isCorrect));
+                }, 1100);
+                return;
+            }
+            this._recordQuestionAnswer(value);
+        },
+        // Multi-select: tapping an option just toggles its checkbox — it doesn't
+        // answer immediately. The user confirms with confirmMultiSelect() once
+        // they've picked everything they want.
+        toggleQuestionOption(index) {
+            const pq = this.pendingQuestion;
+            if (!pq || this.loading) return;
+            const item = pq.items[pq.activeIndex];
+            const pos = item.selectedIndices.indexOf(index);
+            if (pos === -1) item.selectedIndices.push(index);
+            else item.selectedIndices.splice(pos, 1);
+        },
+        confirmMultiSelect() {
+            const pq = this.pendingQuestion;
+            if (!pq || this.loading) return;
+            const item = pq.items[pq.activeIndex];
+            if (!item.selectedIndices.length) return;
+            const chosen = item.selectedIndices.slice().sort((a, b) => a - b).map(i => item.options[i]);
+            this._recordQuestionAnswer(chosen.join(', '));
+        },
+        _formatQuizAnswer(item, value, isCorrect) {
+            if (isCorrect) return `${value} — Correct!`;
+            const correctText = item.options[item.correctIndex];
+            const why = item.explanation ? ` (${item.explanation})` : '';
+            return `${value} — Incorrect, the correct answer was "${correctText}."${why}`;
         },
         answerPendingQuestionOther() {
             const value = (this.pendingQuestionOther || '').trim();
-            if (value) this.answerPendingQuestion(value);
+            if (value) this._recordQuestionAnswer(value);
         },
         skipPendingQuestion() {
-            this.answerPendingQuestion("Skip that — just go ahead with your best guess.");
+            this._recordQuestionAnswer("Skipped — go ahead with your best guess for this one.");
         },
         dismissPendingQuestion() {
             this.pendingQuestion = null;

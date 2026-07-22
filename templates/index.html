@@ -150,6 +150,294 @@
         from { opacity: 0; transform: scale(0.95) translateY(10px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
     }
+
+    /* ── Composer intro glow: a soft accent-coloured light appears at the
+       top-left of the chatbox border, sweeps clockwise across the top and
+       down the right side toward the BOTTOM-RIGHT corner, and fades out as
+       it arrives. Only one short segment of the edge is ever lit.
+
+       Done with an SVG <rect> stroke and a dash that travels via
+       stroke-dashoffset. SVG stroke advances by PATH LENGTH, so the lit
+       dash moves at constant perimeter speed — perfectly even on every
+       edge and around the corners, and butter-smooth. Works in all
+       browsers, unlike CSS offset-path. pathLength="100" normalises the
+       perimeter to 100 units, and the rect's path starts at the top-left
+       and runs clockwise, so ~-49 lands the light at the bottom-right
+       corner (top edge ≈ 40 units + short right edge). drop-shadow gives
+       the soft outward accent bloom. Runs once (forwards). */
+    .kokomi-composer-runner {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        pointer-events: none; overflow: visible; z-index: 2; opacity: 0;
+        animation: kokomiRunnerFade 2.4s ease-out 0.2s 1 forwards;
+    }
+    .kokomi-runner-rect {
+        fill: none;
+        stroke: color-mix(in srgb, var(--accent, #505081) 80%, transparent);
+        stroke-width: 1.6; stroke-linecap: round;
+        /* one short, soft travelling segment */
+        stroke-dasharray: 11 89; stroke-dashoffset: 0;
+        filter: blur(0.6px)
+                drop-shadow(0 0 5px color-mix(in srgb, var(--accent, #505081) 60%, transparent))
+                drop-shadow(0 0 13px color-mix(in srgb, var(--accent, #505081) 40%, transparent));
+        animation: kokomiRunnerMove 2.3s cubic-bezier(0.33, 0, 0.2, 1) 0.2s 1 forwards;
+    }
+    /* Negative offset = clockwise; -49 ≈ the bottom-right corner. */
+    @keyframes kokomiRunnerMove {
+        from { stroke-dashoffset: 0; } to { stroke-dashoffset: -49; }
+    }
+    /* Soft peak (0.8), then fades to nothing as it reaches bottom-right. */
+    @keyframes kokomiRunnerFade {
+        0% { opacity: 0; } 16% { opacity: 0.8; } 48% { opacity: 0.8; } 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .kokomi-composer-runner { animation: none; display: none; }
+    }
+    /* ── Canvas (split-pane editor) ─────────────────────────────────
+       Chat on the left, an editable canvas on the right. "code" mounts
+       Monaco; "document" mounts Quill on a Word-style white page. */
+    .kokomi-canvas-resize {
+        flex: 0 0 5px; cursor: col-resize; background: transparent;
+        position: relative; z-index: 5; transition: background 0.15s;
+    }
+    .kokomi-canvas-resize:hover, .kokomi-canvas-resize:active { background: var(--accent); }
+    .kokomi-canvas-pane { animation: kokomiCanvasIn 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+    @keyframes kokomiCanvasIn {
+        from { opacity: 0; transform: translateX(18px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .kokomi-canvas-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--border);
+        background: var(--bg-elevated);
+    }
+    .kokomi-canvas-badge {
+        width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+        background: var(--accent); color: var(--accent-text);
+        display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    /* Title doubles as a rename field — styled to read as text until focused. */
+    .kokomi-canvas-title {
+        background: transparent; border: none; outline: none; width: 100%;
+        font-size: 13px; font-weight: 700; color: var(--text-primary);
+        padding: 1px 4px; margin-left: -4px; border-radius: 5px;
+    }
+    .kokomi-canvas-title:focus { background: var(--bg-input); }
+    .kokomi-canvas-sub {
+        font-size: 10px; color: var(--text-quaternary); font-weight: 500;
+        display: flex; align-items: center; gap: 6px; padding-left: 0;
+    }
+    .kokomi-canvas-state { display: inline-flex; align-items: center; gap: 4px; }
+    .kokomi-canvas-state.is-saved { color: #34a853; }
+    .kokomi-canvas-btn {
+        width: 30px; height: 30px; border-radius: 8px; border: none; cursor: pointer;
+        background: transparent; color: var(--text-tertiary); font-size: 12px;
+        display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .kokomi-canvas-btn:hover { background: var(--bg-input); color: var(--text-primary); }
+
+    /* Split download button + format menu */
+    .kokomi-canvas-dl { position: relative; display: flex; align-items: center; }
+    .kokomi-canvas-caret { width: 18px; font-size: 8px; margin-left: -4px; }
+    .kokomi-canvas-dl-menu {
+        position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+        min-width: 208px; padding: 5px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        border-radius: 12px; box-shadow: var(--shadow-lg);
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    }
+    .kokomi-canvas-dl-item {
+        width: 100%; display: flex; align-items: center; gap: 10px;
+        padding: 8px 10px; border: none; background: transparent; cursor: pointer;
+        border-radius: 8px; font-size: 12.5px; color: var(--text-primary);
+        text-align: left; transition: background 0.12s;
+    }
+    .kokomi-canvas-dl-item:hover { background: var(--bg-input); }
+    .kokomi-canvas-dl-item > i { width: 15px; text-align: center; color: var(--accent); font-size: 12px; }
+    .kokomi-canvas-dl-ext {
+        margin-left: auto; font-size: 10px; color: var(--text-quaternary);
+        font-family: var(--font-mono);
+    }
+
+    /* Right-click AI menu + Ctrl+Space prompt (both fixed to the viewport, so
+       they're positioned from mouse/caret coords rather than pane-relative). */
+    .kokomi-canvas-ctx, .kokomi-canvas-prompt {
+        position: fixed; z-index: 200;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        border-radius: 12px; box-shadow: var(--shadow-lg);
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        animation: kokomiCtxIn 0.13s ease-out;
+    }
+    @keyframes kokomiCtxIn {
+        from { opacity: 0; transform: scale(0.97) translateY(-3px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .kokomi-canvas-ctx { min-width: 232px; padding: 5px; }
+
+    /* Icon row of plain (non-AI) editing actions at the top of the menu */
+    .kokomi-canvas-ctx-tools {
+        display: flex; align-items: center; gap: 1px;
+        padding: 2px 2px 5px; margin-bottom: 4px;
+        border-bottom: 1px solid var(--border);
+    }
+    .kokomi-canvas-tool {
+        width: 26px; height: 26px; border-radius: 6px; border: none; cursor: pointer;
+        background: transparent; color: var(--text-secondary); font-size: 11px;
+        display: flex; align-items: center; justify-content: center; transition: all 0.12s;
+    }
+    .kokomi-canvas-tool:hover:not(:disabled) { background: var(--bg-input); color: var(--accent); }
+    .kokomi-canvas-tool:disabled { opacity: 0.28; cursor: default; }
+    .kokomi-canvas-tool-sep {
+        width: 1px; height: 15px; background: var(--border); margin: 0 4px;
+    }
+
+    /* Lines just changed by an AI patch — flashed briefly so the edit is
+       visible instead of silently landing somewhere off-screen. */
+    .kokomi-patched-line {
+        background: color-mix(in srgb, var(--accent) 22%, transparent) !important;
+        transition: background 0.6s ease-out;
+    }
+
+    /* Busy state while a targeted AI edit is in flight */
+    .kokomi-canvas-editing {
+        position: absolute; inset: 0; z-index: 150; display: flex;
+        align-items: center; justify-content: center; pointer-events: all;
+        background: color-mix(in srgb, var(--bg-canvas) 45%, transparent);
+        backdrop-filter: blur(1.5px); -webkit-backdrop-filter: blur(1.5px);
+    }
+    .kokomi-canvas-editing > div {
+        display: flex; align-items: center; gap: 9px;
+        padding: 10px 16px; border-radius: 11px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg); font-size: 12.5px; color: var(--text-primary);
+    }
+    .kokomi-canvas-editing i { color: var(--accent); }
+    .kokomi-canvas-ctx-sel, .kokomi-canvas-prompt-sel {
+        display: flex; align-items: center; gap: 6px;
+        padding: 6px 9px; margin-bottom: 4px;
+        font-size: 10.5px; color: var(--text-quaternary);
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .kokomi-canvas-ctx-sel > i, .kokomi-canvas-prompt-sel > i { font-size: 8px; opacity: 0.7; }
+    .kokomi-canvas-ctx-item {
+        width: 100%; display: flex; align-items: center; gap: 10px;
+        padding: 8px 10px; border: none; background: transparent; cursor: pointer;
+        border-radius: 8px; font-size: 12.5px; color: var(--text-primary);
+        text-align: left; transition: background 0.12s;
+    }
+    .kokomi-canvas-ctx-item:hover { background: var(--bg-input); }
+    .kokomi-canvas-ctx-item > i:first-child {
+        width: 15px; text-align: center; color: var(--accent); font-size: 11px;
+    }
+    .kokomi-canvas-kbd {
+        margin-left: auto; font-size: 9px; color: var(--text-quaternary);
+        font-family: var(--font-mono); border: 1px solid var(--border);
+        border-radius: 4px; padding: 1px 4px;
+    }
+
+    .kokomi-canvas-prompt { width: 380px; padding: 8px; }
+    .kokomi-canvas-prompt-row { display: flex; align-items: center; gap: 8px; }
+    .kokomi-canvas-prompt-row > i { color: var(--accent); font-size: 12px; padding-left: 4px; }
+    .kokomi-canvas-prompt-row input {
+        flex: 1; background: transparent; border: none; outline: none;
+        font-size: 13px; color: var(--text-primary); padding: 5px 0;
+    }
+    .kokomi-canvas-prompt-go {
+        width: 26px; height: 26px; border-radius: 7px; border: none; cursor: pointer;
+        background: var(--accent); color: var(--accent-text); font-size: 10px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .kokomi-canvas-prompt-go:disabled { opacity: 0.35; cursor: not-allowed; }
+    .kokomi-canvas-prompt-sel { border-bottom: none; border-top: 1px solid var(--border); margin: 6px 0 0; }
+
+    /* Live "model is writing" pulse on the canvas header */
+    .kokomi-canvas-live {
+        display: inline-flex; align-items: center; gap: 5px; color: var(--accent);
+    }
+    .kokomi-canvas-live i { animation: kokomiCanvasPulse 1.1s ease-in-out infinite; }
+    @keyframes kokomiCanvasPulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+    /* Monaco fills the pane; it handles its own scrolling. */
+    .kokomi-canvas-code { position: absolute; inset: 0; }
+
+    /* Document mode: a scrollable grey desk with a white page on it. */
+    .kokomi-canvas-doc-scroll {
+        position: absolute; inset: 0; overflow-y: auto; padding: 22px 0 60px;
+        background: color-mix(in srgb, var(--text-primary) 6%, var(--bg-canvas));
+    }
+    /* The page follows the app theme rather than imitating Word's white sheet —
+       it keeps the page SHAPE (fixed width, margins, drop shadow) but takes its
+       surface and text colours from the active theme, so it stays readable and
+       consistent in dark mode. */
+    .kokomi-canvas-sheet {
+        width: min(816px, calc(100% - 44px));  /* 8.5in at 96dpi */
+        margin: 0 auto; background: var(--bg-elevated); color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-radius: 10px; box-shadow: var(--shadow-lg);
+        min-height: 1056px;                    /* 11in — a full page */
+    }
+    /* Quill's chrome, restyled as a themed ribbon. */
+    .kokomi-canvas-sheet .ql-toolbar.ql-snow {
+        position: sticky; top: 0; z-index: 4;
+        border: none; border-bottom: 1px solid var(--border);
+        background: var(--bg-elevated);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        border-radius: 10px 10px 0 0; padding: 8px 12px;
+    }
+    .kokomi-canvas-sheet .ql-container.ql-snow {
+        border: none; font-size: 15px; color: var(--text-primary);
+    }
+    .kokomi-canvas-sheet .ql-editor {
+        min-height: 940px; padding: 58px 72px;  /* 1in-ish page margins */
+        line-height: 1.75; font-family: inherit; color: var(--text-primary);
+    }
+    .kokomi-canvas-sheet .ql-editor.ql-blank::before { color: var(--text-quaternary); font-style: normal; }
+    .kokomi-canvas-sheet .ql-editor h1 { font-size: 26px; font-weight: 700; margin: 0 0 14px; }
+    .kokomi-canvas-sheet .ql-editor h2 { font-size: 20px; font-weight: 700; margin: 20px 0 10px; }
+    .kokomi-canvas-sheet .ql-editor h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
+    .kokomi-canvas-sheet .ql-editor p  { margin: 0 0 11px; }
+    .kokomi-canvas-sheet .ql-editor a  { color: var(--accent); }
+    .kokomi-canvas-sheet .ql-editor blockquote {
+        border-left: 3px solid var(--accent); margin: 12px 0; padding-left: 14px;
+        color: var(--text-secondary);
+    }
+    .kokomi-canvas-sheet .ql-editor pre, .kokomi-canvas-sheet .ql-editor code {
+        background: var(--bg-input); border-radius: 6px; padding: 12px 14px;
+        font-family: var(--font-mono); font-size: 13px; color: var(--text-primary);
+    }
+    .kokomi-canvas-sheet .ql-editor table td, .kokomi-canvas-sheet .ql-editor table th {
+        border: 1px solid var(--border); padding: 6px 10px;
+    }
+    /* Quill draws its icons as SVG strokes/fills with hardcoded greys — repaint
+       them from theme tokens so the ribbon isn't invisible in dark mode. */
+    .kokomi-canvas-sheet .ql-snow .ql-stroke { stroke: var(--text-secondary); }
+    .kokomi-canvas-sheet .ql-snow .ql-fill,
+    .kokomi-canvas-sheet .ql-snow .ql-stroke.ql-fill { fill: var(--text-secondary); }
+    .kokomi-canvas-sheet .ql-snow .ql-picker,
+    .kokomi-canvas-sheet .ql-snow .ql-picker-label { color: var(--text-secondary); }
+    .kokomi-canvas-sheet .ql-snow .ql-picker-options {
+        background: var(--bg-elevated); border-color: var(--border);
+        border-radius: 10px; box-shadow: var(--shadow-lg);
+    }
+    .kokomi-canvas-sheet .ql-snow .ql-picker-item { color: var(--text-secondary); }
+    .kokomi-canvas-sheet .ql-snow button:hover .ql-stroke,
+    .kokomi-canvas-sheet .ql-snow button.ql-active .ql-stroke,
+    .kokomi-canvas-sheet .ql-snow .ql-picker-label:hover { stroke: var(--accent); color: var(--accent); }
+    .kokomi-canvas-sheet .ql-snow button:hover .ql-fill,
+    .kokomi-canvas-sheet .ql-snow button.ql-active .ql-fill { fill: var(--accent); }
+    .kokomi-canvas-sheet .ql-snow button.ql-active { color: var(--accent); }
+
+    /* On narrow screens the split would leave neither pane usable — stack to
+       canvas-only and let the user close it to get back to chat. */
+    @media (max-width: 820px) {
+        #canvas-split-row.canvas-is-open > div:first-child { display: none; }
+        .kokomi-canvas-resize { display: none; }
+        .kokomi-canvas-pane { flex: 1 1 100% !important; }
+        .kokomi-canvas-sheet { width: calc(100% - 16px); min-height: 0; }
+        .kokomi-canvas-sheet .ql-editor { padding: 26px 22px; min-height: 400px; }
+    }
+
     /* ── Artifacts UI ────────────────────────────── */
     .artifact-box {
         margin: 12px 0; border: 1px solid var(--border); border-radius: 18px;
@@ -248,12 +536,34 @@
     }
     .kokomi-quiz-history > i { color: var(--accent); opacity: 0.8; }
 
-    /* Clarifying-question panel: lives inside the composer itself, in the same slot
-       as the Space Selector bar, expanding the composer's height fluidly (x-collapse)
-       rather than appearing inline in the message transcript. */
-    .kokomi-quiz-card { padding: 14px 16px 12px; }
+    /* Clarifying-question panel: a floating card docked just above the composer,
+       positioned absolutely so it overlays instead of pushing the composer's flex
+       layout — it never shrinks the message list, and fades/slides in smoothly. */
+    .kokomi-quiz-card { padding: 14px 16px 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.22); }
+    /* Tab-switch fade: opacity/transform ONLY, never display — so the card's height
+       stays put while content swaps (no collapse-then-pop-back-in). */
+    .kokomi-quiz-fade { opacity: 1; transform: translateY(0); transition: opacity 180ms ease, transform 180ms ease; }
+    .kokomi-quiz-fade.is-out { opacity: 0; transform: translateY(5px); transition: opacity 90ms ease, transform 90ms ease; }
+    /* Tabs for a batch of several questions — one per question, title only. */
+    .kokomi-quiz-tabs { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+    .kokomi-quiz-tab {
+        flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+        padding: 5px 11px; border-radius: 999px; cursor: pointer;
+        background: rgba(128,128,128,0.08); border: 1px solid transparent;
+        color: var(--text-tertiary); font-size: 12px; font-weight: 600; transition: all 0.15s ease;
+    }
+    .kokomi-quiz-tab:hover { color: var(--text-primary); background: rgba(128,128,128,0.14); }
+    .kokomi-quiz-tab.is-active { background: var(--accent-subtle, rgba(128,128,128,0.16)); border-color: var(--accent); color: var(--accent); }
+    .kokomi-quiz-tab > i { font-size: 9px; color: var(--accent); }
     .kokomi-quiz-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
     .kokomi-quiz-card-title { font-size: 14.5px; font-weight: 650; color: var(--text-primary); line-height: 1.4; }
+    .kokomi-quiz-card-head-text { display: flex; flex-direction: column; gap: 5px; }
+    .kokomi-quiz-multi-badge {
+        display: inline-flex; align-items: center; gap: 5px; width: fit-content;
+        padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
+        color: var(--accent); background: var(--accent-subtle, rgba(128,128,128,0.14));
+    }
+    .kokomi-quiz-card-head-actions { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
     .kokomi-quiz-card-close {
         flex-shrink: 0; width: 24px; height: 24px; border-radius: 8px;
         display: flex; align-items: center; justify-content: center;
@@ -269,16 +579,44 @@
         color: var(--text-primary); font-size: 13.5px; transition: all 0.15s ease;
     }
     .kokomi-quiz-card-opt:hover { border-color: var(--accent); background: var(--accent-subtle, rgba(128,128,128,0.12)); transform: translateY(-1px); }
+    .kokomi-quiz-card-opt:disabled { cursor: default; }
+    .kokomi-quiz-card-opt:disabled:hover { transform: none; }
+    /* Quiz/Kahoot-mode reveal: correct answer flashes green, a wrong pick flashes
+       red, everything else dims — colors reuse the existing 0.15s transition. */
+    .kokomi-quiz-card-opt.is-correct { border-color: #22c55e; background: rgba(34,197,94,0.14); color: #22c55e; }
+    .kokomi-quiz-card-opt.is-correct .kokomi-quiz-card-num { background: #22c55e; color: #fff; }
+    .kokomi-quiz-card-opt.is-incorrect { border-color: #ef4444; background: rgba(239,68,68,0.14); color: #ef4444; }
+    .kokomi-quiz-card-opt.is-incorrect .kokomi-quiz-card-num { background: #ef4444; color: #fff; }
+    .kokomi-quiz-card-opt.is-dimmed { opacity: 0.4; }
+    .kokomi-quiz-feedback-icon { margin-left: auto; font-size: 13px; }
+    .kokomi-quiz-feedback-icon.is-correct-icon { color: #22c55e; }
+    .kokomi-quiz-feedback-icon.is-incorrect-icon { color: #ef4444; }
     .kokomi-quiz-card-num {
         flex-shrink: 0; width: 20px; height: 20px; border-radius: 6px;
         display: flex; align-items: center; justify-content: center;
         font-size: 10.5px; font-weight: 700; color: var(--text-tertiary);
         background: rgba(128,128,128,0.14);
     }
+    /* Multi-select checkbox indicator + persistent "checked" state on the option. */
+    .kokomi-quiz-card-check {
+        flex-shrink: 0; width: 19px; height: 19px; border-radius: 6px;
+        display: flex; align-items: center; justify-content: center;
+        border: 1.5px solid var(--border); color: transparent; font-size: 10px;
+        transition: all 0.15s ease;
+    }
+    .kokomi-quiz-card-opt.is-checked { border-color: var(--accent); background: var(--accent-subtle, rgba(128,128,128,0.12)); }
+    .kokomi-quiz-card-opt.is-checked .kokomi-quiz-card-check { background: var(--accent); border-color: var(--accent); color: #fff; }
     .kokomi-quiz-card-label { flex: 1; }
-    .kokomi-quiz-card-foot { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+    .kokomi-quiz-card-foot { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .kokomi-quiz-card-continue {
+        width: 100%; padding: 9px; border-radius: 11px; cursor: pointer;
+        background: var(--accent); border: none; color: var(--accent-text, #fff);
+        font-size: 13px; font-weight: 650; transition: all 0.15s ease;
+    }
+    .kokomi-quiz-card-continue:disabled { opacity: 0.4; cursor: default; }
+    .kokomi-quiz-card-continue:hover:not(:disabled) { filter: brightness(1.08); }
     .kokomi-quiz-card-other {
-        flex: 1; display: flex; align-items: center; gap: 9px;
+        display: flex; align-items: center; gap: 9px;
         padding: 8px 11px; border-radius: 11px;
         background: var(--bg-input, rgba(128,128,128,0.06)); border: 1px solid var(--border);
     }
@@ -288,11 +626,13 @@
         color: var(--text-primary); font-size: 13px; min-width: 0;
     }
     .kokomi-quiz-card-other input::placeholder { color: var(--text-tertiary); }
+    /* Skip now lives in the header, next to Dismiss — a quiet text-style pill. */
     .kokomi-quiz-card-skip {
-        flex-shrink: 0; padding: 8px 15px; border-radius: 11px; cursor: pointer;
+        flex-shrink: 0; padding: 4px 11px; border-radius: 999px; cursor: pointer;
         background: transparent; border: 1px solid var(--border);
-        color: var(--text-secondary); font-size: 13px; font-weight: 550; transition: all 0.15s ease;
+        color: var(--text-tertiary); font-size: 11.5px; font-weight: 600; transition: all 0.15s ease;
     }
+    .kokomi-quiz-card-skip:hover { background: rgba(128,128,128,0.12); color: var(--text-primary); }
     .kokomi-quiz-card-skip:hover { background: rgba(128,128,128,0.1); color: var(--text-primary); }
 
     /* Expanded chart modal */
@@ -1290,8 +1630,14 @@
 
         </div>
     </aside>
-    <!-- ═══════════════ MAIN ═══════════════ -->
-    <div class="flex flex-col flex-grow min-w-0 h-full bg-canvas t-apple relative">
+    <!-- ═══════════════ MAIN + CANVAS SPLIT ═══════════════
+         When a canvas is open this row splits into chat (canvas.splitPct, 40% by
+         default) and the canvas pane (the rest), draggable via the divider. With
+         no canvas open the chat column simply takes the full width. -->
+    <div id="canvas-split-row" class="flex flex-grow min-w-0 h-full overflow-hidden"
+         :class="canvas.open && 'canvas-is-open'">
+    <div class="flex flex-col min-w-0 h-full bg-canvas t-apple relative"
+         :style="canvas.open ? `width:${canvas.splitPct}%; flex:0 0 ${canvas.splitPct}%` : 'width:100%; flex:1 1 auto'">
         
         <!-- Mobile Sidebar Backdrop -->
         <div x-show="sidebarOpen" 
@@ -1918,30 +2264,13 @@
 
                                             <template x-if="msg.artifacts && msg.artifacts.length">
                                                 <div class="mt-4 space-y-3">
+                                                    <!-- Artifacts whose [[ARTIFACT:id]] placeholder never made it into the
+                                                         message text (e.g. ones generated right after a tool call) still
+                                                         need to render — routed through the SAME type dispatcher used for
+                                                         inline placeholders, so a PDF/chart/mermaid/question here gets its
+                                                         real card instead of a raw-JSON/raw-markdown text dump. -->
                                                     <template x-for="art in msg.artifacts.filter(a => !msg.content || !msg.content.includes('[[ARTIFACT:' + a.id + ']]'))" :key="art.id">
-                                                        <div class="artifact-box" @click="openArtifactModal(art)">
-                                                            <div x-show="art.streaming" class="artifact-shimmer"></div>
-                                                            <div class="artifact-header">
-                                                                <div class="artifact-info">
-                                                                    <div class="artifact-icon">
-                                                                        <i :class="art.icon || 'fa-solid fa-file-code'"></i>
-                                                                    </div>
-                                                                    <div>
-                                                                        <p class="artifact-title" x-text="art.title"></p>
-                                                                        <p class="artifact-meta">
-                                                                             <span x-text="art.type"></span>
-                                                                             <span class="mx-1" x-show="art.streaming">•</span>
-                                                                             <span x-show="art.streaming" class="animate-pulse text-accent">Generating...</span>
-                                                                         </p>
-                                                                    </div>
-                                                                </div>
-                                                                <div class="text-4">
-                                                                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                                                                </div>
-                                                            </div>
-                                                            <div class="artifact-body font-mono whitespace-pre overflow-x-auto text-[10px] bg-black/5 dark:bg-black/20 p-3 rounded-lg border border-themed mt-2" 
-                                                                 style="max-height: 120px;" x-text="art.content"></div>
-                                                        </div>
+                                                        <div x-html="renderArtifactCardForMsg(art, msg.id)"></div>
                                                     </template>
                                                 </div>
                                             </template>
@@ -2038,44 +2367,113 @@
 
         <!-- ═══════════════ INPUT ═══════════════ -->
         <footer id="tour-input" class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
-            <div class="max-w-[680px] mx-auto">
-                <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple flex flex-col"
-                    style="transition: border-color 0.2s, box-shadow 0.2s;">
-
-                    <!-- Clarifying question — expands the composer itself (fluid height via
-                         x-collapse) in the same slot as the Space Selector bar, which it
-                         hides while active rather than stacking on top of it. -->
-                    <div x-show="pendingQuestion" x-collapse.duration.250ms>
-                        <template x-if="pendingQuestion">
-                            <div class="kokomi-quiz-card border-b border-themed">
-                                <div class="kokomi-quiz-card-head">
-                                    <span class="kokomi-quiz-card-title" x-text="pendingQuestion.question"></span>
-                                    <button @click="dismissPendingQuestion()" class="kokomi-quiz-card-close" title="Dismiss">
-                                        <i class="fa-solid fa-xmark"></i>
+            <div class="max-w-[680px] mx-auto relative">
+                <!-- Clarifying question — a floating card docked just above the composer,
+                     positioned absolutely (no reflow: the message list never shrinks) and
+                     animated with a plain fade+slide, which stays smooth regardless of
+                     content height (unlike a height-based collapse on an absolute element). -->
+                <div x-show="pendingQuestion"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 translate-y-2 scale-[0.98]"
+                     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-2 scale-[0.98]"
+                     class="absolute bottom-full left-0 right-0 mb-2 z-20" style="transform-origin: bottom center;">
+                    <template x-if="pendingQuestion">
+                        <div class="kokomi-quiz-card material-elevated border border-themed rounded-squircle-lg overflow-hidden">
+                            <!-- Tabs — one per question, shown only for a batch of several.
+                                 Answered tabs get a check; the active tab is highlighted. -->
+                            <div class="kokomi-quiz-tabs" x-show="pendingQuestion.items.length > 1">
+                                <template x-for="(it, i) in pendingQuestion.items" :key="i">
+                                    <button class="kokomi-quiz-tab" :class="i === pendingQuestion.activeIndex && 'is-active'"
+                                            @click="selectQuestionTab(i)">
+                                        <i x-show="it.answer !== null" class="fa-solid fa-check"></i>
+                                        <span x-text="it.title"></span>
                                     </button>
-                                </div>
-                                <div class="kokomi-quiz-card-opts">
-                                    <template x-for="(opt, i) in pendingQuestion.options" :key="i">
-                                        <button class="kokomi-quiz-card-opt" @click="answerPendingQuestion(opt)">
-                                            <span class="kokomi-quiz-card-num" x-text="i + 1"></span>
-                                            <span class="kokomi-quiz-card-label" x-text="opt"></span>
-                                        </button>
-                                    </template>
-                                </div>
-                                <div class="kokomi-quiz-card-foot" x-show="pendingQuestion.allowOther || pendingQuestion.allowSkip">
-                                    <div class="kokomi-quiz-card-other" x-show="pendingQuestion.allowOther">
-                                        <i class="fa-solid fa-pen"></i>
-                                        <input type="text" x-model="pendingQuestionOther" placeholder="Something else…"
-                                               @keydown.enter="answerPendingQuestionOther()">
-                                    </div>
-                                    <button x-show="pendingQuestion.allowSkip" @click="skipPendingQuestion()" class="kokomi-quiz-card-skip">Skip</button>
-                                </div>
+                                </template>
                             </div>
-                        </template>
-                    </div>
+                            <!-- Question body: fades between tabs via opacity/transform only
+                                 (never x-show/display:none) so the card's height never
+                                 collapses mid-swap — see _switchQuestionTab in ui.js. The
+                                 x-for over a 1-item array is a scoping trick: it gives us a
+                                 short "item" alias for the active question instead of
+                                 repeating the long index path. The key MUST stay constant
+                                 (not tied to activeIndex) — a changed key makes Alpine
+                                 destroy and recreate the node instead of patching it, which
+                                 kills the CSS transition (a freshly-mounted element has no
+                                 prior state to animate from, so it just snaps in). -->
+                            <template x-for="item in [pendingQuestion.items[pendingQuestion.activeIndex]]" :key="'active-question'">
+                                <div class="kokomi-quiz-fade" :class="pendingQuestionAnimating && 'is-out'">
+                                    <div class="kokomi-quiz-card-head">
+                                        <div class="kokomi-quiz-card-head-text">
+                                            <span class="kokomi-quiz-card-title" x-text="item.question"></span>
+                                            <span x-show="item.multiSelect" class="kokomi-quiz-multi-badge">
+                                                <i class="fa-solid fa-list-check"></i> Select all that apply
+                                            </span>
+                                        </div>
+                                        <div class="kokomi-quiz-card-head-actions">
+                                            <button x-show="!item.revealed && item.allowSkip" @click="skipPendingQuestion()" class="kokomi-quiz-card-skip">Skip</button>
+                                            <button @click="dismissPendingQuestion()" class="kokomi-quiz-card-close" title="Dismiss">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="kokomi-quiz-card-opts">
+                                        <template x-for="(opt, i) in item.options" :key="i">
+                                            <button class="kokomi-quiz-card-opt kokomi-quiz-fade"
+                                                    :class="{
+                                                        'is-correct': item.quiz && item.revealed && i === item.correctIndex,
+                                                        'is-incorrect': item.quiz && item.revealed && i === item.selectedIndex && i !== item.correctIndex,
+                                                        'is-dimmed': item.quiz && item.revealed && i !== item.correctIndex && i !== item.selectedIndex,
+                                                        'is-checked': item.multiSelect && item.selectedIndices.includes(i),
+                                                        'is-out': pendingQuestionAnimating,
+                                                    }"
+                                                    :disabled="item.revealed"
+                                                    :style="`transition-delay: ${pendingQuestionAnimating ? 0 : i * 35}ms`"
+                                                    @click="item.multiSelect ? toggleQuestionOption(i) : answerPendingQuestion(opt, i)">
+                                                <span class="kokomi-quiz-card-num" x-show="!item.multiSelect" x-text="i + 1"></span>
+                                                <span class="kokomi-quiz-card-check" x-show="item.multiSelect">
+                                                    <i x-show="item.selectedIndices.includes(i)" class="fa-solid fa-check"></i>
+                                                </span>
+                                                <span class="kokomi-quiz-card-label" x-text="opt"></span>
+                                                <i x-show="item.quiz && item.revealed && i === item.correctIndex" class="fa-solid fa-check kokomi-quiz-feedback-icon is-correct-icon"></i>
+                                                <i x-show="item.quiz && item.revealed && i === item.selectedIndex && i !== item.correctIndex" class="fa-solid fa-xmark kokomi-quiz-feedback-icon is-incorrect-icon"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                    <div class="kokomi-quiz-card-foot" x-show="!item.revealed && (item.allowOther || item.multiSelect)">
+                                        <div class="kokomi-quiz-card-other" x-show="item.allowOther">
+                                            <i class="fa-solid fa-pen"></i>
+                                            <input type="text" x-model="pendingQuestionOther" placeholder="Something else…"
+                                                   @keydown.enter="answerPendingQuestionOther()">
+                                        </div>
+                                        <button x-show="item.multiSelect" @click="confirmMultiSelect()"
+                                                :disabled="item.selectedIndices.length === 0" class="kokomi-quiz-card-continue">
+                                            Continue<span x-show="item.selectedIndices.length" x-text="' (' + item.selectedIndices.length + ')'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Wrap the glow + box in their own tight relative container so the
+                     travelling glow only circles the input box, not the disclaimer
+                     text that also lives in the outer footer wrapper. The SVG rect
+                     fills this wrapper (width/height 100%) and its rounded corners
+                     (rx) match the box's 22px radius. -->
+                <div class="relative">
+                <svg class="kokomi-composer-runner" aria-hidden="true">
+                    <rect class="kokomi-runner-rect" x="0" y="0" width="100%" height="100%"
+                          rx="22" ry="22" pathLength="100"></rect>
+                </svg>
+                <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple flex flex-col"
+                    style="position: relative; z-index: 1; transition: border-color 0.2s, box-shadow 0.2s;">
 
                     <!-- Space Selector (Top Bar) -->
-                    <div x-show="spaces.length > 0 && !pendingQuestion" class="px-4 py-2 border-b border-themed bg-black/[0.02] dark:bg-white/[0.02] flex items-center gap-2.5">
+                    <div x-show="spaces.length > 0" class="px-4 py-2 border-b border-themed bg-black/[0.02] dark:bg-white/[0.02] flex items-center gap-2.5">
                         <i class="fa-regular fa-object-ungroup text-[10px] text-accent-c"></i>
                         <select x-model="activeSpaceId"
                             class="bg-transparent border-none text-[11px] font-semibold text-2 outline-none cursor-pointer hover:text-accent-c transition-colors">
@@ -2199,6 +2597,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
                 <div class="text-center text-[10px] text-4 mt-1.5 font-medium">
                     <template x-if="loading && prefs.debug_mode && liveStats.tps !== null">
                         <div class="insights-status-bar">
@@ -2229,6 +2628,192 @@
                 </div>
             </div>
         </footer>
+    </div>
+
+        <!-- ═══════════════ CANVAS PANE ═══════════════ -->
+        <template x-if="canvas.open">
+            <div class="kokomi-canvas-resize" @mousedown="startCanvasResize($event)" title="Drag to resize"></div>
+        </template>
+
+        <div x-show="canvas.open" x-cloak
+             class="kokomi-canvas-pane flex flex-col h-full min-w-0 bg-canvas border-l border-themed"
+             :style="`flex:1 1 ${100 - canvas.splitPct}%`">
+
+            <!-- Canvas header -->
+            <div class="kokomi-canvas-head shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="kokomi-canvas-badge">
+                        <i class="fa-solid" :class="canvas.mode === 'document' ? 'fa-file-word' : 'fa-code'"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <input x-model="canvas.title" @input="markCanvasDirty()"
+                               class="kokomi-canvas-title" spellcheck="false">
+                        <div class="kokomi-canvas-sub">
+                            <span x-text="canvas.mode === 'document' ? 'Document' : canvas.language"></span>
+                            <span x-show="canvas.mode === 'document' && canvas.wordCount"
+                                  x-text="' · ' + canvas.wordCount + ' words'"></span>
+                            <!-- While the model writes, show that instead of save state -->
+                            <span x-show="canvas.streaming" class="kokomi-canvas-live">
+                                <i class="fa-solid fa-circle"></i> Writing…
+                            </span>
+                            <!-- Save state: saving → unsaved → saved -->
+                            <span x-show="!canvas.streaming && canvas.saving" class="kokomi-canvas-state">
+                                <i class="fa-solid fa-circle-notch fa-spin"></i> Saving…
+                            </span>
+                            <span x-show="!canvas.streaming && !canvas.saving && canvas.dirty" class="kokomi-canvas-state">
+                                <i class="fa-regular fa-circle"></i> Unsaved
+                            </span>
+                            <span x-show="!canvas.streaming && !canvas.saving && !canvas.dirty && canvas.savedAt"
+                                  class="kokomi-canvas-state is-saved">
+                                <i class="fa-solid fa-check"></i> Saved
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button @click="saveCanvas()" class="kokomi-canvas-btn" title="Save now">
+                        <i class="fa-regular fa-floppy-disk"></i>
+                    </button>
+                    <button @click="copyCanvas()" class="kokomi-canvas-btn" title="Copy">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                    <!-- Download: main button uses the default format, the caret
+                         opens the full format list. -->
+                    <div class="kokomi-canvas-dl" @click.outside="canvas.exportOpen = false">
+                        <button @click="downloadCanvas()" class="kokomi-canvas-btn"
+                                :title="canvas.mode === 'code' ? 'Download source' : 'Download as Word (.docx)'">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button @click="canvas.exportOpen = !canvas.exportOpen"
+                                class="kokomi-canvas-btn kokomi-canvas-caret" title="Choose format">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                        <div x-show="canvas.exportOpen" x-cloak x-transition.opacity.duration.120ms
+                             class="kokomi-canvas-dl-menu">
+                            <template x-for="f in canvasExportFormats" :key="f.id">
+                                <button @click="downloadCanvasAs(f.id)" class="kokomi-canvas-dl-item">
+                                    <i :class="f.icon.startsWith('fa-brands') ? f.icon : 'fa-solid ' + f.icon"></i>
+                                    <span x-text="f.label"></span>
+                                    <span class="kokomi-canvas-dl-ext" x-text="f.ext"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <button @click="closeCanvas()" class="kokomi-canvas-btn" title="Close canvas">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor bodies. Both hosts stay mounted; only the active one is shown,
+                 so Monaco/Quill never get torn out from under themselves on re-render. -->
+            <div class="flex-grow min-h-0 relative">
+                <div id="canvas-code-host" class="kokomi-canvas-code"
+                     x-show="canvas.mode !== 'document'"></div>
+                <!-- Right-click + Ctrl+Space are bound here (on the container) in the
+                     CAPTURE phase rather than on the editor itself: browser extensions
+                     that hook contenteditable (Grammarly et al) attach their own
+                     contextmenu handlers to the editor, so a bubble-phase listener
+                     there never fires. Capturing on the ancestor gets the event on the
+                     way down, before any of them. -->
+                <div class="kokomi-canvas-doc-scroll" x-show="canvas.mode === 'document'"
+                     @contextmenu.capture.prevent="openCanvasContextMenu($event)"
+                     @keydown.capture="if ($event.ctrlKey && $event.code === 'Space') { $event.preventDefault(); openCanvasPrompt(); }">
+                    <div class="kokomi-canvas-sheet">
+                        <div id="canvas-doc-host"></div>
+                    </div>
+                </div>
+
+                <!-- Targeted edit in flight -->
+                <div x-show="canvas.editing" x-cloak class="kokomi-canvas-editing">
+                    <div>
+                        <i class="fa-solid fa-wand-magic-sparkles fa-fade"></i>
+                        <span>Editing selection…</span>
+                    </div>
+                </div>
+
+                <!-- Right-click AI menu (document mode). Actions needing a
+                     selection are hidden when nothing is highlighted. -->
+                <template x-if="canvasMenu.open">
+                    <div class="kokomi-canvas-ctx" @click.outside="closeCanvasMenu()"
+                         @keydown.escape.window="closeCanvasMenu()"
+                         :style="`left:${canvasMenu.x}px; top:${canvasMenu.y}px`">
+                        <!-- Plain editing actions — no AI involved. Clipboard and
+                             formatting ones need a selection, so they grey out
+                             without one. -->
+                        <div class="kokomi-canvas-ctx-tools">
+                            <button @click="canvasFormat('cut')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Cut">
+                                <i class="fa-solid fa-scissors"></i>
+                            </button>
+                            <button @click="canvasFormat('copy')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Copy">
+                                <i class="fa-regular fa-copy"></i>
+                            </button>
+                            <button @click="canvasFormat('paste')" class="kokomi-canvas-tool" title="Paste">
+                                <i class="fa-solid fa-paste"></i>
+                            </button>
+                            <button @click="canvasFormat('delete')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Delete">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                            <span class="kokomi-canvas-tool-sep"></span>
+                            <button @click="canvasFormat('bold')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Bold">
+                                <i class="fa-solid fa-bold"></i>
+                            </button>
+                            <button @click="canvasFormat('italic')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Italic">
+                                <i class="fa-solid fa-italic"></i>
+                            </button>
+                            <button @click="canvasFormat('underline')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Underline">
+                                <i class="fa-solid fa-underline"></i>
+                            </button>
+                            <button @click="canvasFormat('strike')" :disabled="!canvasMenu.selection"
+                                    class="kokomi-canvas-tool" title="Strikethrough">
+                                <i class="fa-solid fa-strikethrough"></i>
+                            </button>
+                        </div>
+
+                        <div class="kokomi-canvas-ctx-sel" x-show="canvasMenu.selection">
+                            <i class="fa-solid fa-quote-left"></i>
+                            <span x-text="canvasMenu.selection.slice(0, 60) + (canvasMenu.selection.length > 60 ? '…' : '')"></span>
+                        </div>
+                        <template x-for="a in canvasActions" :key="a.id">
+                            <button x-show="!a.needsSelection || canvasMenu.selection"
+                                    @click="runCanvasAction(a)" class="kokomi-canvas-ctx-item">
+                                <i :class="'fa-solid ' + a.icon"></i>
+                                <span x-text="a.label"></span>
+                                <span x-show="a.custom" class="kokomi-canvas-kbd">Ctrl+Space</span>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Ctrl+Space instruction box, anchored at the caret -->
+                <template x-if="canvasPrompt.open">
+                    <div class="kokomi-canvas-prompt" @click.outside="closeCanvasPrompt()"
+                         :style="`left:${canvasPrompt.x}px; top:${canvasPrompt.y}px`">
+                        <div class="kokomi-canvas-prompt-row">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <input type="text" x-ref="canvasPromptInput" x-model="canvasPrompt.text"
+                                   :placeholder="canvasPrompt.selection ? 'What should I do with the selected text?' : 'What should I write?'"
+                                   @keydown.enter.prevent="submitCanvasPrompt()"
+                                   @keydown.escape.prevent="closeCanvasPrompt()">
+                            <button @click="submitCanvasPrompt()" :disabled="!canvasPrompt.text.trim()"
+                                    class="kokomi-canvas-prompt-go">
+                                <i class="fa-solid fa-arrow-up"></i>
+                            </button>
+                        </div>
+                        <div class="kokomi-canvas-prompt-sel" x-show="canvasPrompt.selection">
+                            <i class="fa-solid fa-quote-left"></i>
+                            <span x-text="canvasPrompt.selection.slice(0, 70) + (canvasPrompt.selection.length > 70 ? '…' : '')"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
     </div>
     <!-- TOAST NOTIFICATIONS -->
     <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex flex-col items-center gap-2 pointer-events-none">
