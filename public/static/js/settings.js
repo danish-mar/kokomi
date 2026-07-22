@@ -65,7 +65,12 @@ function settingsApp() {
             atlas_model_name: 'gemini-2.5-flash',
             atlas_nvidia_model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
             atlas_local_url: 'http://localhost:8080/v1',
-            atlas_local_model: 'local-model'
+            atlas_local_model: 'local-model',
+            title_llm_provider: 'groq',
+            title_model_name: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            title_nvidia_model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+            title_local_url: 'http://localhost:8080/v1',
+            title_local_model: 'local-model'
         },
 
         cropModal: false,

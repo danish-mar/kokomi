@@ -252,6 +252,76 @@
                         </p>
                     </div>
 
+                    <!-- Conversation title model -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:2px;">Conversation Title Model</label>
+                        <p style="font-size:11px; color:var(--text-quaternary); margin-bottom:10px;">Names new chats. Titles are one short line, so a small fast model is usually enough.</p>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
+                            <button @click="prefs.title_llm_provider = 'groq'; savePrefs()"
+                                :class="(prefs.title_llm_provider || 'groq') === 'groq' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-bolt" style="font-size:9px;"></i> Groq
+                            </button>
+                            <button @click="prefs.title_llm_provider = 'google'; savePrefs()"
+                                :class="prefs.title_llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-brands fa-google" style="font-size:9px;"></i> Gemini
+                            </button>
+                            <button @click="prefs.title_llm_provider = 'nvidia'; savePrefs()"
+                                :class="prefs.title_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
+                            </button>
+                            <button @click="prefs.title_llm_provider = 'local'; savePrefs()"
+                                :class="prefs.title_llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
+                            </button>
+                        </div>
+
+                        <!-- Cloud model (Groq / Google) -->
+                        <div x-show="(prefs.title_llm_provider || 'groq') === 'groq' || prefs.title_llm_provider === 'google'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
+                                x-text="prefs.title_llm_provider === 'google' ? 'Gemini Model' : 'Groq Model'"></label>
+                            <div style="position:relative;">
+                                <select x-model="prefs.title_model_name" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                    <template x-for="m in models.filter(x => x.provider === (prefs.title_llm_provider || 'groq'))" :key="m.id">
+                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.title_model_name"
+                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                    </template>
+                                </select>
+                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NVIDIA NIM -->
+                        <div x-show="prefs.title_llm_provider === 'nvidia'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
+                            <div style="position:relative;">
+                                <select x-model="prefs.title_nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
+                                    <template x-for="m in nvidiaChatModels()" :key="m.id">
+                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.title_nvidia_model"
+                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
+                                    </template>
+                                </select>
+                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                            </div>
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>.</p>
+                        </div>
+
+                        <!-- Local -->
+                        <div x-show="prefs.title_llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">llama.cpp Server URL</label>
+                                <input type="text" x-model="prefs.title_local_url" @blur="savePrefs()" placeholder="http://localhost:8080/v1" class="apple-field">
+                            </div>
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model Identifier</label>
+                                <input type="text" x-model="prefs.title_local_model" @blur="savePrefs()" placeholder="local-model" class="apple-field">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- User Persona -->
                     <div class="card-row">
                         <label class="apple-label" style="margin-bottom:8px;">About Me</label>

@@ -11,6 +11,9 @@ class ChatRequest(BaseModel):
     is_anonymous: bool = False
     use_web_search: bool = False
     attachments: Optional[List[dict]] = None
+    # Artifact id of the canvas the user currently has open, if any. Its live
+    # contents get injected into the system prompt so edits are visible.
+    canvas_id: Optional[str] = None
 
 
 
@@ -88,6 +91,13 @@ class PrefsUpdate(BaseModel):
     atlas_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
     atlas_local_url: Optional[str] = "http://localhost:8080/v1"
     atlas_local_model: Optional[str] = "local-model"
+
+    # Model that names conversations
+    title_llm_provider: Optional[str] = "groq"
+    title_model_name: Optional[str] = "meta-llama/llama-4-scout-17b-16e-instruct"
+    title_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
+    title_local_url: Optional[str] = "http://localhost:8080/v1"
+    title_local_model: Optional[str] = "local-model"
     setup_completed: bool = False
     groq_api_key: Optional[str] = ""
     google_api_key: Optional[str] = ""

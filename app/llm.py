@@ -283,7 +283,10 @@ def get_llm(
             model=model,
             api_key=nvidia_key,
             temperature=0.6,
-            max_completion_tokens=4096, 
+            # 4096 was cutting off long-form requests (a multi-page document, a long
+            # story) well before the model was done — most NIM-hosted models support
+            # much larger completions.
+            max_completion_tokens=16384,
         )
 
     elif provider == "google":
@@ -318,6 +321,27 @@ def get_llm(
         )
 
 
+def get_title_llm(prefs: dict):
+    """Return the LLM used to name conversations, from its own prefs slots.
+
+    Mirrors get_atlas_llm: the title_* keys are remapped onto the generic
+    provider keys that get_llm understands, so titles can use a different
+    (usually smaller/cheaper) model than the conversational one.
+    """
+    title_prefs = prefs.copy()
+    if "title_llm_provider" in prefs:
+        title_prefs["llm_provider"] = prefs["title_llm_provider"]
+    if "title_model_name" in prefs:
+        title_prefs["model_name"] = prefs["title_model_name"]
+    if "title_nvidia_model" in prefs:
+        title_prefs["nvidia_model"] = prefs["title_nvidia_model"]
+    if "title_local_url" in prefs:
+        title_prefs["local_url"] = prefs["title_local_url"]
+    if "title_local_model" in prefs:
+        title_prefs["local_model"] = prefs["title_local_model"]
+    return get_llm(title_prefs)
+
+
 def get_atlas_llm(
     prefs: dict,
     streaming: bool = False,
@@ -340,13 +364,21 @@ def get_atlas_llm(
 
 # ── Title generation helper ───────────────────────────────────────────
 
-async def generate_title(user_msg: str, ai_msg: str) -> str:
+async def generate_title(user_msg: str, ai_msg: str, prefs: Optional[dict] = None) -> str:
+    """Name a conversation.
+
+    Uses the model configured in the title_* prefs when prefs are supplied,
+    otherwise the built-in lightweight Groq model.
+    """
     try:
         prompt = (
             f"Generate a short title (max 4 words, no quotes) for:\n"
             f"User: {user_msg[:150]}\nAssistant: {ai_msg[:150]}\n\nTitle:"
         )
-        resp = title_llm.invoke([HumanMessage(content=prompt)])
+        llm = get_title_llm(prefs) if prefs else title_llm
+        if llm is None:
+            raise ValueError("No title model available")
+        resp = await llm.ainvoke([HumanMessage(content=prompt)])
         title = resp.content.strip().strip("\"'").strip()
         return title[:50] if title else user_msg[:30]
     except Exception:
