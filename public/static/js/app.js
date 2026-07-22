@@ -8,6 +8,7 @@ import { getUiActions } from './modules/ui.js';
 import { getApiActions } from './modules/api.js';
 import { getChatActions } from './modules/chat.js';
 import { getCharacterActions } from './modules/characters.js';
+import { getCanvasActions } from './modules/canvas.js';
 
 // Initialize Markdown
 setupMarkdown();
@@ -19,7 +20,8 @@ function aiApp() {
         getUiActions(),
         getApiActions(),
         getChatActions(),
-        getCharacterActions()
+        getCharacterActions(),
+        getCanvasActions()
     ];
 
     modules.forEach(mod => {
