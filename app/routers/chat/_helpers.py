@@ -7,15 +7,27 @@ from app.mcp import init_pool, pool_is_stale
 
 @tool
 def open_url(url: str) -> str:
-    """Open a specified URL or URI scheme in a new browser tab or trigger a native app action.
-    This supports standard web links (http/https) and native URI schemes:
+    """Open an EXTERNAL destination — a web link or a native app URI — on the user's device.
+
+    Supports standard web links (http/https) and native URI schemes:
     - tel:+91XXXXXXXXXX (Phone dialer)
     - mailto:you@gmail.com (Email client)
     - sms:+91XXXXXXXXXX (SMS app)
     - whatsapp://send?phone=91XXXXXXXXXX (WhatsApp)
     - youtube://watch?v=ID (YouTube app)
     - maps:?q=Location (Maps app)
-    Use this immediately when the user asks to "call", "mail", "sms", "play", or "open" something.
+
+    Call this ONLY when the user wants to reach a real external destination — a
+    website, a phone number, an email address, a location, or an app on their
+    device — AND you know the specific target.
+
+    Do NOT call this:
+    - for anything that happens inside this app. "Open a canvas", "open a
+      document", "open an editor", "show me the code" are NOT this tool — they
+      are handled by writing an artifact.
+    - to open a placeholder or example address such as example.com. If you do
+      not have a real, specific URL, do not call it at all.
+    - merely because the word "open" or "play" appears in the request.
     """
     return f"Successfully triggered opening of {url}"
 
