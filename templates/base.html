@@ -84,6 +84,11 @@
     <style>
         :root {
             --accent:          var(--accent-custom-light, #505081);
+            /* Referenced by code blocks, artifact bodies and the code canvas.
+               Was never declared, so every var(--font-mono) silently fell back
+               to the inherited sans-serif. */
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Consolas,
+                         'Liberation Mono', 'Courier New', monospace;
         }
         :root.dark {
             --accent:          var(--accent-custom-dark, #8686AC);

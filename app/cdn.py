@@ -66,6 +66,54 @@ ASSETS = {
     "katex/katex.min.js": "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js",
 }
 
+# ── Canvas editors ────────────────────────────────────────────────────
+# Monaco (the editor core VS Code itself is built on) powers the "code"
+# canvas; Quill powers the Word-like "document" canvas.
+MONACO_VER = "0.52.2"
+MONACO_BASE = f"https://cdn.jsdelivr.net/npm/monaco-editor@{MONACO_VER}/min/vs"
+
+# Monaco is an AMD bundle: loader.js pulls the rest in at runtime by relative
+# path, so the local copy must mirror the CDN's vs/ tree exactly.
+MONACO_CORE = [
+    "loader.js",
+    "editor/editor.main.js",
+    "editor/editor.main.css",
+    # Web-worker host + the per-language workers Monaco spawns for smarts.
+    "base/worker/workerMain.js",
+    "language/typescript/tsMode.js",
+    "language/typescript/tsWorker.js",
+    "language/json/jsonMode.js",
+    "language/json/jsonWorker.js",
+    "language/css/cssMode.js",
+    "language/css/cssWorker.js",
+    "language/html/htmlMode.js",
+    "language/html/htmlWorker.js",
+    # Icon font referenced by editor.main.css (relative path — keep the tree).
+    "base/browser/ui/codicons/codicon/codicon.ttf",
+]
+
+# Syntax definitions, loaded on demand per language. Only these languages get
+# highlighting offline, so keep the list to what actually shows up in chat.
+MONACO_LANGUAGES = [
+    "python", "javascript", "typescript", "html", "css", "markdown",
+    "sql", "shell", "yaml", "xml", "java", "cpp", "csharp", "go",
+    "rust", "php", "ruby", "dockerfile", "ini", "lua", "r", "swift",
+    "kotlin", "scss", "graphql", "powershell", "perl", "clojure",
+]
+
+for _f in MONACO_CORE:
+    ASSETS[f"monaco/vs/{_f}"] = f"{MONACO_BASE}/{_f}"
+for _lang in MONACO_LANGUAGES:
+    ASSETS[f"monaco/vs/basic-languages/{_lang}/{_lang}.js"] = (
+        f"{MONACO_BASE}/basic-languages/{_lang}/{_lang}.js"
+    )
+
+# Quill 2 — rich-text engine behind the document canvas (icons are inline SVG,
+# so the stylesheet pulls no external fonts).
+ASSETS["quill/quill.js"] = "https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
+ASSETS["quill/quill.snow.css"] = "https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"
+
+
 # KaTeX relative fonts (stored in fonts/ relative to the CSS file)
 KATEX_FONTS = [
     "KaTeX_AMS-Regular.woff2",
@@ -120,22 +168,30 @@ async def download_file(client: httpx.AsyncClient, relative_path: str, url: str)
 
 
 async def download_vendor_assets_if_missing():
-    """Triggers first-run CDN download and local caching."""
-    if os.path.exists(SENTINEL_FILE):
+    """Triggers first-run CDN download and local caching.
+
+    The sentinel alone is not enough to skip: when a release adds new assets
+    (a new editor, a new language), an existing install already has the
+    sentinel from a previous run and would never fetch them. So always diff
+    ASSETS against what is actually on disk, and only short-circuit when the
+    sentinel exists AND nothing is missing.
+    """
+    os.makedirs(VENDOR_DIR, exist_ok=True)
+    missing = {
+        rel_path: url
+        for rel_path, url in ASSETS.items()
+        if not os.path.exists(os.path.join(VENDOR_DIR, rel_path))
+    }
+
+    if os.path.exists(SENTINEL_FILE) and not missing:
         logger.info("Local CDN vendor assets are fully cached. Skipping download.")
         return
 
-    logger.info("Initializing first-run CDN self-hosting bundling...")
-    os.makedirs(VENDOR_DIR, exist_ok=True)
-    
+    logger.info("Initializing CDN self-hosting bundling...")
+
     async with httpx.AsyncClient() as client:
-        tasks = []
-        for rel_path, url in ASSETS.items():
-            # If the file already exists on disk, we can skip downloading it
-            full_path = os.path.join(VENDOR_DIR, rel_path)
-            if not os.path.exists(full_path):
-                tasks.append(download_file(client, rel_path, url))
-        
+        tasks = [download_file(client, rel_path, url) for rel_path, url in missing.items()]
+
         if tasks:
             logger.info(f"Downloading {len(tasks)} vendor assets to {VENDOR_DIR}...")
             # Run all downloads in parallel (with a limit on concurrency to avoid hammering servers)
