@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v5.11.0] - 2026-07-22 — "coral atelier"
+
+### Added
+
+- **Canvas — an editable artifact that opens beside the chat.** A new `type="canvas"` artifact splits the window into chat (40%) and a working surface (60%), with a draggable divider whose position persists. Two modes:
+  - **`mode="code"`** mounts **Monaco**, the editor core VS Code itself is built on — syntax highlighting, minimap, multi-cursor, bracket colourisation.
+  - **`mode="document"`** mounts a Word-style page (fixed 8.5×11in sheet, 1in margins, sticky ribbon) that follows the app theme rather than imitating Word's white chrome.
+
+  Both editors are **vendored locally** (Monaco 0.52.2 across 41 files, Quill 2.0.3), so the canvas works fully offline like the rest of the app. Content **types out live** as the model writes it, and opening a canvas mid-generation resumes the stream rather than showing a frozen partial. Your edits autosave (debounced) back onto the stored artifact, and the canvas's *current* contents — including your edits — are injected into the next turn's system prompt, so "change this bit" acts on what you're actually looking at.
+
+- **Surgical AI edits inside the canvas — patches, not rewrites.** Asking the AI to change something no longer regenerates the whole file, and no longer posts a message into the chat. The model is shown the content *addressed by position* and returns a minimal patch:
+  - **Code** is addressed **by line** (`start_line`/`end_line`), applied through Monaco as a single undoable step — Ctrl+Z reverts the whole AI edit, scroll position survives, and changed lines flash briefly so you can see what moved.
+  - **Documents** are addressed **by block** (paragraph/heading/list). Quill stores its content as HTML with no newlines, so line numbers would collapse the entire document into "line 1" and silently degrade into a full rewrite; paragraphs are the meaningful unit for prose. A block keeps its type — a heading stays a heading — and model output is HTML-escaped, so it can't restructure or inject markup.
+
+  Every edit carries an **`expect` anchor** — the original text it believes it's replacing — which is verified before anything is applied. Line numbers are easy for a model to be off-by-one on, and a confidently-wrong range corrupts a file silently; a mismatched anchor now refuses the edit instead of guessing. Overlapping ranges, duplicate block edits and out-of-range targets are refused the same way, and edits apply bottom-up so earlier positions stay valid.
+
+- **Canvas editing affordances.** Right-click inside a **document** for an AI menu (Improve writing, Fix spelling & grammar, Make shorter, Expand, Simplify, Continue writing, Ask AI…) plus a plain editing row — cut, copy, paste, delete, bold, italic, underline, strikethrough — that never touches the model. **Ctrl+Space** opens a free-form instruction box anchored at the caret. In the **code** canvas the AI actions live in Monaco's own right-click menu and command palette (Explain, Refactor, Find and fix bugs, Add comments, Add a test), with **Ctrl+I** for a free-form prompt (deliberately not Ctrl+Space, which Monaco reserves for autocomplete).
+
+- **Export a canvas** as **DOCX** (the default for documents), **PDF**, Markdown, HTML or plain text, via a split download button. Quill HTML and raw markdown are normalised into one block model, so headings, lists, quotes and code survive into Word and PDF. A code canvas offers its own source file first. Exports flush unsaved edits first, so you never download a stale copy.
+
+- **Keyword completions for languages Monaco has no language service for.** Monaco ships real IntelliSense only for TypeScript/JavaScript, JSON, CSS and HTML; everything else gets syntax highlighting alone (genuine smarts for Python/Java/C++ come from language servers, which can't run in a browser tab). The code canvas now registers keyword and builtin completions for Python, Java, C++, C#, Go, Rust, Ruby, PHP, shell and SQL, alongside Monaco's word-based suggestions.
+
+- **Choose the model that names your conversations** (Settings → General → *Conversation Title Model*). Titles are one short line, so this defaults to the small fast model used before — but it can now point at any provider (Groq / Gemini / NVIDIA / local) independently of your chat model, mirroring how Atlas already picks its own planner.
+
+- **Question cards gained tabs, quizzes and multi-select.** A single `<Artifact type="question">` can now carry several questions at once (`{"questions": [...]}`), shown as tabs you answer one at a time. Quiz mode (`quiz: true, correctIndex, explanation`) reveals correct/incorrect styling with the explanation before moving on, and multi-select questions (`multiSelect: true`) offer checkboxes with a Continue button — recognised from the JSON flag *or* from question text like "select all that apply". Skip moved out of the option list into the card header.
+
+- **The composer glows on page load** — a soft accent light traces the outer edge of the message box and fades out. Respects `prefers-reduced-motion`.
+
+### Fixed
+
+- **`--font-mono` was never defined anywhere.** It was referenced in five places (inline code, artifact bodies, diagram errors, the code canvas), and an unresolved `var()` invalidates the whole declaration — so every one of those had been silently falling back to the UI sans-serif. Now declared globally, which fixes those pre-existing spots as well as the editor.
+
+- **New vendored assets were never downloaded on existing installs.** `download_vendor_assets_if_missing()` returned early whenever the `.download_complete` sentinel existed, so any asset added by a later release (Monaco, Quill, a new language) would never be fetched on a machine that had already run once. It now diffs the asset list against what's actually on disk and only skips when nothing is missing.
+
+- **The word "open" was triggering a spurious tool call and doubling every such request.** `open_url`'s description told the model to use it "immediately when the user asks to … 'open' something", so "open a canvas" fired it at a placeholder URL — forcing a second full generation before any real answer began. Its description now requires a genuine external destination and explicitly excludes in-app actions, placeholder URLs, and the mere presence of the word.
+
+- **Long-term memory retrieval was freezing the event loop.** `search_memories()` performs a blocking embedding HTTP call and a blocking Qdrant query, but was called directly inside an `async` coroutine — so `asyncio.gather` couldn't parallelise it, and nothing else in the app could run while it worked (measured: **zero** event-loop ticks during the search, and SSE tokens couldn't reach the browser). Now dispatched to a worker thread: **3.8× faster** across four characters, and the loop stays responsive.
+
+- **Rate limits no longer look like a hang.** A provider tokens-per-minute limit surfaced only as a long unexplained wait while the client retried with backoff. The error is now named explicitly, with a note that large prompts consume the per-minute budget quickly.
+
+- **NVIDIA completions were capped at 4096 tokens**, truncating long-form requests (a multi-page document, a long story) well before the model was done. Raised to 16384.
+
+- **PDF artifacts ignored requested page counts.** The instruction never said what "a 10-page story" means in prose, so the model produced a compressed outline. It now states that a page count means physical printed pages of roughly 400–500 words each, and to say so explicitly rather than silently returning a short version.
+
+- **Conversation titles blocked the event loop** — `generate_title()` used a synchronous `.invoke()` inside an `async` function. Now awaited properly.
+
+- **Canvas artifacts could render as a raw JSON dump.** Artifacts whose inline placeholder wasn't found in the message body fell through to a hardcoded fallback template that printed raw content, bypassing the type dispatcher. Both paths now share one renderer, so charts, diagrams, PDFs, questions and canvases always get their proper card.
+
+- **Canvas artifacts opened in the wrong place when the model mislabelled them.** The base artifact rule (`type="language"`) is repeated many times in the system prompt and reliably outweighed the single canvas rule, so canvases arrived tagged `type="cpp"` and opened in the old modal. The carve-out now lives *inside* the repeated block so it carries the same weight, and the client identifies a canvas by its `mode` attribute rather than trusting `type` alone.
+
+- **The document editor's right-click menu never appeared**, and its editor could be silently corrupted. Browser extensions that hook `contenteditable` (Grammarly and similar) attach their own `contextmenu` handler to the editor and swallowed ours — the handlers now bind on the container in the capture phase, so they fire first, survive editor remounts, and work in the page margins. The editor also opts out of such extensions entirely (`data-gramm="false"`), since they splice their own nodes into the DOM and can corrupt Quill's internal model.
+
+- **The document editor grew a second toolbar on every remount.** Quill inserts its toolbar as a *sibling* of the host element, so clearing the host alone left the old one behind. Teardown now sweeps the whole sheet.
+
+- **Live streaming into a document could corrupt the text.** Painting the editor fired Quill's `text-change`, whose handler overwrote the accumulating markdown with the editor's rendered HTML — after which the next delta was appended to HTML. The raw stream is now tracked separately from the editor's contents, with programmatic writes flagged so change handlers ignore them. Deltas arriving while an editor is still loading are also buffered and replayed instead of being dropped.
+
+### Changed
+
+- Question-card tab switching is now smooth. The card was keyed on the active index, so Alpine destroyed and recreated the node on every switch and no CSS transition could run; a constant key lets it patch the same node instead.
+- Debug mode now reports pre-LLM setup time, time-to-first-token and generation time separately, so a slow response can be attributed to setup, the model, or a wasted tool round.
+
 ## [v5.10.2] - 2026-07-10
 
 ### Changed
