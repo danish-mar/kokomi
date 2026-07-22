@@ -6,6 +6,7 @@ import uuid
 import time
 import re
 import base64
+from typing import Optional
 from functools import reduce
 from operator import add
 
@@ -27,6 +28,47 @@ from app.tools.memory_tool import get_memory_tool
 from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_tool, _ensure_pool
 
 router = APIRouter(prefix="/api")
+
+
+def find_artifact(history: list, artifact_id: str) -> Optional[dict]:
+    """Locate an artifact by id anywhere in a conversation's history.
+
+    Artifacts live on the assistant message that produced them. A canvas is
+    re-emitted with the same id when updated, so scan newest-first and return
+    the most recent version.
+    """
+    if not artifact_id:
+        return None
+    for msg in reversed(history or []):
+        for art in (msg.get("artifacts") or []):
+            if art.get("id") == artifact_id:
+                return art
+    return None
+
+
+def _open_canvas_context(history: list, canvas_id: Optional[str]) -> str:
+    """System-prompt block showing the canvas the user currently has open.
+
+    The stored content is the source of truth and already includes any edits
+    the user made in the editor, so this is what they're actually looking at.
+    """
+    art = find_artifact(history, canvas_id)
+    if not art or not (art.get("content") or "").strip():
+        return ""
+
+    mode = (art.get("mode") or "code").lower()
+    lang = art.get("language") or ""
+    label = f"{mode} canvas" + (f" ({lang})" if mode == "code" and lang else "")
+    return (
+        f"[OPEN CANVAS]\n"
+        f"The user currently has a {label} open titled \"{art.get('title') or 'Untitled'}\" "
+        f"(id=\"{art.get('id')}\"). These are its CURRENT contents, including any edits they "
+        f"made themselves:\n"
+        f"--- BEGIN CANVAS ---\n{art['content']}\n--- END CANVAS ---\n"
+        f"When they ask you to change it, re-emit the canvas with id=\"{art.get('id')}\" and "
+        f"the FULL updated contents. Do not repeat the contents in your chat reply.\n"
+        f"[/OPEN CANVAS]"
+    )
 
 
 # Guidance the UI's message renderer relies on. The frontend turns plain markdown
@@ -322,7 +364,7 @@ async def chat(req: ChatRequest):
 
     if is_new:
         conv_id = str(uuid.uuid4())[:12]
-        title = await generate_title(req.message, content)
+        title = await generate_title(req.message, content, prefs)
         convos[conv_id] = {
             "title": title,
             "character_id": char_id,
@@ -524,9 +566,13 @@ async def chat_stream(req: ChatRequest):
                                     # Signal start
                                     await queue.put(f"data: {json.dumps({'type': 'tool_start', 'character_id': char_id, 'name': 'memory_search', 'icon': 'fa-brain', 'description': 'Searching memory...'})}\n\n")
 
-                                    # Perform the actual search (blocking call run in thread pool if needed, but search_memories is usually fast enough)
-                                    # For now, we'll keep it simple as search_memories is I/O bound
-                                    mems = search_memories(char_id, req.message)
+                                    # search_memories is fully synchronous: it makes an
+                                    # embedding HTTP call and then a Qdrant query. Calling
+                                    # it directly would block the event loop — stalling SSE
+                                    # delivery and every other request — and would make the
+                                    # gather() below run these one after another instead of
+                                    # concurrently. Hand it to a worker thread.
+                                    mems = await asyncio.to_thread(search_memories, char_id, req.message)
 
                                     # Signal end
                                     res_text = f"Found {len(mems)} relevant past interactions" if mems else "No relevant memories found"
@@ -665,8 +711,21 @@ async def chat_stream(req: ChatRequest):
                             "NEVER use markdown code blocks (```) for these files. "
                             "NEVER include the same content in the main response body and an artifact—only use the artifact.\n"
                             "The opening <Artifact> tag MUST be the very first thing you write for that file.\n"
+                            # Carried inside the repeated block on purpose: stated once
+                            # elsewhere, this rule loses to the 15 copies above and the
+                            # model tags canvases type=\"cpp\" instead of type=\"canvas\".
+                            "EXCEPTION — if the user wants an editable CANVAS to work in, the tag is "
+                            "type=\"canvas\" mode=\"code\" language=\"cpp\" (or mode=\"document\"). "
+                            "type is then the literal word canvas, NEVER the language.\n"
                             "[/ARTIFACTS ENABLED]"
                         )
+                        # NOTE: this repetition is load-bearing. Dropping it to x2 to
+                        # save tokens measurably stopped the model emitting artifacts
+                        # at all — models weight a rule by how much of the prompt it
+                        # occupies, so one copy competes with ~10k chars of other
+                        # instructions. Costs ~6900 chars (~1730 tokens) per request;
+                        # if that budget ever needs reclaiming, trim the other
+                        # capability blocks first, not this.
                         p_persona = (artifact_instr + "\n\n") * 15 + p_persona
 
                         # Chart capability: charts are a special artifact type rendered
@@ -717,9 +776,59 @@ async def chat_stream(req: ChatRequest):
                             "— do NOT also paste the same content as a normal chat message.\n"
                             "Use plain conversational text (no PDF artifact) for short answers, explanations, or "
                             "anything that isn't meant to be a standalone document.\n"
+                            "LENGTH: if the user asks for a specific page count (e.g. 'a 10-page story'), that "
+                            "count means PHYSICAL PRINTED PAGES once rendered — roughly 400-500 words each. A "
+                            "'10-page story' means ~4000-5000 words of real prose, not 10 short section headers "
+                            "with a one-liner under each. Write FULL paragraphs — scene-setting, dialogue, "
+                            "sensory detail — under every heading, at a length proportional to the requested page "
+                            "count, not a compressed outline. If you genuinely cannot produce that much in one "
+                            "reply, write as much as you can and say so explicitly rather than silently handing "
+                            "back a short version.\n"
                             "[/PDF ENABLED]"
                         )
                         p_persona = pdf_instr + "\n\n" + p_persona
+
+                        # Canvas: an editable side-by-side working surface (the chat
+                        # shrinks to 40%, the canvas takes 60%). "code" mode opens a
+                        # real VS Code editor; "document" mode a Word-style page. Use
+                        # it for content the user will actually work ON, as opposed to
+                        # a read-only artifact card they just look at.
+                        canvas_instr = (
+                            "[CANVAS ENABLED]\n"
+                            "When the user wants to WORK ON something with you — write and iterate on a "
+                            "program, draft and revise a document, refactor a file — open a CANVAS: "
+                            "<Artifact id=\"unique_id\" title=\"Title\" type=\"canvas\" mode=\"code\" "
+                            "language=\"python\">...</Artifact>.\n"
+                            "ATTRIBUTE RULE — this overrides the general artifact rule above: "
+                            "for a canvas, type MUST be the literal string \"canvas\". Do NOT put "
+                            "the language in type. WRONG: type=\"java\" / type=\"code\" / "
+                            "type=\"python\". RIGHT: type=\"canvas\" mode=\"code\" language=\"java\". "
+                            "The language always goes in the separate 'language' attribute.\n"
+                            "'mode' MUST be either \"code\" or \"document\":\n"
+                            "  • mode=\"code\" — opens a full code editor. Also set language=\"...\" "
+                            "(python, javascript, typescript, html, css, sql, go, rust, java, cpp, "
+                            "shell, yaml, json, markdown, ...). The body is RAW SOURCE CODE ONLY: no "
+                            "markdown fences, no prose, no explanation inside the tag.\n"
+                            "  • mode=\"document\" — opens a Word-style page editor. The body is "
+                            "MARKDOWN ('# ' title, '## ' sections, '- ' lists, '**bold**', tables), "
+                            "which is converted to a formatted, editable document.\n"
+                            "The user can EDIT the canvas directly, and their edits are saved. When they "
+                            "ask for a change, you will be shown the CURRENT contents (including their "
+                            "edits) — re-emit the canvas with the SAME id to update it in place, and "
+                            "send the FULL new contents, never a diff or fragment.\n"
+                            "Prefer a canvas over a plain artifact whenever the content is something to "
+                            "be revised rather than just read. Keep your chat message short — the "
+                            "content belongs in the canvas, don't repeat it in the reply.\n"
+                            "[/CANVAS ENABLED]"
+                        )
+                        p_persona = canvas_instr + "\n\n" + p_persona
+
+                        # If a canvas is open, show the model its CURRENT contents (which
+                        # include any edits the user made) so "change X" works against what
+                        # they're actually looking at, not the version originally generated.
+                        canvas_ctx = _open_canvas_context(history, getattr(req, "canvas_id", None))
+                        if canvas_ctx:
+                            p_persona = canvas_ctx + "\n\n" + p_persona
 
                     # Question capability: an interactive QUESTION card the user answers by
                     # tapping an option instead of typing a reply. This is independent of the
@@ -731,16 +840,43 @@ async def chat_stream(req: ChatRequest):
                         "something before you can give a good answer, DON'T write a long paragraph "
                         "of questions — emit an interactive QUESTION card as a special artifact:\n"
                         "<Artifact id=\"unique_id\" title=\"Quick question\" type=\"question\">{...json...}</Artifact>.\n"
-                        "The body MUST be a single valid JSON object (no markdown, no comments) with this schema:\n"
+                        "For a SINGLE question, the body MUST be a single valid JSON object (no markdown, "
+                        "no comments) with this schema:\n"
                         "{\"question\": \"The question text\", "
                         "\"options\": [\"First choice\", \"Second choice\", \"Third choice\"], "
                         "\"allowOther\": true, \"allowSkip\": true}\n"
-                        "Give 2–5 short, distinct options. Set allowOther:true to offer a free-text "
-                        "'something else' row, allowSkip:true to offer a Skip button. Ask ONE question "
-                        "at a time. After emitting the card, STOP — do not keep talking; wait for the "
-                        "user's choice, which arrives as their next message. Only use this when a choice "
-                        "actually changes your answer; if you can reasonably proceed, just answer. This "
-                        "works even if the user has Artifacts turned off.\n"
+                        "For SEVERAL related clarifying questions at once (e.g. gathering multiple "
+                        "requirements before starting a task), use the batch form instead — the user "
+                        "sees them as tabs and answers one at a time:\n"
+                        "{\"questions\": [ "
+                        "{\"title\": \"Audience\", \"question\": \"Who is this for?\", \"options\": [...], \"allowOther\": true, \"allowSkip\": true}, "
+                        "{\"title\": \"Style\", \"question\": \"What look and feel?\", \"options\": [...]} "
+                        "]}\n"
+                        "\"title\" is a short 1-3 word label shown on the tab (not the full question) — "
+                        "required in the batch form. Give 2–5 short, distinct options per question. Set "
+                        "allowOther:true to offer a free-text 'something else' row, allowSkip:true to offer "
+                        "a Skip button (both default true). Prefer a single question unless you genuinely "
+                        "need several distinct pieces of information — don't pad with more than 4-5. After "
+                        "emitting the card, STOP — do not keep talking; wait for the user's answer(s), which "
+                        "arrive as their next message once every question is answered or skipped. Only use "
+                        "this when the answer(s) actually change what you do; if you can reasonably proceed, "
+                        "just answer. This works even if the user has Artifacts turned off.\n"
+                        "QUIZ MODE: when the user explicitly wants a quiz/trivia/Kahoot-style game (there IS "
+                        "one objectively correct option, not just a preference), add \"quiz\": true and "
+                        "\"correctIndex\": <0-based index into options> to that question object (works in "
+                        "both the single and batch forms; optionally add \"explanation\": \"why\" — shown "
+                        "after the user answers). The UI will instantly reveal correct/incorrect on their "
+                        "pick before continuing, so you don't need to say 'correct!' yourself — the user's "
+                        "reply message will already say whether they got it right. NEVER set quiz/correctIndex "
+                        "for ordinary clarifying questions — only for genuine quiz games.\n"
+                        "MULTIPLE CHOICE (select several): if the user may reasonably want MORE THAN ONE of "
+                        "the options at once (not a single pick), you MUST do BOTH of these — neither alone "
+                        "is enough: (1) add \"multiSelect\": true to that question object, AND (2) end the "
+                        "question text itself with '(select all that apply)' so the user knows without seeing "
+                        "the JSON. If the question text says 'select all that apply' the UI treats it as "
+                        "multi-select either way — but always set the JSON flag too. The UI shows checkboxes "
+                        "and a Continue button instead of answering on the first tap. Don't combine multiSelect "
+                        "with quiz/correctIndex (quiz mode is single-choice only).\n"
                         "[/QUESTIONS ENABLED]"
                     )
                     p_persona = question_instr + "\n\n" + p_persona
@@ -830,7 +966,13 @@ async def chat_stream(req: ChatRequest):
                         msg = f"👉 Generating for: {char_name} (Model: {p_active_model})\nPrompt Length: {len(p_persona)} chars. Tools: {len(tool_defs) if tool_defs else 0}"
                         print(f"\n[DEBUG] {msg}")
                         await queue.put(f"data: {json.dumps({'type': 'debug', 'message': msg})}\n\n")
+                        # Time spent before we even ask the model — memory search,
+                        # tool loading, prompt assembly. Printed so a slow first
+                        # token can be attributed to setup vs. the model itself.
+                        print(f"[DEBUG] Setup took {time.time() - t0:.2f}s (pre-LLM)")
                         print(f"[DEBUG] Streaming chunks...")
+
+                    t_llm_start = time.time()
 
                     art_active = False
                     art_id = None
@@ -947,7 +1089,9 @@ async def chat_stream(req: ChatRequest):
                         pending_buffer = ""
 
                     if is_debug:
-                        print("\n[DEBUG] Stream generation finished.")
+                        _ttft = f"{(ts_first - t_llm_start):.2f}s" if ts_first else "n/a (tool-call only)"
+                        print(f"\n[DEBUG] Stream generation finished. "
+                              f"TTFT {_ttft}, generation {time.time() - t_llm_start:.2f}s")
 
                     if skipped:
                         continue
@@ -1227,7 +1371,7 @@ async def chat_stream(req: ChatRequest):
                 title = None
                 if is_new:
                     title_content = history[-1]["content"] if len(history) > 1 else "New Chat"
-                    title = await generate_title(req.message, title_content)
+                    title = await generate_title(req.message, title_content, prefs)
                     convos[conv_id] = {
                         "title": title,
                         "character_id": char_id,
@@ -1274,6 +1418,18 @@ async def chat_stream(req: ChatRequest):
                 if hasattr(e, "exceptions"):
                     msgs = [str(ex) for ex in e.exceptions]
                     err_msg = "Multiple errors: " + " | ".join(msgs)
+
+                # Rate limits otherwise surface as a mysterious long hang: the
+                # provider client retries with backoff internally, so the user
+                # just sees nothing happen. Name it explicitly.
+                low = err_msg.lower()
+                if "rate limit" in low or "429" in low or "tokens per minute" in low:
+                    err_msg = (
+                        "Rate limited by the model provider (tokens-per-minute cap). "
+                        "The request was retried and still hit the limit. Large prompts "
+                        "consume the per-minute budget quickly — wait a moment and retry, "
+                        "or upgrade the provider tier.\n\n" + err_msg
+                    )
 
                 await queue.put(f"data: {json.dumps({'type': 'error', 'message': err_msg})}\n\n")
                 await queue.put("data: [DONE]\n\n")
