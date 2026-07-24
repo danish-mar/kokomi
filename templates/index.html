@@ -361,6 +361,94 @@
     /* Monaco fills the pane; it handles its own scrolling. */
     .kokomi-canvas-code { position: absolute; inset: 0; }
 
+    /* x-spreadsheet renders itself onto a <canvas> sized from this host's
+       clientWidth/clientHeight (see mountSpreadsheetCanvas's ResizeObserver),
+       so the host needs a concrete box, not just flex sizing. It handles its
+       own internal scrolling/freeze-panes. */
+    .kokomi-canvas-sheet-host { position: absolute; inset: 0; outline: none; }
+    .kokomi-canvas-sheet-host .x-spreadsheet { width: 100%; height: 100%; }
+
+    /* The app shrinks every native scrollbar to 4px (see base.html); inside
+       x-spreadsheet that scrollbar IS the drag handle for its fake scroll
+       track (there's no other way to grab it), so give it back a usable
+       size here. */
+    .kokomi-canvas-sheet-host ::-webkit-scrollbar { width: 14px; height: 14px; }
+
+    /* The cell-edit <textarea> gets the browser's default white textbox
+       background (x-spreadsheet's own CSS never sets one, having apparently
+       not considered a dark host page), while its text color is inherited
+       and DOES follow the app theme — in dark mode that's near-white text
+       on that default-white box, i.e. invisible. Let the cell underneath
+       (already themed via style.bgcolor in mountSpreadsheetCanvas) show
+       through instead. */
+    .kokomi-canvas-sheet-host .x-spreadsheet-editor-area,
+    .kokomi-canvas-sheet-host .x-spreadsheet-editor-area textarea {
+        background: transparent;
+    }
+
+    /* x-spreadsheet's toolbar/menus/dialogs are plain DOM and themeable via
+       CSS; its grid body (header strip, gridlines, cell fills) is drawn on
+       a <canvas> instead — that part is re-themed by patching the vendored
+       bundle's hardcoded draw colors (see app/cdn.py's
+       _patch_xspreadsheet_theme) rather than CSS. */
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toolbar,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-bottombar {
+        background: var(--bg-elevated);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toolbar,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toolbar-divider,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-bottombar {
+        border-color: var(--border);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn:hover,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toolbar .x-spreadsheet-toolbar-btn.active,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-menu > li.active {
+        background: var(--bg-surface-hover);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-icon-img {
+        filter: invert(1);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-menu > li {
+        color: var(--text-secondary);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-suggest,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-contextmenu,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-sort-filter,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-modal,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toast,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-datepicker,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-calendar {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border-color: var(--border);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-modal-header,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-toast-header,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-calendar .calendar-header,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-filter .x-spreadsheet-header {
+        background: var(--bg-surface-hover);
+        border-color: var(--border);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-item {
+        /* Each menu row sets its own near-black text color, overriding the
+           parent menu's — the right-click menu, "..." toolbar overflow, and
+           font/size dropdowns all render as .x-spreadsheet-item rows. */
+        color: var(--text-primary);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-item:hover {
+        background: var(--bg-surface-hover);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-item.divider {
+        border-bottom-color: var(--border);
+    }
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-form-input input,
+    .dark .kokomi-canvas-sheet-host .x-spreadsheet-form-select {
+        background: var(--bg-input);
+        border-color: var(--border);
+        color: var(--text-primary);
+    }
+
     /* Document mode: a scrollable grey desk with a white page on it. */
     .kokomi-canvas-doc-scroll {
         position: absolute; inset: 0; overflow-y: auto; padding: 22px 0 60px;
@@ -2643,13 +2731,13 @@
             <div class="kokomi-canvas-head shrink-0">
                 <div class="flex items-center gap-2.5 min-w-0">
                     <div class="kokomi-canvas-badge">
-                        <i class="fa-solid" :class="canvas.mode === 'document' ? 'fa-file-word' : 'fa-code'"></i>
+                        <i class="fa-solid" :class="canvas.mode === 'document' ? 'fa-file-word' : canvas.mode === 'spreadsheet' ? 'fa-table' : 'fa-code'"></i>
                     </div>
                     <div class="min-w-0">
                         <input x-model="canvas.title" @input="markCanvasDirty()"
                                class="kokomi-canvas-title" spellcheck="false">
                         <div class="kokomi-canvas-sub">
-                            <span x-text="canvas.mode === 'document' ? 'Document' : canvas.language"></span>
+                            <span x-text="canvas.mode === 'document' ? 'Document' : canvas.mode === 'spreadsheet' ? 'Spreadsheet' : canvas.language"></span>
                             <span x-show="canvas.mode === 'document' && canvas.wordCount"
                                   x-text="' · ' + canvas.wordCount + ' words'"></span>
                             <!-- While the model writes, show that instead of save state -->
@@ -2681,7 +2769,7 @@
                          opens the full format list. -->
                     <div class="kokomi-canvas-dl" @click.outside="canvas.exportOpen = false">
                         <button @click="downloadCanvas()" class="kokomi-canvas-btn"
-                                :title="canvas.mode === 'code' ? 'Download source' : 'Download as Word (.docx)'">
+                                :title="canvas.mode === 'code' ? 'Download source' : canvas.mode === 'spreadsheet' ? 'Download as Excel (.xlsx)' : 'Download as Word (.docx)'">
                             <i class="fa-solid fa-download"></i>
                         </button>
                         <button @click="canvas.exportOpen = !canvas.exportOpen"
@@ -2705,11 +2793,12 @@
                 </div>
             </div>
 
-            <!-- Editor bodies. Both hosts stay mounted; only the active one is shown,
-                 so Monaco/Quill never get torn out from under themselves on re-render. -->
+            <!-- Editor bodies. All three hosts stay mounted; only the active one is
+                 shown, so Monaco/Quill/x-spreadsheet never get torn out from under
+                 themselves on re-render. -->
             <div class="flex-grow min-h-0 relative">
                 <div id="canvas-code-host" class="kokomi-canvas-code"
-                     x-show="canvas.mode !== 'document'"></div>
+                     x-show="canvas.mode === 'code'"></div>
                 <!-- Right-click + Ctrl+Space are bound here (on the container) in the
                      CAPTURE phase rather than on the editor itself: browser extensions
                      that hook contenteditable (Grammarly et al) attach their own
@@ -2723,6 +2812,15 @@
                         <div id="canvas-doc-host"></div>
                     </div>
                 </div>
+
+                <!-- x-spreadsheet has its own native right-click menu (insert/delete
+                     row/col, copy, etc.) drawn on its internal <canvas>, so — unlike
+                     the document pane above — contextmenu is deliberately left alone
+                     here. Only Ctrl+I (matching the code canvas) opens the AI prompt. -->
+                <div id="canvas-sheet-host" class="kokomi-canvas-sheet-host"
+                     x-show="canvas.mode === 'spreadsheet'"
+                     @keydown.capture="if ($event.ctrlKey && ($event.key === 'i' || $event.key === 'I')) { $event.preventDefault(); openCanvasPrompt(); }"
+                     tabindex="-1"></div>
 
                 <!-- Targeted edit in flight -->
                 <div x-show="canvas.editing" x-cloak class="kokomi-canvas-editing">

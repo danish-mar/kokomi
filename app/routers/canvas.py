@@ -7,9 +7,11 @@ what gets injected into the system prompt on the next turn — so the model
 always sees the user's current version, not the one it originally wrote.
 """
 
+import csv as csv_module
 import io
 import json
 import re
+from html import escape as html_escape
 from html.parser import HTMLParser
 from typing import Optional
 
@@ -149,11 +151,14 @@ class CanvasEdit(BaseModel):
 
 
 class CanvasPatch(BaseModel):
-    """A line-addressed patch request over the canvas."""
+    """A line- (code), block- (document) or range- (spreadsheet) addressed
+    patch request over the canvas."""
     instruction: str
     # Optional line window the user highlighted, to focus the edit.
     start_line: Optional[int] = None
     end_line: Optional[int] = None
+    # Optional A1-style range the user had selected in a spreadsheet canvas.
+    range: Optional[str] = None
 
 
 def _locate(convos: dict, conversation_id: str, artifact_id: str):
@@ -488,6 +493,165 @@ def apply_line_edits(content: str, edits: list) -> tuple[str, list, list]:
     return "\n".join(lines), applied, rejected
 
 
+# ── Cell-addressed patching (spreadsheet canvas) ────────────────────────
+#
+# A spreadsheet canvas stores its content as plain CSV — the same "raw source"
+# treatment code gets, rather than reinventing x-spreadsheet's own nested JSON
+# model in the prompt. Edits are addressed by A1-style range (e.g. "B2" or
+# "B2:D5"), the notation every spreadsheet user and LLM already knows. Unlike
+# line edits, writing into cells doesn't shift anything else, so — once
+# overlapping ranges are resolved — edits can be applied in any order.
+
+def _parse_grid(text: str) -> list:
+    """CSV text -> a rectangular grid (ragged rows padded with '')."""
+    rows = [list(r) for r in csv_module.reader(io.StringIO(text or ""))]
+    width = max((len(r) for r in rows), default=0)
+    for r in rows:
+        r.extend([""] * (width - len(r)))
+    return rows
+
+
+def _grid_to_csv(grid: list) -> str:
+    buf = io.StringIO()
+    csv_module.writer(buf, lineterminator="\n").writerows(grid)
+    return buf.getvalue()
+
+
+def _col_letters(n: int) -> str:
+    """0-based column index -> spreadsheet letters (0->A, 25->Z, 26->AA)."""
+    s = ""
+    n += 1
+    while n:
+        n, rem = divmod(n - 1, 26)
+        s = chr(65 + rem) + s
+    return s
+
+
+def _col_index(letters: str) -> int:
+    n = 0
+    for ch in letters.upper():
+        n = n * 26 + (ord(ch) - 64)
+    return n - 1
+
+
+_A1_RE = re.compile(r"^([A-Za-z]+)(\d+)$")
+
+
+def _parse_a1(a1: str):
+    m = _A1_RE.match((a1 or "").strip())
+    if not m:
+        return None
+    return int(m.group(2)) - 1, _col_index(m.group(1))  # 0-based (row, col)
+
+
+def _parse_range(range_str: str):
+    """'B2' or 'B2:D5' -> (r0, c0, r1, c1) inclusive, 0-based. None if invalid."""
+    s = (range_str or "").strip()
+    if ":" in s:
+        a, b = s.split(":", 1)
+        pa, pb = _parse_a1(a), _parse_a1(b)
+        if not pa or not pb:
+            return None
+        return min(pa[0], pb[0]), min(pa[1], pb[1]), max(pa[0], pb[0]), max(pa[1], pb[1])
+    p = _parse_a1(s)
+    if not p:
+        return None
+    return p[0], p[1], p[0], p[1]
+
+
+def _numbered_grid(grid: list, max_rows: int = 200) -> str:
+    """Render the grid as a lettered/numbered table, the same 'show
+    coordinates, ask for anchored edits' pattern as _number_lines/_number_blocks."""
+    width = len(grid[0]) if grid else 0
+    header = "     " + " ".join(f"{_col_letters(c):>10}" for c in range(width))
+    out = [header]
+    for i, row in enumerate(grid[:max_rows]):
+        cells = " ".join(f"{(c or ''):>10.10}" for c in row)
+        out.append(f"{i + 1:>4} {cells}")
+    if len(grid) > max_rows:
+        out.append(f"… ({len(grid) - max_rows} more rows not shown)")
+    return "\n".join(out)
+
+
+def apply_cell_edits(content: str, edits: list) -> tuple:
+    """Apply A1-range-addressed edits to a CSV grid. Mirrors apply_line_edits/
+    apply_block_edits: anchors are verified, bad edits are refused, overlapping
+    ranges are dropped (keep the first). Cell writes don't shift other cells,
+    so — unlike line edits — surviving edits can be applied in any order."""
+    grid = _parse_grid(content)
+    rows = len(grid)
+    cols = len(grid[0]) if grid else 0
+
+    normalized, rejected = [], []
+    for e in edits:
+        range_str = e.get("range", "")
+        rng = _parse_range(range_str)
+        if not rng:
+            rejected.append({"edit": e, "reason": f"invalid range {range_str!r}"})
+            continue
+        r0, c0, r1, c1 = rng
+
+        anchor = grid[r0][c0] if r0 < rows and c0 < cols else ""
+        expect = e.get("expect")
+        if expect and _norm(expect) not in _norm(anchor) and _norm(anchor) not in _norm(expect):
+            rejected.append({
+                "edit": e,
+                "reason": f"anchor mismatch at {range_str}: expected {expect!r}, found {anchor!r}",
+            })
+            continue
+
+        replacement = e.get("replacement", "")
+        if replacement is None:
+            replacement = ""
+        want_rows, want_cols = r1 - r0 + 1, c1 - c0 + 1
+        if replacement == "":
+            rep_grid = [["" for _ in range(want_cols)] for _ in range(want_rows)]
+        else:
+            rep_grid = [r.split(",") for r in replacement.split("\n")]
+            if len(rep_grid) != want_rows or any(len(rr) != want_cols for rr in rep_grid):
+                rejected.append({
+                    "edit": e,
+                    "reason": f"replacement shape does not match range {range_str} "
+                              f"({want_rows}x{want_cols} expected)",
+                })
+                continue
+
+        normalized.append({
+            "r0": r0, "c0": c0, "r1": r1, "c1": c1,
+            "rep": rep_grid, "range": range_str, "cleared": replacement == "",
+        })
+
+    # Overlapping ranges would clobber each other — keep the first, drop the rest.
+    kept, occupied = [], set()
+    for ed in normalized:
+        cells = {(r, c) for r in range(ed["r0"], ed["r1"] + 1) for c in range(ed["c0"], ed["c1"] + 1)}
+        if cells & occupied:
+            rejected.append({"edit": ed, "reason": f"range {ed['range']} overlaps an earlier edit"})
+            continue
+        occupied |= cells
+        kept.append(ed)
+
+    # Grow the grid if any surviving edit reaches beyond its current bounds.
+    max_r = max((ed["r1"] for ed in kept), default=-1)
+    max_c = max((ed["c1"] for ed in kept), default=-1)
+    if max_r >= rows:
+        grid.extend([[""] * cols for _ in range(max_r - rows + 1)])
+        rows = len(grid)
+    if max_c >= cols:
+        for r in grid:
+            r.extend([""] * (max_c - cols + 1))
+        cols = max_c + 1
+
+    applied = []
+    for ed in kept:
+        for i in range(ed["r1"] - ed["r0"] + 1):
+            for j in range(ed["c1"] - ed["c0"] + 1):
+                grid[ed["r0"] + i][ed["c0"] + j] = ed["rep"][i][j]
+        applied.append({"range": ed["range"], "cleared": ed["cleared"]})
+
+    return _grid_to_csv(grid), applied, rejected
+
+
 @router.post("/canvas/{conversation_id}/{artifact_id}/patch")
 async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch):
     """Edit the canvas by line-addressed patch — only the named lines change."""
@@ -504,6 +668,7 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
 
     mode = (art.get("mode") or "code").lower()
     is_doc = mode == "document" and _looks_like_html(content)
+    is_sheet = mode == "spreadsheet"
 
     if is_doc:
         # Prose is addressed by block; see the note above split_html_blocks.
@@ -530,6 +695,37 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
         )
         human = f"INSTRUCTION: {instruction}\n\nDOCUMENT:\n{numbered}"
         raw_kind = "block"
+    elif is_sheet:
+        grid = _parse_grid(content)
+        numbered = _numbered_grid(grid)
+        focus = ""
+        if body.range:
+            focus = f"\nThe user has range {body.range} selected. Prefer edits there.\n"
+        system = (
+            "You edit a spreadsheet by emitting a minimal PATCH, never by rewriting it.\n"
+            "You are given the grid with column letters and row numbers (these "
+            "coordinates are NOT part of any cell's value). Return ONLY a JSON "
+            "object, no prose and no code fences:\n"
+            '{"edits":[{"range":"B2","expect":"<exact current text of B2>",'
+            '"replacement":"new value"},'
+            '{"range":"C3:C5","expect":"<exact current text of C3>",'
+            '"replacement":"10\\n20\\n30"}]}\n'
+            "Rules:\n"
+            "- 'range' is a single cell (\"B2\") or a rectangular range (\"B2:D5\") "
+            "in A1 notation. Columns are letters, rows are 1-based numbers.\n"
+            "- 'expect' MUST be the exact current text of the range's TOP-LEFT "
+            "cell. It is verified; a wrong anchor causes the edit to be rejected.\n"
+            "- For a single cell, 'replacement' is just the new value.\n"
+            "- For a range, 'replacement' has one line per row and cells within a "
+            "row separated by commas — it MUST match the range's dimensions "
+            "exactly. Cell values themselves must not contain commas or newlines.\n"
+            "- A formula starts with \"=\", e.g. \"=SUM(A1:A10)\", \"=B2*C2\".\n"
+            "- Use \"\" as the replacement to clear a cell or range.\n"
+            "- Change as FEW cells as possible. Never restate unchanged cells.\n"
+            "- Emit multiple small edits rather than one giant range."
+        )
+        human = f"INSTRUCTION: {instruction}\n{focus}\nSPREADSHEET:\n{numbered}"
+        raw_kind = "cell"
     else:
         numbered = _number_lines(content)
         focus = ""
@@ -537,26 +733,24 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
             focus = (f"\nThe user is focused on lines {body.start_line}"
                      f"-{body.end_line or body.start_line}. Prefer edits there.\n")
         raw_kind = "line"
-
-    system = system if is_doc else (
-        "You edit files by emitting a minimal PATCH, never by rewriting the file.\n"
-        "You are given the file with line numbers (the numbers are NOT part of the "
-        "content). Return ONLY a JSON object, no prose and no code fences:\n"
-        '{"edits":[{"start_line":12,"end_line":15,'
-        '"expect":"<exact text of line 12>","replacement":"new line\\nanother line"}]}\n'
-        "Rules:\n"
-        "- Change as FEW lines as possible. Never restate unchanged lines.\n"
-        "- start_line/end_line are inclusive and 1-based, over the ORIGINAL numbering.\n"
-        "- 'expect' MUST be the exact original text of start_line. It is verified; "
-        "a wrong anchor causes the edit to be rejected.\n"
-        "- 'replacement' is the new text WITHOUT line numbers. Use \\n for multiple "
-        "lines. Use \"\" to delete the range.\n"
-        "- To INSERT without deleting, set end_line = start_line - 1; the text is "
-        "inserted before start_line.\n"
-        "- Preserve the file's existing indentation style exactly.\n"
-        "- Emit multiple small edits rather than one giant range."
-    )
-    if not is_doc:
+        system = (
+            "You edit files by emitting a minimal PATCH, never by rewriting the file.\n"
+            "You are given the file with line numbers (the numbers are NOT part of the "
+            "content). Return ONLY a JSON object, no prose and no code fences:\n"
+            '{"edits":[{"start_line":12,"end_line":15,'
+            '"expect":"<exact text of line 12>","replacement":"new line\\nanother line"}]}\n'
+            "Rules:\n"
+            "- Change as FEW lines as possible. Never restate unchanged lines.\n"
+            "- start_line/end_line are inclusive and 1-based, over the ORIGINAL numbering.\n"
+            "- 'expect' MUST be the exact original text of start_line. It is verified; "
+            "a wrong anchor causes the edit to be rejected.\n"
+            "- 'replacement' is the new text WITHOUT line numbers. Use \\n for multiple "
+            "lines. Use \"\" to delete the range.\n"
+            "- To INSERT without deleting, set end_line = start_line - 1; the text is "
+            "inserted before start_line.\n"
+            "- Preserve the file's existing indentation style exactly.\n"
+            "- Emit multiple small edits rather than one giant range."
+        )
         human = f"INSTRUCTION: {instruction}\n{focus}\nFILE:\n{numbered}"
 
     try:
@@ -584,6 +778,8 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
 
     if is_doc:
         new_content, applied, rejected = apply_block_edits(content, edits)
+    elif is_sheet:
+        new_content, applied, rejected = apply_cell_edits(content, edits)
     else:
         new_content, applied, rejected = apply_line_edits(content, edits)
 
@@ -600,8 +796,9 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
         "content": new_content,
         "applied": applied,
         "rejected": [r["reason"] for r in rejected],
-        # Tells the client how to apply it: line ranges (Monaco) vs whole HTML
-        # (Quill, which has no line model to splice into).
+        # Tells the client how to apply it: line ranges (Monaco), whole HTML
+        # (Quill, which has no line model to splice into), or a full grid
+        # reload (x-spreadsheet, same reasoning as Quill).
         "kind": raw_kind,
     }
 
@@ -702,18 +899,67 @@ def _blocks_to_markdown(blocks) -> str:
     return "\n".join(out).strip() + "\n"
 
 
+def _coerce_cell(v: str):
+    """CSV cells are always strings; write numbers back as numbers so
+    formulas referencing them compute correctly, and pass formulas through
+    as-is (a string starting with "=" is exactly how openpyxl recognises one)."""
+    if v is None or v == "" or v.startswith("="):
+        return v or None
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        return v
+
+
+def _build_xlsx(grid: list, title: str) -> bytes:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (re.sub(r"[\[\]:*?/\\]", "_", title)[:31] or "Sheet1")
+    for row in grid:
+        ws.append([_coerce_cell(c) for c in row])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _grid_to_html_table(grid: list, title: str) -> str:
+    rows_html = "".join(
+        "<tr>" + "".join(f"<td>{html_escape(c)}</td>" for c in row) + "</tr>"
+        for row in grid
+    )
+    return (
+        f"<!doctype html><meta charset=\"utf-8\"><title>{html_escape(title)}</title>"
+        f"<style>table{{border-collapse:collapse}}td{{border:1px solid #ccc;"
+        f"padding:4px 8px;font:13px sans-serif}}</style>"
+        f"<table>{rows_html}</table>"
+    )
+
+
 MEDIA_TYPES = {
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pdf": "application/pdf",
     "html": "text/html; charset=utf-8",
     "md": "text/markdown; charset=utf-8",
     "txt": "text/plain; charset=utf-8",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "csv": "text/csv; charset=utf-8",
 }
+
+# Formats each mode can actually produce — xlsx/csv only make sense for a
+# grid, and the block/blocks writers below don't know how to lay out a table.
+_SHEET_FORMATS = {"xlsx", "csv", "html"}
+_TEXT_FORMATS = {"docx", "pdf", "md", "html", "txt"}
 
 
 @router.get("/canvas/{conversation_id}/{artifact_id}/export")
 async def export_canvas(conversation_id: str, artifact_id: str, format: str = "docx"):
-    """Render a canvas to a downloadable file. DOCX is the default."""
+    """Render a canvas to a downloadable file. DOCX is the default (xlsx for spreadsheets)."""
     fmt = (format or "docx").lower()
     if fmt not in MEDIA_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
@@ -723,8 +969,25 @@ async def export_canvas(conversation_id: str, artifact_id: str, format: str = "d
     mode = (art.get("mode") or "code").lower()
     title = art.get("title") or "canvas"
     safe_name = re.sub(r"[^\w.-]+", "_", title).strip("_") or "canvas"
+    is_sheet = mode == "spreadsheet"
 
-    if fmt == "html":
+    if is_sheet and fmt not in _SHEET_FORMATS:
+        raise HTTPException(status_code=400, detail=f"{fmt} is not available for spreadsheets")
+    if not is_sheet and fmt not in _TEXT_FORMATS:
+        raise HTTPException(status_code=400, detail=f"{fmt} is only available for spreadsheets")
+
+    if is_sheet:
+        grid = _parse_grid(content)
+        if fmt == "csv":
+            data = content.encode()
+        elif fmt == "html":
+            data = _grid_to_html_table(grid, title).encode()
+        else:  # xlsx
+            try:
+                data = _build_xlsx(grid, title)
+            except ImportError as e:
+                raise HTTPException(status_code=500, detail=f"Exporter unavailable: {e}")
+    elif fmt == "html":
         body = content if _looks_like_html(content) else f"<pre>{content}</pre>"
         data = (
             f"<!doctype html><meta charset=\"utf-8\"><title>{title}</title>"

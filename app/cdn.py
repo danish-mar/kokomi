@@ -113,6 +113,19 @@ for _lang in MONACO_LANGUAGES:
 ASSETS["quill/quill.js"] = "https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"
 ASSETS["quill/quill.snow.css"] = "https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"
 
+# x-data-spreadsheet — grid engine behind the spreadsheet canvas. The CSS pulls
+# one relative sprite (a resize-handle icon) that has to be vendored alongside it.
+X_SPREADSHEET_VER = "1.1.9"
+ASSETS["x-spreadsheet/xspreadsheet.js"] = (
+    f"https://cdn.jsdelivr.net/npm/x-data-spreadsheet@{X_SPREADSHEET_VER}/dist/xspreadsheet.js"
+)
+ASSETS["x-spreadsheet/xspreadsheet.css"] = (
+    f"https://cdn.jsdelivr.net/npm/x-data-spreadsheet@{X_SPREADSHEET_VER}/dist/xspreadsheet.css"
+)
+ASSETS["x-spreadsheet/58eaeb4e52248a5c75936c6f4c33a370.svg"] = (
+    f"https://cdn.jsdelivr.net/npm/x-data-spreadsheet@{X_SPREADSHEET_VER}/dist/58eaeb4e52248a5c75936c6f4c33a370.svg"
+)
+
 
 # KaTeX relative fonts (stored in fonts/ relative to the CSS file)
 KATEX_FONTS = [
@@ -143,22 +156,76 @@ for font in KATEX_FONTS:
     ASSETS[f"fonts/{font}"] = f"https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/fonts/{font}"
 
 
+# x-spreadsheet paints its row/column header strip, header text, gridlines,
+# and the blank top-left corner box onto a <canvas> using hardcoded style
+# object literals baked into the minified bundle (no public option reaches
+# them). We patch those literals into getters that read
+# `window.__xspreadsheetTheme`, which canvas.js populates before mounting
+# with colors resolved live from the app's own CSS custom properties
+# (var(--bg-elevated) etc.) — so the grid picks up this install's actual
+# theme (custom accent/swatch colors included), not just a fixed dark
+# palette. Each getter falls back to x-spreadsheet's original literal if the
+# theme object isn't there yet. Pinned to 1.1.9's exact minified output —
+# each pair is independent, and one not matching (e.g. a version bump
+# re-minified differently) just leaves that piece unthemed, not broken.
+_XSPREADSHEET_THEME_PATCHES = (
+    # Header strip background + gridline stroke/fill defaults.
+    (
+        'Je={fillStyle:"#f4f5f8"},Ge={fillStyle:"#fff",lineWidth:Se,strokeStyle:"#e6e6e6"}',
+        'Je={get fillStyle(){return (window.__xspreadsheetTheme&&window.__xspreadsheetTheme.headerBg)||"#f4f5f8"}},'
+        'Ge={get fillStyle(){return (window.__xspreadsheetTheme&&window.__xspreadsheetTheme.cellBg)||"#fff"},lineWidth:Se,'
+        'get strokeStyle(){return (window.__xspreadsheetTheme&&window.__xspreadsheetTheme.border)||"#e6e6e6"}}',
+    ),
+    # Row-number / column-letter label text + the divider line drawn under a
+    # hidden row or column, inside the header strip.
+    (
+        'fillStyle:"#585757",lineWidth:Se(),strokeStyle:"#e6e6e6"',
+        'get fillStyle(){return (window.__xspreadsheetTheme&&window.__xspreadsheetTheme.headerText)||"#585757"},lineWidth:Se(),'
+        'get strokeStyle(){return (window.__xspreadsheetTheme&&window.__xspreadsheetTheme.border)||"#e6e6e6"}',
+    ),
+    # Blank corner box where the row-number and column-letter strips meet.
+    (
+        'n.attr({fillStyle:"#f4f5f8"}).fillRect(0,0,t,e)',
+        'n.attr({get fillStyle(){return (window.__xspreadsheetTheme&&window.__xspreadsheetTheme.headerBg)||"#f4f5f8"}}).fillRect(0,0,t,e)',
+    ),
+)
+
+
+def _patch_xspreadsheet_theme(dest_path: str):
+    with open(dest_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    for needle, replacement in _XSPREADSHEET_THEME_PATCHES:
+        if needle not in content:
+            logger.warning(
+                "x-spreadsheet theme patch target not found (library version drift?): %r; "
+                "that part of the spreadsheet canvas will keep its default light styling.",
+                needle[:40],
+            )
+            continue
+        content = content.replace(needle, replacement, 1)
+    with open(dest_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
 async def download_file(client: httpx.AsyncClient, relative_path: str, url: str):
     """Download a single asset from URL and save it to the local relative path."""
     dest_path = os.path.join(VENDOR_DIR, relative_path)
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    
+
     logger.info(f"Downloading CDN asset to {relative_path}...")
     try:
         response = await client.get(url, timeout=30.0, follow_redirects=True)
         response.raise_for_status()
-        
+
         # Write to temporary file first, then swap to guarantee atomic write
         tmp_path = dest_path + ".tmp"
         with open(tmp_path, "wb") as f:
             f.write(response.content)
         os.replace(tmp_path, dest_path)
-        
+
+        if relative_path == "x-spreadsheet/xspreadsheet.js":
+            _patch_xspreadsheet_theme(dest_path)
+
     except Exception as e:
         logger.error(f"Failed to download {relative_path} from {url}: {e}")
         # Clean up tmp file if it exists

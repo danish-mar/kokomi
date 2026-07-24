@@ -46,13 +46,31 @@ def find_artifact(history: list, artifact_id: str) -> Optional[dict]:
     return None
 
 
+def _find_latest_canvas_artifact(history: list) -> Optional[dict]:
+    """Most recent canvas-type artifact anywhere in history, newest-first."""
+    for msg in reversed(history or []):
+        for art in reversed(msg.get("artifacts") or []):
+            if art.get("type") == "canvas":
+                return art
+    return None
+
+
 def _open_canvas_context(history: list, canvas_id: Optional[str]) -> str:
-    """System-prompt block showing the canvas the user currently has open.
+    """System-prompt block showing the canvas the user is (or was last)
+    working on.
+
+    The frontend only sends canvas_id while the canvas PANEL is visibly
+    open — closing it back to an inline artifact card sends None. But a
+    closed panel isn't the user abandoning that artifact; a plain follow-up
+    ("add three more records to that") still means it. So when no id is
+    given, fall back to the most recent canvas artifact in the conversation
+    rather than showing the model nothing and leaving it to reinvent a new
+    artifact from scratch.
 
     The stored content is the source of truth and already includes any edits
     the user made in the editor, so this is what they're actually looking at.
     """
-    art = find_artifact(history, canvas_id)
+    art = find_artifact(history, canvas_id) if canvas_id else _find_latest_canvas_artifact(history)
     if not art or not (art.get("content") or "").strip():
         return ""
 
@@ -61,9 +79,11 @@ def _open_canvas_context(history: list, canvas_id: Optional[str]) -> str:
     label = f"{mode} canvas" + (f" ({lang})" if mode == "code" and lang else "")
     return (
         f"[OPEN CANVAS]\n"
-        f"The user currently has a {label} open titled \"{art.get('title') or 'Untitled'}\" "
-        f"(id=\"{art.get('id')}\"). These are its CURRENT contents, including any edits they "
-        f"made themselves:\n"
+        f"The user's most recent {label} is titled \"{art.get('title') or 'Untitled'}\" "
+        f"(id=\"{art.get('id')}\") — the panel may or may not be visibly open right now, but a "
+        f"follow-up like \"add three more rows\" or \"change the title\" almost always means "
+        f"this one, not a brand new artifact. These are its CURRENT contents, including any "
+        f"edits the user made themselves:\n"
         f"--- BEGIN CANVAS ---\n{art['content']}\n--- END CANVAS ---\n"
         f"When they ask you to change it, re-emit the canvas with id=\"{art.get('id')}\" and "
         f"the FULL updated contents. Do not repeat the contents in your chat reply.\n"
@@ -715,8 +735,8 @@ async def chat_stream(req: ChatRequest):
                             # elsewhere, this rule loses to the 15 copies above and the
                             # model tags canvases type=\"cpp\" instead of type=\"canvas\".
                             "EXCEPTION — if the user wants an editable CANVAS to work in, the tag is "
-                            "type=\"canvas\" mode=\"code\" language=\"cpp\" (or mode=\"document\"). "
-                            "type is then the literal word canvas, NEVER the language.\n"
+                            "type=\"canvas\" mode=\"code\" language=\"cpp\" (or mode=\"document\" or "
+                            "mode=\"spreadsheet\"). type is then the literal word canvas, NEVER the language.\n"
                             "[/ARTIFACTS ENABLED]"
                         )
                         # NOTE: this repetition is load-bearing. Dropping it to x2 to
@@ -790,21 +810,22 @@ async def chat_stream(req: ChatRequest):
 
                         # Canvas: an editable side-by-side working surface (the chat
                         # shrinks to 40%, the canvas takes 60%). "code" mode opens a
-                        # real VS Code editor; "document" mode a Word-style page. Use
-                        # it for content the user will actually work ON, as opposed to
-                        # a read-only artifact card they just look at.
+                        # real VS Code editor; "document" mode a Word-style page;
+                        # "spreadsheet" mode an Excel-like grid. Use it for content the
+                        # user will actually work ON, as opposed to a read-only artifact
+                        # card they just look at.
                         canvas_instr = (
                             "[CANVAS ENABLED]\n"
                             "When the user wants to WORK ON something with you — write and iterate on a "
-                            "program, draft and revise a document, refactor a file — open a CANVAS: "
-                            "<Artifact id=\"unique_id\" title=\"Title\" type=\"canvas\" mode=\"code\" "
-                            "language=\"python\">...</Artifact>.\n"
+                            "program, draft and revise a document, refactor a file, build a table of "
+                            "data — open a CANVAS: <Artifact id=\"unique_id\" title=\"Title\" "
+                            "type=\"canvas\" mode=\"code\" language=\"python\">...</Artifact>.\n"
                             "ATTRIBUTE RULE — this overrides the general artifact rule above: "
                             "for a canvas, type MUST be the literal string \"canvas\". Do NOT put "
                             "the language in type. WRONG: type=\"java\" / type=\"code\" / "
                             "type=\"python\". RIGHT: type=\"canvas\" mode=\"code\" language=\"java\". "
                             "The language always goes in the separate 'language' attribute.\n"
-                            "'mode' MUST be either \"code\" or \"document\":\n"
+                            "'mode' MUST be \"code\", \"document\" or \"spreadsheet\":\n"
                             "  • mode=\"code\" — opens a full code editor. Also set language=\"...\" "
                             "(python, javascript, typescript, html, css, sql, go, rust, java, cpp, "
                             "shell, yaml, json, markdown, ...). The body is RAW SOURCE CODE ONLY: no "
@@ -812,6 +833,13 @@ async def chat_stream(req: ChatRequest):
                             "  • mode=\"document\" — opens a Word-style page editor. The body is "
                             "MARKDOWN ('# ' title, '## ' sections, '- ' lists, '**bold**', tables), "
                             "which is converted to a formatted, editable document.\n"
+                            "  • mode=\"spreadsheet\" — opens an Excel-like grid. The body is RAW CSV "
+                            "(comma-separated, one row per line, no markdown table syntax, no code "
+                            "fences). The first row is usually a header row. A cell can hold a formula "
+                            "by starting with \"=\" (e.g. \"=SUM(A2:A10)\", \"=B2*C2\") — the grid "
+                            "evaluates it like a real spreadsheet. Use this whenever the user wants "
+                            "tabular/numeric data they can sort, edit cell-by-cell, or run formulas "
+                            "over, rather than a markdown table that's just read.\n"
                             "The user can EDIT the canvas directly, and their edits are saved. When they "
                             "ask for a change, you will be shown the CURRENT contents (including their "
                             "edits) — re-emit the canvas with the SAME id to update it in place, and "

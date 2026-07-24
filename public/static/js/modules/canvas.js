@@ -1,20 +1,22 @@
 /**
  * Canvas — an editable artifact opened beside the chat.
  *
- * Two modes:
- *   code     → Monaco, the editor core VS Code itself is built on.
- *   document → Quill on a Word-style page (a white sheet with margins).
+ * Three modes:
+ *   code        → Monaco, the editor core VS Code itself is built on.
+ *   document    → Quill on a Word-style page (a white sheet with margins).
+ *   spreadsheet → x-spreadsheet, an Excel-like grid rendered on a <canvas>.
  *
  * The editor instances deliberately live in this module-scoped registry rather
  * than on Alpine state: Alpine deep-proxies whatever you put on the component,
- * and wrapping Monaco/Quill in a reactive Proxy breaks them (they rely on
- * object identity and mutate huge internal structures). Alpine only ever holds
- * plain data — text, flags, counts.
+ * and wrapping Monaco/Quill/x-spreadsheet in a reactive Proxy breaks them
+ * (they rely on object identity and mutate huge internal structures). Alpine
+ * only ever holds plain data — text, flags, counts.
  */
 
 const editors = {
     monaco: null,       // monaco.editor.IStandaloneCodeEditor
     quill: null,        // Quill instance
+    sheet: null,         // x-spreadsheet instance
     monacoLoading: null // Promise, so concurrent opens share one AMD load
 };
 
@@ -42,6 +44,10 @@ const stream = { buffer: '', suppress: false };
  */
 const caret = { range: null, selection: null };
 
+/** Last known cell-range selection inside the spreadsheet editor, 0-based
+ *  {sri,sci,eri,eci} (start/end row/col) — mirrors `caret` for Quill. */
+const caretSheet = { range: null };
+
 const VENDOR = '/static/vendor';
 
 /**
@@ -57,7 +63,7 @@ export function isCanvasArtifact(art) {
     if (!art) return false;
     if ((art.type || '').toLowerCase() === 'canvas') return true;
     const mode = (art.mode || '').toLowerCase();
-    return mode === 'code' || mode === 'document';
+    return mode === 'code' || mode === 'document' || mode === 'spreadsheet';
 }
 
 /** Load Monaco's AMD bundle once, from the local vendor copy (works offline). */
@@ -121,6 +127,159 @@ function loadQuill() {
         script.onerror = () => reject(new Error('Failed to load Quill'));
         document.head.appendChild(script);
     });
+}
+
+/** Load x-spreadsheet (plain script + stylesheet) once. */
+// Vendor assets are served with a 7-day Cache-Control (see
+// _static_cache_control in app/__init__.py) and this file is lazy-loaded on
+// demand rather than during the page's own load, so a page hard-refresh
+// doesn't bust it — a browser that already has it cached from before a
+// server-side patch (see app/cdn.py's _patch_xspreadsheet_theme) will keep
+// serving the stale copy for the rest of the week. Bump this whenever the
+// patch step changes to force every browser to refetch.
+const XSPREADSHEET_ASSET_REV = 3;
+
+function loadXSpreadsheet() {
+    if (window.x_spreadsheet) return Promise.resolve(window.x_spreadsheet);
+    return new Promise((resolve, reject) => {
+        if (!document.getElementById('xspreadsheet-css')) {
+            const link = document.createElement('link');
+            link.id = 'xspreadsheet-css';
+            link.rel = 'stylesheet';
+            link.href = `${VENDOR}/x-spreadsheet/xspreadsheet.css?v=${XSPREADSHEET_ASSET_REV}`;
+            document.head.appendChild(link);
+        }
+        const script = document.createElement('script');
+        script.src = `${VENDOR}/x-spreadsheet/xspreadsheet.js?v=${XSPREADSHEET_ASSET_REV}`;
+        script.onload = () => resolve(window.x_spreadsheet);
+        script.onerror = () => reject(new Error('Failed to load x-spreadsheet'));
+        document.head.appendChild(script);
+    });
+}
+
+/**
+ * A spreadsheet canvas stores its content as plain CSV — the "raw source"
+ * treatment code gets, rather than round-tripping x-spreadsheet's own nested
+ * per-cell JSON model through streaming/patch/export. These helpers convert
+ * between the two only at the editor boundary.
+ */
+
+/** Minimal RFC4180-ish CSV parser: quoted fields, embedded commas/newlines,
+ *  doubled-quote escaping. Never throws — a malformed/partial CSV (mid-stream)
+ *  just parses to whatever it can, which is fine since it's about to be
+ *  overwritten by the next chunk anyway. */
+function parseCsvGrid(text) {
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    const s = text || '';
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (s[i + 1] === '"') { field += '"'; i++; }
+                else inQuotes = false;
+            } else field += c;
+        } else if (c === '"' && field === '') {
+            inQuotes = true;
+        } else if (c === ',') {
+            row.push(field); field = '';
+        } else if (c === '\n') {
+            row.push(field); field = ''; rows.push(row); row = [];
+        } else if (c === '\r') {
+            // no-op — the following \n closes the row
+        } else {
+            field += c;
+        }
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    // Drop a blank trailing row (an artifact of the final newline).
+    if (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === '') rows.pop();
+    // Drop blank leading row(s) — a model regenerating the whole sheet will
+    // occasionally open with a stray blank line, which otherwise shifts
+    // every real row down by one (row 1 goes blank, the header lands on
+    // row 2, etc.) without anything looking obviously wrong until you
+    // actually read the row numbers.
+    while (rows.length && rows[0].length === 1 && rows[0][0] === '') rows.shift();
+
+    const width = rows.reduce((w, r) => Math.max(w, r.length), 0);
+    rows.forEach(r => { while (r.length < width) r.push(''); });
+    return rows;
+}
+
+function csvEscape(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/** 0-based column index -> spreadsheet letters (0->A, 25->Z, 26->AA). */
+function colLetters(n) {
+    let s = '';
+    n += 1;
+    while (n) {
+        const rem = (n - 1) % 26;
+        s = String.fromCharCode(65 + rem) + s;
+        n = Math.floor((n - 1) / 26);
+    }
+    return s;
+}
+
+/** {sri,sci,eri,eci} (0-based) -> "B2" or "B2:D5" (A1 notation). */
+function a1RangeFromIndices(r) {
+    if (!r) return null;
+    const a = `${colLetters(r.sci)}${r.sri + 1}`;
+    const b = `${colLetters(r.eci)}${r.eri + 1}`;
+    return a === b ? a : `${a}:${b}`;
+}
+
+/** CSV text -> x-spreadsheet's single-sheet data shape. A blank grid still
+ *  gets a generous scratch area (60x26) so it reads as a real spreadsheet,
+ *  not a 1x1 box. */
+function csvToSheetData(csvText) {
+    const grid = parseCsvGrid(csvText);
+    const rowLen = Math.max(grid.length, 60);
+    const colLen = Math.max(grid[0] ? grid[0].length : 0, 26);
+    const rows = { len: rowLen };
+    grid.forEach((row, ri) => {
+        const cells = {};
+        row.forEach((val, ci) => { if (val !== '') cells[ci] = { text: val }; });
+        if (Object.keys(cells).length) rows[ri] = { cells };
+    });
+    return { name: 'Sheet1', freeze: 'A1', styles: [], merges: [], rows, cols: { len: colLen } };
+}
+
+/** x-spreadsheet's change-event data -> CSV text. Trims trailing blank
+ *  rows/columns so the stored CSV doesn't balloon with the sheet's blank
+ *  scratch space. */
+function sheetDataToCsv(sheetData) {
+    const rows = (sheetData && sheetData.rows) || {};
+    const rowLen = rows.len || 0;
+
+    let lastRow = -1, lastCol = -1;
+    for (let ri = 0; ri < rowLen; ri++) {
+        const r = rows[ri];
+        if (!r || !r.cells) continue;
+        for (const ciStr of Object.keys(r.cells)) {
+            const text = r.cells[ciStr] && r.cells[ciStr].text;
+            if (text !== undefined && text !== '') {
+                const ci = parseInt(ciStr, 10);
+                if (ri > lastRow) lastRow = ri;
+                if (ci > lastCol) lastCol = ci;
+            }
+        }
+    }
+    if (lastRow < 0) return '';
+
+    const lines = [];
+    for (let ri = 0; ri <= lastRow; ri++) {
+        const r = rows[ri];
+        const line = [];
+        for (let ci = 0; ci <= lastCol; ci++) {
+            const cell = r && r.cells && r.cells[ci];
+            line.push(csvEscape(cell && cell.text !== undefined ? cell.text : ''));
+        }
+        lines.push(line.join(','));
+    }
+    return lines.join('\n') + '\n';
 }
 
 /** Monaco has its own language ids; map a few common aliases onto them. */
@@ -301,7 +460,8 @@ export function getCanvasActions() {
         async openCanvas(art) {
             if (!art) return;
 
-            const mode = (art.mode || 'code').toLowerCase() === 'document' ? 'document' : 'code';
+            const rawMode = (art.mode || 'code').toLowerCase();
+            const mode = (rawMode === 'document' || rawMode === 'spreadsheet') ? rawMode : 'code';
 
             // Switching to a different canvas: flush pending edits from the old one.
             if (this.canvas.open && this.canvas.id && this.canvas.id !== art.id && this.canvas.dirty) {
@@ -360,6 +520,16 @@ export function getCanvasActions() {
                 host.className = '';   // Quill leaves ql-container/ql-snow behind
             }
             editors.quill = null;
+
+            // x-spreadsheet has no dispose() either; it renders onto a <canvas> it
+            // creates inside the host, so clearing the host's innerHTML is enough.
+            if (this._sheetResizeObs) {
+                try { this._sheetResizeObs.disconnect(); } catch (_) {}
+                this._sheetResizeObs = null;
+            }
+            const sheetHost = document.getElementById('canvas-sheet-host');
+            if (sheetHost) sheetHost.innerHTML = '';
+            editors.sheet = null;
         },
 
         // ── Mounting the right editor ──────────────────────────────────
@@ -368,6 +538,7 @@ export function getCanvasActions() {
             this.disposeCanvasEditors();
             try {
                 if (this.canvas.mode === 'document') await this.mountDocumentCanvas();
+                else if (this.canvas.mode === 'spreadsheet') await this.mountSpreadsheetCanvas();
                 else await this.mountCodeCanvas();
             } catch (e) {
                 console.error('[canvas] editor failed to mount', e);
@@ -527,6 +698,108 @@ export function getCanvasActions() {
             // survive editor remounts, and also work in the page margins.
         },
 
+        async mountSpreadsheetCanvas() {
+            const xs = await loadXSpreadsheet();
+            const host = document.getElementById('canvas-sheet-host');
+            if (!host) return;
+            host.innerHTML = '';
+            if (this._sheetResizeObs) {
+                try { this._sheetResizeObs.disconnect(); } catch (_) {}
+                this._sheetResizeObs = null;
+            }
+
+            // x-spreadsheet's header strip/gridlines are canvas-drawn with no
+            // public theming hook, so the vendored bundle is patched (see
+            // app/cdn.py's _patch_xspreadsheet_theme) to read actual colors
+            // off this object instead of its own hardcoded ones — resolved
+            // from the SAME CSS custom properties the rest of the canvas UI
+            // uses (var(--bg-elevated) etc.), so it's not just "dark" but
+            // actually matches this install's theme (custom accent/swatch
+            // colors included), and updates on every mount/remount.
+            const cs = getComputedStyle(document.documentElement);
+            const v = (name) => cs.getPropertyValue(name).trim();
+            window.__xspreadsheetTheme = {
+                cellBg: v('--bg-elevated'),
+                cellText: v('--text-primary'),
+                // --bg-surface-hover is a *hover* tint (pulls hard toward the
+                // accent color) — too strong for a resting gutter background
+                // covering the whole header strip. --bg-surface is the same
+                // neutral family as --bg-elevated, just a touch darker.
+                headerBg: v('--bg-surface'),
+                headerText: v('--text-secondary'),
+                border: v('--border'),
+            };
+
+            editors.sheet = xs(host, {
+                mode: 'edit',
+                view: {
+                    height: () => host.clientHeight || 400,
+                    width: () => host.clientWidth || 600
+                },
+                showToolbar: true,
+                showGrid: true,
+                showContextmenu: true,
+                // Single sheet only — the bottom sheet-tab bar has nothing to switch between.
+                showBottomBar: false,
+                style: {
+                    bgcolor: window.__xspreadsheetTheme.cellBg,
+                    color: window.__xspreadsheetTheme.cellText,
+                }
+            });
+
+            stream.suppress = true;
+            editors.sheet.loadData(csvToSheetData(this.canvas.content || ''));
+            stream.suppress = false;
+
+            editors.sheet.change((data) => {
+                // Same reasoning as Quill's text-change guard: loadData() calls
+                // during a stream or a programmatic patch aren't the user editing.
+                if (stream.suppress || this.canvas.streaming) return;
+                this.canvas.content = sheetDataToCsv(data);
+                this.markCanvasDirty();
+            });
+
+            // Track the selected range so Ctrl+I / "Ask AI" can focus the patch on
+            // it, the same way Monaco's selection focuses a code patch.
+            editors.sheet.on('cell-selected', (_cell, ri, ci) => {
+                caretSheet.range = { sri: ri, sci: ci, eri: ri, eci: ci };
+            });
+            editors.sheet.on('cells-selected', (_cell, range) => {
+                caretSheet.range = range;
+            });
+
+            // x-spreadsheet sizes itself from the view.height/width functions above
+            // AT MOUNT TIME; unlike Monaco's automaticLayout, it doesn't re-measure
+            // on its own. Re-run layout whenever the host resizes (split-pane drag,
+            // window resize).
+            this._sheetResizeObs = new ResizeObserver(() => {
+                if (editors.sheet) { try { editors.sheet.reload(); } catch (_) {} }
+            });
+            this._sheetResizeObs.observe(host);
+
+            // x-spreadsheet drives horizontal wheel/trackpad panning off the
+            // legacy non-standard "mousewheel" event, which Firefox never
+            // fires (only "wheel") — so on Firefox, sideways scroll is dead
+            // in the grid even though vertical works (that one rides on the
+            // vertical scrollbar div's native overflow, no JS needed). Patch
+            // it by driving the scrollbar div's real scrollLeft ourselves,
+            // which the library already listens to via a native "scroll"
+            // handler. Chrome/Safari keep using the library's own handling —
+            // adding this there too would double the scroll speed. `host`
+            // survives remounts (only its innerHTML is cleared), so guard
+            // against binding twice.
+            if (/Firefox/i.test(navigator.userAgent) && !host._xsWheelBound) {
+                host._xsWheelBound = true;
+                host.addEventListener('wheel', (e) => {
+                    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+                    const hbar = host.querySelector('.x-spreadsheet-scrollbar.horizontal');
+                    if (!hbar) return;
+                    hbar.scrollLeft += e.deltaX;
+                    e.preventDefault();
+                }, { passive: false });
+            }
+        },
+
         updateCanvasWordCount() {
             if (!editors.quill) return;
             const text = (editors.quill.getText() || '').trim();
@@ -570,6 +843,8 @@ export function getCanvasActions() {
             this.canvas.content = stream.buffer;
             if (this.canvas.mode === 'document') {
                 this.paintStreamingDocument();
+            } else if (this.canvas.mode === 'spreadsheet') {
+                this.paintStreamingSpreadsheet();
             } else if (editors.monaco && editors.monaco.getValue() !== stream.buffer) {
                 stream.suppress = true;
                 editors.monaco.setValue(stream.buffer);
@@ -596,6 +871,18 @@ export function getCanvasActions() {
                         this._canvasDocTimer = null;
                         this.paintStreamingDocument();
                     }, 120);
+                }
+                return;
+            }
+
+            if (this.canvas.mode === 'spreadsheet') {
+                // A full grid reload is heavier than a text paint, so throttle a
+                // little more generously than the document repaint above.
+                if (!this._canvasSheetTimer) {
+                    this._canvasSheetTimer = setTimeout(() => {
+                        this._canvasSheetTimer = null;
+                        this.paintStreamingSpreadsheet();
+                    }, 200);
                 }
                 return;
             }
@@ -629,11 +916,20 @@ export function getCanvasActions() {
             if (scroller) scroller.scrollTop = scroller.scrollHeight;
         },
 
+        paintStreamingSpreadsheet() {
+            if (!editors.sheet) return;
+            stream.suppress = true;
+            try { editors.sheet.loadData(csvToSheetData(stream.buffer)); } catch (_) {}
+            stream.suppress = false;
+        },
+
         /** Model finished writing — settle the final content and stop streaming. */
         endCanvasStream(art) {
             if (!this.canvas.open || this.canvas.id !== art.id) return;
             clearTimeout(this._canvasDocTimer);
             this._canvasDocTimer = null;
+            clearTimeout(this._canvasSheetTimer);
+            this._canvasSheetTimer = null;
 
             // Settle on the server's authoritative copy, then paint once more —
             // still flagged as streaming so the change handlers stay suppressed.
@@ -642,6 +938,8 @@ export function getCanvasActions() {
 
             if (this.canvas.mode === 'document') {
                 this.paintStreamingDocument();
+            } else if (this.canvas.mode === 'spreadsheet') {
+                this.paintStreamingSpreadsheet();
             } else if (editors.monaco && editors.monaco.getValue() !== stream.buffer) {
                 stream.suppress = true;
                 editors.monaco.setValue(stream.buffer);
@@ -749,7 +1047,7 @@ export function getCanvasActions() {
             this.sendCanvasInstruction(action.instruction, selection);
         },
 
-        /** Ctrl+Space (document) / Ctrl+I (code): inline instruction box. */
+        /** Ctrl+Space (document) / Ctrl+I (code & spreadsheet): inline instruction box. */
         openCanvasPrompt(selection = null) {
             this.canvasMenu.open = false;
 
@@ -762,6 +1060,20 @@ export function getCanvasActions() {
                 this.canvasPrompt.selection = lines;
                 this.canvasPrompt.text = typeof selection === 'string' ? selection : '';
                 const host = document.getElementById('canvas-code-host');
+                const r = host ? host.getBoundingClientRect() : { left: 0, top: 0, width: 600 };
+                this.canvasPrompt.x = Math.min(Math.max(r.left + r.width / 2 - 190, 12), window.innerWidth - 400);
+                this.canvasPrompt.y = Math.max(r.top + 56, 12);
+                this.canvasPrompt.open = true;
+                this.$nextTick(() => this.$refs.canvasPromptInput?.focus());
+                return;
+            }
+
+            // Spreadsheet canvas: same idea, anchored over the grid, showing the
+            // currently selected A1 range (if any) instead of a text passage.
+            if (this.canvas.mode === 'spreadsheet') {
+                this.canvasPrompt.selection = a1RangeFromIndices(caretSheet.range) || '';
+                this.canvasPrompt.text = '';
+                const host = document.getElementById('canvas-sheet-host');
                 const r = host ? host.getBoundingClientRect() : { left: 0, top: 0, width: 600 };
                 this.canvasPrompt.x = Math.min(Math.max(r.left + r.width / 2 - 190, 12), window.innerWidth - 400);
                 this.canvasPrompt.y = Math.max(r.top + 56, 12);
@@ -800,11 +1112,11 @@ export function getCanvasActions() {
             if (!text) return;
             const selection = this.canvasPrompt.selection;
             this.closeCanvasPrompt();
-            // Code → line-addressed patch.
+            // Code / spreadsheet → range-addressed patch (line numbers or A1 cells).
             // Document with a selection → splice just that range (most precise).
             // Document without one → block-addressed patch, so an instruction
             // like "fix the typos" can reach anywhere without rewriting the file.
-            if (this.canvas.mode === 'code') this.patchCanvas(text);
+            if (this.canvas.mode === 'code' || this.canvas.mode === 'spreadsheet') this.patchCanvas(text);
             else if (selection) this.sendCanvasInstruction(text, selection);
             else this.patchCanvas(text);
         },
@@ -898,12 +1210,14 @@ export function getCanvasActions() {
          */
         async patchCanvas(instruction) {
             if (!this.canvas.open || this.canvas.editing) return;
-            const isDoc = this.canvas.mode === 'document';
-            if (!isDoc && !editors.monaco) return;
-            if (isDoc && !editors.quill) return;
+            const mode = this.canvas.mode;
+            if (mode === 'code' && !editors.monaco) return;
+            if (mode === 'document' && !editors.quill) return;
+            if (mode === 'spreadsheet' && !editors.sheet) return;
 
-            const sel = !isDoc && editors.monaco.getSelection();
+            const sel = mode === 'code' && editors.monaco.getSelection();
             const hasSel = sel && !sel.isEmpty();
+            const sheetRange = mode === 'spreadsheet' ? a1RangeFromIndices(caretSheet.range) : null;
 
             this.canvas.editing = true;
             try {
@@ -914,7 +1228,8 @@ export function getCanvasActions() {
                         body: JSON.stringify({
                             instruction,
                             start_line: hasSel ? sel.startLineNumber : null,
-                            end_line: hasSel ? sel.endLineNumber : null
+                            end_line: hasSel ? sel.endLineNumber : null,
+                            range: sheetRange
                         })
                     });
                 if (!res.ok) {
@@ -927,6 +1242,9 @@ export function getCanvasActions() {
                 if (kind === 'block') {
                     this.applyCanvasBlockPatch(content);
                     note = `Rewrote ${applied.length} block${applied.length === 1 ? '' : 's'}`;
+                } else if (kind === 'cell') {
+                    this.applyCanvasSheetPatch(content);
+                    note = `Updated ${applied.length} range${applied.length === 1 ? '' : 's'}`;
                 } else {
                     this.applyCanvasPatch(content, applied);
                     const touched = applied.reduce(
@@ -966,6 +1284,23 @@ export function getCanvasActions() {
                 const len = editors.quill.getLength();
                 editors.quill.setSelection(Math.min(sel.index, len - 1), 0, 'silent');
             }
+        },
+
+        /**
+         * Spreadsheet patches come back as the whole new CSV, same as document
+         * block patches — x-spreadsheet has no documented API for writing just
+         * the touched cells without risking a stale re-render, so the simplest
+         * reliable option is the same "reload, the rest is byte-identical
+         * anyway" approach already used for Quill.
+         */
+        applyCanvasSheetPatch(newContent) {
+            if (!editors.sheet) return;
+            stream.suppress = true;
+            try { editors.sheet.loadData(csvToSheetData(newContent)); } catch (_) {}
+            stream.suppress = false;
+
+            this.canvas.content = newContent;
+            this.markCanvasDirty();
         },
 
         applyCanvasPatch(newContent, applied) {
@@ -1058,6 +1393,15 @@ export function getCanvasActions() {
 
         /** Formats offered in the download dropdown, in menu order. */
         get canvasExportFormats() {
+            if (this.canvas.mode === 'spreadsheet') {
+                // xlsx/csv/html are the only formats the backend can actually lay
+                // a grid out as — docx/pdf/md assume flowing text, not a table.
+                return [
+                    { id: 'xlsx', label: 'Excel workbook', icon: 'fa-file-excel', ext: '.xlsx' },
+                    { id: 'csv', label: 'CSV', icon: 'fa-file-csv', ext: '.csv' },
+                    { id: 'html', label: 'HTML table', icon: 'fa-code', ext: '.html' }
+                ];
+            }
             const common = [
                 { id: 'docx', label: 'Word document', icon: 'fa-file-word', ext: '.docx' },
                 { id: 'pdf', label: 'PDF', icon: 'fa-file-pdf', ext: '.pdf' },
@@ -1075,9 +1419,12 @@ export function getCanvasActions() {
             return common;
         },
 
-        /** Default action of the download button: source for code, DOCX for docs. */
+        /** Default action of the download button: source for code, xlsx for
+         *  spreadsheets, DOCX for docs. */
         downloadCanvas() {
-            this.downloadCanvasAs(this.canvas.mode === 'code' ? 'source' : 'docx');
+            const fmt = this.canvas.mode === 'code' ? 'source'
+                : this.canvas.mode === 'spreadsheet' ? 'xlsx' : 'docx';
+            this.downloadCanvasAs(fmt);
         },
 
         async downloadCanvasAs(fmt) {
@@ -1117,10 +1464,18 @@ export function getCanvasActions() {
             }
         },
 
-        /** Re-theme Monaco when the app theme flips. */
+        /** Re-theme Monaco (and the spreadsheet grid) when the app theme flips. */
         syncCanvasTheme() {
             if (editors.monaco && window.monaco) {
                 window.monaco.editor.setTheme(this.darkMode ? 'vs-dark' : 'vs');
+            }
+            // x-spreadsheet paints onto a <canvas> with colors baked in at
+            // construction time — there's no live theme setter, so re-mount
+            // it with the new palette. Current data survives: the `change`
+            // handler already keeps this.canvas.content in sync as CSV, and
+            // mountSpreadsheetCanvas() reloads from that.
+            if (editors.sheet) {
+                this.mountSpreadsheetCanvas();
             }
         },
 
@@ -1169,6 +1524,10 @@ export function getCanvasActions() {
                 const looksHtml = /^\s*<(p|h[1-6]|ul|ol|blockquote|div|pre|table)[\s>]/i.test(raw);
                 editors.quill.clipboard.dangerouslyPasteHTML(looksHtml ? raw : markdownToHtml(raw));
                 this.updateCanvasWordCount();
+            } else if (this.canvas.mode === 'spreadsheet' && editors.sheet) {
+                stream.suppress = true;
+                try { editors.sheet.loadData(csvToSheetData(this.canvas.content)); } catch (_) {}
+                stream.suppress = false;
             }
             this.canvas.dirty = false;
         }
