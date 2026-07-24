@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.0.0] - 2026-07-25 — "coral atelier"
+
+### Added
+
+- **Spreadsheet canvas — a third canvas mode alongside code and document.** `mode="spreadsheet"` mounts **x-spreadsheet** (vendored, MIT), an Excel-like grid with real formulas (`=SUM(A2:A10)`, `=B2*C2`). CSV is the canonical stored/streamed/patched representation, mirroring how the code canvas stores raw source and the document canvas stores markdown, rather than round-tripping x-spreadsheet's own per-cell JSON through the LLM. **Ctrl+I** opens the same inline AI-prompt box as the code canvas, addressing the current cell selection by A1 range (`B2` or `B2:D5`) instead of a line range; right-click uses x-spreadsheet's own native menu (row/col insert/delete, etc.). Every AI edit carries an anchor verified before it's applied, same discipline as the existing line/block editors. Export to **XLSX** (numbers round-trip as real numbers, so formulas keep working in Excel), CSV, or HTML.
+- The spreadsheet grid **follows the app's actual theme**, including a custom accent color — not a fixed dark palette. x-spreadsheet paints its header strip, gridlines, and cell fills onto a `<canvas>` with colors hardcoded in the minified bundle; the vendored file is patched at download time to read those colors from `getComputedStyle` against the app's own CSS custom properties instead.
+- **Custom LLM provider now requires a real API key and lists its models.** The old "local" provider (assumed an unauthenticated OpenAI-compatible server) is renamed **custom** throughout, with a display name, a required API key, and a live model list fetched from the configured endpoint. Existing installs migrate automatically on first launch after upgrading.
+- **Multiple named custom providers.** A **(+)** button on the provider selector saves multiple custom endpoints as presets, so chat, title generation, and Atlas can each point at a different self-hosted model instead of sharing one global endpoint.
+- **Searchable, company-grouped model picker.** Every model dropdown across chat/title/Atlas settings (10 in total) is now a searchable, filterable list grouped by inferred company/family, replacing a native `<select>` that became unusable once a provider listed hundreds of models.
+
+### Fixed
+
+- **A closed canvas panel made the AI forget what it was editing.** The frontend only tells the backend which canvas is open while its panel is visibly expanded; closing it back to an inline artifact card sent no id at all, so a plain follow-up like "add three more records" showed the model nothing and it generated a brand new artifact instead of continuing the old one. The backend now falls back to the most recent canvas artifact in the conversation when no id is sent.
+- **x-spreadsheet's horizontal scroll did nothing in Firefox.** Its trackpad/wheel panning is wired to the legacy non-standard `mousewheel` event, which Firefox never fires (only `wheel`) — vertical scroll worked anyway since it rides on a scrollbar div's native overflow, but horizontal was silently dead. A Firefox-only supplementary handler now drives the scrollbar directly.
+- A model regenerating a whole spreadsheet could open with a stray blank CSV line, shifting every real row down by one without anything looking obviously wrong until the row numbers were checked.
+
+### Changed
+
+- Vendor assets shrank to a 4px scrollbar app-wide; inside the spreadsheet canvas that scrollbar is the only way to grab and drag its scroll track, so it's restored to a usable size there.
+
 ## [v5.11.0] - 2026-07-22 — "coral atelier"
 
 ### Added
