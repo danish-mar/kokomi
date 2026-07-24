@@ -61,16 +61,37 @@ function settingsApp() {
             user_avatar: null,
             debug_mode: false,
             insights: true,
+            custom_name: 'Custom',
+            custom_base_url: 'http://localhost:8080/v1',
+            custom_api_key: '',
+            custom_model: 'local-model',
+            custom_providers: [],
+            active_custom_provider_id: null,
             atlas_llm_provider: 'google',
             atlas_model_name: 'gemini-2.5-flash',
             atlas_nvidia_model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
-            atlas_local_url: 'http://localhost:8080/v1',
-            atlas_local_model: 'local-model',
+            atlas_custom_base_url: 'http://localhost:8080/v1',
+            atlas_custom_api_key: '',
+            atlas_custom_model: 'local-model',
+            atlas_active_custom_provider_id: null,
             title_llm_provider: 'groq',
             title_model_name: 'meta-llama/llama-4-scout-17b-16e-instruct',
             title_nvidia_model: 'nvidia/llama-3.3-nemotron-super-49b-v1',
-            title_local_url: 'http://localhost:8080/v1',
-            title_local_model: 'local-model'
+            title_custom_base_url: 'http://localhost:8080/v1',
+            title_custom_api_key: '',
+            title_custom_model: 'local-model',
+            title_active_custom_provider_id: null
+        },
+
+        /* ═══ Custom provider presets (add/edit modal + selector state) ═══ */
+        customProviderModal: false,
+        customProviderEditId: null,
+        customProviderSlot: null,
+        cpForm: { name: '', base_url: 'http://localhost:8080/v1', api_key: '', model: '' },
+        _CP_SLOT_MAP: {
+            chat:  { id: 'active_custom_provider_id', name: 'custom_name', url: 'custom_base_url', key: 'custom_api_key', model: 'custom_model' },
+            title: { id: 'title_active_custom_provider_id', url: 'title_custom_base_url', key: 'title_custom_api_key', model: 'title_custom_model' },
+            atlas: { id: 'atlas_active_custom_provider_id', url: 'atlas_custom_base_url', key: 'atlas_custom_api_key', model: 'atlas_custom_model' },
         },
 
         cropModal: false,
@@ -503,7 +524,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
 
         /* ═══ Characters ═══ */
         charModal: false, charEditId: null, charName: '', charPersona: '', charDescription: '',
-        charGroqModel: 'default', charGoogleModel: 'default', charLocalModel: 'default', charNvidiaModel: 'default',
+        charGroqModel: 'default', charGoogleModel: 'default', charCustomModel: 'default', charNvidiaModel: 'default',
         charVoice: 'aoede', charAvatarPreview: null, charAvatarFile: null, charMCPServers: [],
         mcpTools: {},
         charSearch: '',
@@ -522,14 +543,14 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         get currentCharModel() {
             const p = this.prefs.llm_provider;
             if (p === 'google') return this.charGoogleModel;
-            if (p === 'local') return this.charLocalModel;
+            if (p === 'custom') return this.charCustomModel;
             if (p === 'nvidia') return this.charNvidiaModel;
             return this.charGroqModel;
         },
         set currentCharModel(v) {
             const p = this.prefs.llm_provider;
             if (p === 'google') this.charGoogleModel = v;
-            else if (p === 'local') this.charLocalModel = v;
+            else if (p === 'custom') this.charCustomModel = v;
             else if (p === 'nvidia') this.charNvidiaModel = v;
             else this.charGroqModel = v;
         },
@@ -570,6 +591,21 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         /* ═══ Init ═══ */
         async init() {
             await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels(), this.fetchInstalledApps(), this.fetchPoolTools()]);
+
+            // Re-populate each slot's custom model catalog from whichever preset is
+            // currently active for it (the dropdown would otherwise start empty until
+            // the user reselects the provider).
+            Object.values(this._CP_SLOT_MAP).forEach(k => {
+                const id = this.prefs[k.id];
+                const entry = id && (this.prefs.custom_providers || []).find(p => p.id === id);
+                if (entry) this.fetchCustomProviderModels(entry);
+            });
+
+            // Remember the last model picked for each custom-provider slot back onto
+            // its preset, so switching away and back doesn't lose the selection.
+            this.$watch('prefs.custom_model', v => this._syncPresetModel('active_custom_provider_id', v));
+            this.$watch('prefs.title_custom_model', v => this._syncPresetModel('title_active_custom_provider_id', v));
+            this.$watch('prefs.atlas_custom_model', v => this._syncPresetModel('atlas_active_custom_provider_id', v));
 
             // Handle resize for mobile detection
             window.addEventListener('resize', () => {
@@ -864,6 +900,158 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
             );
         },
 
+        /* ═══ Custom provider presets (see templates/_macros.html:custom_provider_selector) ═══
+           A saved list (prefs.custom_providers) of { id, name, base_url, api_key, model }.
+           Each of the chat/title/Atlas "Custom" slots tracks which preset backs it via an
+           `..._active_custom_provider_id` pref; picking one copies its fields onto that
+           slot's plain custom_base_url/custom_api_key/custom_model prefs, which is all
+           get_llm() on the backend actually reads — the preset list is a frontend-only
+           convenience for switching between several endpoints without retyping them. */
+        customProviderLabel(activeId) {
+            const p = (this.prefs.custom_providers || []).find(x => x.id === activeId);
+            return p ? p.name : 'Select a provider…';
+        },
+        // Per-preset model catalogs, keyed by preset id — each custom endpoint gets
+        // queried on its own credentials rather than mixing everything into one list.
+        customProviderModels: {},
+        async fetchCustomProviderModels(entry) {
+            if (!entry || !entry.base_url || !entry.api_key) return;
+            try {
+                const r = await fetch('/api/models/custom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ base_url: entry.base_url, api_key: entry.api_key }),
+                });
+                this.customProviderModels[entry.id] = await r.json();
+            } catch (e) { console.error(e); }
+        },
+        customModelsFor(slot) {
+            const k = this._CP_SLOT_MAP[slot];
+            const id = k && this.prefs[k.id];
+            return (id && this.customProviderModels[id]) || [];
+        },
+        openCustomProviderModal(editId, slot) {
+            this.customProviderEditId = editId || null;
+            this.customProviderSlot = slot;
+            if (editId) {
+                const p = (this.prefs.custom_providers || []).find(x => x.id === editId);
+                this.cpForm = { name: p.name, base_url: p.base_url, api_key: p.api_key, model: p.model || '' };
+            } else {
+                this.cpForm = { name: '', base_url: 'http://localhost:8080/v1', api_key: '', model: '' };
+            }
+            this.customProviderModal = true;
+        },
+        saveCustomProviderModal() {
+            if (!this.cpForm.name.trim() || !this.cpForm.base_url.trim() || !this.cpForm.api_key.trim()) {
+                alert('Name, base URL and API key are required.');
+                return;
+            }
+            this.prefs.custom_providers = this.prefs.custom_providers || [];
+            const isNew = !this.customProviderEditId;
+            let entry;
+            if (isNew) {
+                entry = {
+                    id: (crypto.randomUUID ? crypto.randomUUID() : 'cp-' + Date.now() + '-' + Math.random().toString(36).slice(2)),
+                    ...this.cpForm,
+                };
+                this.prefs.custom_providers.push(entry);
+            } else {
+                entry = this.prefs.custom_providers.find(p => p.id === this.customProviderEditId);
+                Object.assign(entry, this.cpForm);
+            }
+            this.syncActiveCustomFields(entry);
+            if (isNew && this.customProviderSlot) {
+                // A brand-new provider becomes active for the slot it was added from.
+                this.selectCustomProviderFor(this.customProviderSlot, entry);
+            } else {
+                this.savePrefs();
+                this.fetchCustomProviderModels(entry); // base_url/api_key may have changed
+            }
+            this.customProviderModal = false;
+        },
+        deleteCustomProvider(id) {
+            if (!confirm('Delete this custom provider?')) return;
+            this.prefs.custom_providers = (this.prefs.custom_providers || []).filter(p => p.id !== id);
+            Object.values(this._CP_SLOT_MAP).forEach(k => {
+                if (this.prefs[k.id] === id) this.prefs[k.id] = null;
+            });
+            this.savePrefs();
+        },
+        selectCustomProviderFor(slot, entry) {
+            const k = this._CP_SLOT_MAP[slot];
+            if (!k) return;
+            this.prefs[k.id] = entry.id;
+            if (k.name) this.prefs[k.name] = entry.name;
+            this.prefs[k.url] = entry.base_url;
+            this.prefs[k.key] = entry.api_key;
+            this.prefs[k.model] = entry.model || 'local-model';
+            this.savePrefs();
+            this.fetchCustomProviderModels(entry);
+        },
+        // Editing a preset's fields should propagate to every slot currently using it.
+        syncActiveCustomFields(entry) {
+            Object.values(this._CP_SLOT_MAP).forEach(k => {
+                if (this.prefs[k.id] === entry.id) {
+                    if (k.name) this.prefs[k.name] = entry.name;
+                    this.prefs[k.url] = entry.base_url;
+                    this.prefs[k.key] = entry.api_key;
+                    if (entry.model) this.prefs[k.model] = entry.model;
+                }
+            });
+        },
+        _syncPresetModel(idKey, model) {
+            const id = this.prefs[idKey];
+            if (!id || !model) return;
+            const p = (this.prefs.custom_providers || []).find(x => x.id === id);
+            if (p && p.model !== model) { p.model = model; this.savePrefs(); }
+        },
+
+        /* ═══ Searchable model picker (see templates/_macros.html:model_dropdown) ═══
+           Groq/NVIDIA/Custom catalogs can run into the hundreds of entries, so the
+           plain <select> stopped being usable — this groups by inferred company and
+           lets the macro's search box filter across id + display name. */
+        _MODEL_COMPANY_HINTS: [
+            [/gemini|gemma/i, 'google'], [/llama|meta-llama/i, 'meta'],
+            [/mixtral|mistral/i, 'mistralai'], [/deepseek/i, 'deepseek'],
+            [/qwen/i, 'qwen'], [/gpt-|^o[0-9]|openai/i, 'openai'],
+            [/claude/i, 'anthropic'], [/phi-?[0-9]/i, 'microsoft'],
+            [/grok/i, 'xai'], [/command-?r|cohere/i, 'cohere'],
+        ],
+        modelCompany(id) {
+            if (!id) return 'other';
+            if (id.includes('/')) return id.split('/')[0].toLowerCase();
+            for (const [re, company] of this._MODEL_COMPANY_HINTS) {
+                if (re.test(id)) return company;
+            }
+            return 'other';
+        },
+        // Filters `list` by `query` (substring match on id/name) and buckets the
+        // result by inferred company, each bucket sorted alphabetically; buckets
+        // themselves are sorted alphabetically too, so results are stable while typing.
+        groupedModels(list, query) {
+            const q = (query || '').toLowerCase().trim();
+            const filtered = (list || []).filter(m =>
+                !q || (m.id || '').toLowerCase().includes(q) || (m.name || '').toLowerCase().includes(q)
+            );
+            const groups = {};
+            for (const m of filtered) {
+                const co = this.modelCompany(m.id);
+                (groups[co] = groups[co] || []).push(m);
+            }
+            return Object.keys(groups).sort().map(co => ({
+                company: co,
+                label: co.charAt(0).toUpperCase() + co.slice(1),
+                items: groups[co].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id)),
+            }));
+        },
+        // Display text for a model picker's trigger button.
+        modelPickerLabel(list, value, defaultLabel) {
+            if (defaultLabel && (!value || value === 'default')) return defaultLabel;
+            const found = (list || []).find(m => m.id === value);
+            if (found) return found.name || found.id;
+            return value || 'Select a model…';
+        },
+
         async resetTourAndStart() {
             this.prefs.tour_completed = false;
             localStorage.removeItem('kokomi_tour_completed');
@@ -904,7 +1092,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                 this.charEditId = char.id; this.charName = char.name; this.charPersona = char.persona;
                 this.charDescription = char.description || '';
                 this.charGroqModel = char.groq_model || 'default'; this.charGoogleModel = char.google_model || 'default';
-                this.charLocalModel = char.local_model || 'default'; this.charNvidiaModel = char.nvidia_model || 'default';
+                this.charCustomModel = char.custom_model || 'default'; this.charNvidiaModel = char.nvidia_model || 'default';
                 this.charVoice = char.voice || 'aoede';
                 this.charAvatarPreview = char.avatar;
                 let srvs = [...(char.mcp_servers || [])];
@@ -918,7 +1106,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                 this.charSelectedTools = char.selected_tools ? [...char.selected_tools] : [];
             } else {
                 this.charEditId = null; this.charName = ''; this.charPersona = ''; this.charDescription = '';
-                this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
+                this.charGroqModel = 'default'; this.charGoogleModel = 'default'; this.charCustomModel = 'default'; this.charNvidiaModel = 'default';
                 this.charVoice = 'aoede'; this.charAvatarPreview = null; this.charMCPServers = [];
                 this.charSelectedTools = [];
             }
@@ -966,7 +1154,7 @@ Return ONLY the raw JSON. No markdown. No explanation.`
                 });
                 this.charEditId = null; this.charAvatarPreview = null; this.charAvatarFile = null;
                 this.charGroqModel = 'default'; this.charGoogleModel = 'default';
-                this.charLocalModel = 'default'; this.charNvidiaModel = 'default';
+                this.charCustomModel = 'default'; this.charNvidiaModel = 'default';
                 this.charVoice = 'aoede';
                 this.aiCharModal = false;
                 this.charModal = true;
@@ -1025,7 +1213,7 @@ Return ONLY the raw JSON. No markdown. No explanation.`
             fd.append('name', this.charName.trim()); fd.append('persona', this.charPersona.trim());
             fd.append('description', this.charDescription.trim());
             fd.append('groq_model', this.charGroqModel); fd.append('google_model', this.charGoogleModel);
-            fd.append('local_model', this.charLocalModel); fd.append('nvidia_model', this.charNvidiaModel);
+            fd.append('custom_model', this.charCustomModel); fd.append('nvidia_model', this.charNvidiaModel);
             fd.append('voice', this.charVoice);
             fd.append('mcp_servers', this.charMCPServers.join(','));
             fd.append('selected_tools', this.charSelectedTools.join(','));
@@ -1045,7 +1233,7 @@ Return ONLY the raw JSON. No markdown. No explanation.`
             fd.append('persona', char.persona);
             fd.append('groq_model', char.groq_model || 'default');
             fd.append('google_model', char.google_model || 'default');
-            fd.append('local_model', char.local_model || 'default');
+            fd.append('custom_model', char.custom_model || 'default');
             fd.append('nvidia_model', char.nvidia_model || 'default');
             fd.append('voice', char.voice || 'aoede');
             fd.append('memory_enabled', char.memory_enabled ? 'true' : 'false');

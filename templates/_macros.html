@@ -1,0 +1,92 @@
+{# Reusable Alpine.js widgets shared across settings/onboarding templates. #}
+
+{# A searchable, company-grouped model dropdown — replaces a plain <select> wherever
+   the option list can run into the hundreds (live-fetched Groq/NVIDIA/Custom catalogs).
+   - value_expr:  JS lvalue holding the selected model id, e.g. "prefs.model_name"
+   - models_expr: JS expression returning the candidate model list, e.g. "nvidiaChatModels()"
+   - default_label: if set, pins a "use global default" row above the grouped list and
+     treats an empty/'default' value as selecting it (used for per-character overrides)
+   - save_prefs: whether picking a model should immediately POST /api/prefs #}
+{% macro model_dropdown(value_expr, models_expr, placeholder='Search models…', default_label=None, save_prefs=True) %}
+<div class="model-picker" x-data="{ mpOpen:false, mpQuery:'' }" @click.outside="mpOpen=false; mpQuery=''">
+    <button type="button" class="model-picker-trigger apple-field" @click="mpOpen = !mpOpen">
+        <span class="model-picker-trigger-label"
+            x-text="modelPickerLabel({{ models_expr }}, {{ value_expr }}{% if default_label %}, '{{ default_label }}'{% endif %})"></span>
+        <i class="fa-solid fa-chevron-down"></i>
+    </button>
+    <div class="model-picker-panel" x-show="mpOpen" x-transition x-cloak @click.stop
+        x-init="$watch('mpOpen', v => v && setTimeout(() => $refs.mpSearch && $refs.mpSearch.focus(), 30))">
+        <div class="model-picker-search-row">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" x-model="mpQuery" x-ref="mpSearch" placeholder="{{ placeholder }}"
+                @keydown.escape="mpOpen=false">
+        </div>
+        <div class="model-picker-list">
+            {% if default_label %}
+            <button type="button" class="model-picker-item" x-show="!mpQuery"
+                :class="(!{{ value_expr }} || {{ value_expr }} === 'default') ? 'active' : ''"
+                @click="{{ value_expr }} = 'default'; mpOpen=false; mpQuery=''; {% if save_prefs %}savePrefs(){% endif %}">
+                <span>{{ default_label }}</span>
+            </button>
+            {% endif %}
+            <template x-for="grp in groupedModels({{ models_expr }}, mpQuery)" :key="grp.company">
+                <div class="model-picker-group">
+                    <div class="model-picker-group-label" x-text="grp.label"></div>
+                    <template x-for="m in grp.items" :key="m.id">
+                        <button type="button" class="model-picker-item"
+                            :class="m.id === {{ value_expr }} ? 'active' : ''"
+                            @click="{{ value_expr }} = m.id; mpOpen=false; mpQuery=''; {% if save_prefs %}savePrefs(){% endif %}">
+                            <span x-text="m.name || m.id"></span>
+                        </button>
+                    </template>
+                </div>
+            </template>
+            <div class="model-picker-empty" x-show="groupedModels({{ models_expr }}, mpQuery).length === 0">
+                No models found<template x-if="mpQuery"> for "<span x-text="mpQuery"></span>"</template>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{# A selector for saved custom-provider presets (prefs.custom_providers), plus a
+   (+) button to add a new one. Multiple presets can exist — one per endpoint —
+   and each of the chat/title/Atlas "Custom" slots independently tracks which
+   preset currently backs it.
+   - slot: 'chat' | 'title' | 'atlas' — matches a key in settingsApp()._CP_SLOT_MAP
+   - active_id_expr: JS expression reading that slot's active preset id, e.g.
+     "prefs.active_custom_provider_id" #}
+{% macro custom_provider_selector(slot, active_id_expr) %}
+<div class="model-picker" x-data="{ mpOpen:false }" @click.outside="mpOpen=false">
+    <div style="display:flex; gap:8px; align-items:stretch;">
+        <button type="button" class="model-picker-trigger apple-field" style="flex:1;" @click="mpOpen = !mpOpen">
+            <span class="model-picker-trigger-label" x-text="customProviderLabel({{ active_id_expr }})"></span>
+            <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <button type="button" class="cp-add-btn" @click="openCustomProviderModal(null, '{{ slot }}')" title="Add a custom provider">
+            <i class="fa-solid fa-plus"></i>
+        </button>
+    </div>
+    <div class="model-picker-panel" x-show="mpOpen" x-transition x-cloak @click.stop>
+        <div class="model-picker-list">
+            <template x-for="p in (prefs.custom_providers || [])" :key="p.id">
+                <div class="cp-picker-row" :class="p.id === {{ active_id_expr }} ? 'active' : ''">
+                    <button type="button" class="cp-picker-select" @click="selectCustomProviderFor('{{ slot }}', p); mpOpen=false">
+                        <span class="cp-picker-name" x-text="p.name"></span>
+                        <span class="cp-picker-url" x-text="p.base_url"></span>
+                    </button>
+                    <button type="button" class="cp-picker-icon-btn" @click.stop="openCustomProviderModal(p.id, '{{ slot }}'); mpOpen=false" title="Edit">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button type="button" class="cp-picker-icon-btn danger" @click.stop="deleteCustomProvider(p.id)" title="Delete">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            </template>
+            <div class="model-picker-empty" x-show="(prefs.custom_providers || []).length === 0">
+                No custom providers yet — click <i class="fa-solid fa-plus"></i> above to add one.
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

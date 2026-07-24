@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Settings — Kokomi AI{% endblock %}
 
 {% block head %}
@@ -139,9 +140,9 @@
                                 :class="prefs.llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
                                 <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
                             </button>
-                            <button @click="prefs.llm_provider = 'local'; savePrefs()"
-                                :class="prefs.llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
+                            <button @click="prefs.llm_provider = 'custom'; savePrefs()"
+                                :class="prefs.llm_provider === 'custom' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-plug" style="font-size:9px;"></i> Custom
                             </button>
                         </div>
 
@@ -149,48 +150,28 @@
                         <div x-show="prefs.llm_provider === 'groq' || prefs.llm_provider === 'google'" x-transition>
                             <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
                                 x-text="prefs.llm_provider === 'groq' ? 'Groq Model' : 'Gemini Model'"></label>
-                            <div style="position:relative;">
-                                <select x-model="prefs.model_name" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                    <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
-                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.model_name"
-                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                    </template>
-                                </select>
-                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </div>
-                            </div>
+                            {{ m.model_dropdown("prefs.model_name", "models.filter(x => x.provider === prefs.llm_provider)") }}
                         </div>
 
                         <!-- NVIDIA NIM -->
                         <div x-show="prefs.llm_provider === 'nvidia'" x-transition style="display:flex; flex-direction:column; gap:14px;">
                             <div>
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
-                                <div style="position:relative;">
-                                    <select x-model="prefs.nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                        <template x-for="m in nvidiaChatModels()" :key="m.id">
-                                            <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.nvidia_model"
-                                                style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                        </template>
-                                    </select>
-                                    <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                        <i class="fa-solid fa-chevron-down"></i>
-                                    </div>
-                                </div>
+                                {{ m.model_dropdown("prefs.nvidia_model", "nvidiaChatModels()") }}
                                 <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>. Get a free key at <a href="https://build.nvidia.com" target="_blank" style="color:var(--accent);">build.nvidia.com</a></p>
                             </div>
                         </div>
 
-                        <!-- Local -->
-                        <div x-show="prefs.llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                        <!-- Custom (any OpenAI-compatible endpoint) -->
+                        <div x-show="prefs.llm_provider === 'custom'" x-transition style="display:flex; flex-direction:column; gap:14px;">
                             <div>
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">llama.cpp Server URL</label>
-                                <input type="text" x-model="prefs.local_url" @blur="savePrefs()" placeholder="http://localhost:8080/v1" class="apple-field">
-                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Full OpenAI-compatible endpoint.</p>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Provider</label>
+                                {{ m.custom_provider_selector('chat', 'prefs.active_custom_provider_id') }}
+                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, OpenRouter, a hosted provider...). Add as many as you like and switch between them here.</p>
                             </div>
                             <div>
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model Identifier</label>
-                                <input type="text" x-model="prefs.local_model" @blur="savePrefs()" placeholder="local-model" class="apple-field">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model</label>
+                                {{ m.model_dropdown("prefs.custom_model", "customModelsFor('chat')") }}
                             </div>
                         </div>
                     </div>
@@ -269,9 +250,9 @@
                                 :class="prefs.title_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
                                 <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
                             </button>
-                            <button @click="prefs.title_llm_provider = 'local'; savePrefs()"
-                                :class="prefs.title_llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
+                            <button @click="prefs.title_llm_provider = 'custom'; savePrefs()"
+                                :class="prefs.title_llm_provider === 'custom' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-plug" style="font-size:9px;"></i> Custom
                             </button>
                         </div>
 
@@ -279,45 +260,25 @@
                         <div x-show="(prefs.title_llm_provider || 'groq') === 'groq' || prefs.title_llm_provider === 'google'" x-transition>
                             <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
                                 x-text="prefs.title_llm_provider === 'google' ? 'Gemini Model' : 'Groq Model'"></label>
-                            <div style="position:relative;">
-                                <select x-model="prefs.title_model_name" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                    <template x-for="m in models.filter(x => x.provider === (prefs.title_llm_provider || 'groq'))" :key="m.id">
-                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.title_model_name"
-                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                    </template>
-                                </select>
-                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </div>
-                            </div>
+                            {{ m.model_dropdown("prefs.title_model_name", "models.filter(x => x.provider === (prefs.title_llm_provider || 'groq'))") }}
                         </div>
 
                         <!-- NVIDIA NIM -->
                         <div x-show="prefs.title_llm_provider === 'nvidia'" x-transition>
                             <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
-                            <div style="position:relative;">
-                                <select x-model="prefs.title_nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                    <template x-for="m in nvidiaChatModels()" :key="m.id">
-                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.title_nvidia_model"
-                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                    </template>
-                                </select>
-                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </div>
-                            </div>
+                            {{ m.model_dropdown("prefs.title_nvidia_model", "nvidiaChatModels()") }}
                             <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>.</p>
                         </div>
 
-                        <!-- Local -->
-                        <div x-show="prefs.title_llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                        <!-- Custom -->
+                        <div x-show="prefs.title_llm_provider === 'custom'" x-transition style="display:flex; flex-direction:column; gap:14px;">
                             <div>
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">llama.cpp Server URL</label>
-                                <input type="text" x-model="prefs.title_local_url" @blur="savePrefs()" placeholder="http://localhost:8080/v1" class="apple-field">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Provider</label>
+                                {{ m.custom_provider_selector('title', 'prefs.title_active_custom_provider_id') }}
                             </div>
                             <div>
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model Identifier</label>
-                                <input type="text" x-model="prefs.title_local_model" @blur="savePrefs()" placeholder="local-model" class="apple-field">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model</label>
+                                {{ m.model_dropdown("prefs.title_custom_model", "customModelsFor('title')") }}
                             </div>
                         </div>
                     </div>
@@ -947,9 +908,9 @@
                                 :class="prefs.atlas_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
                                 <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
                             </button>
-                            <button @click="prefs.atlas_llm_provider = 'local'; savePrefs()"
-                                :class="prefs.atlas_llm_provider === 'local' ? 'seg-active' : ''" class="seg-btn">
-                                <i class="fa-solid fa-desktop" style="font-size:9px;"></i> Local
+                            <button @click="prefs.atlas_llm_provider = 'custom'; savePrefs()"
+                                :class="prefs.atlas_llm_provider === 'custom' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-plug" style="font-size:9px;"></i> Custom
                             </button>
                         </div>
 
@@ -957,48 +918,27 @@
                         <div x-show="prefs.atlas_llm_provider === 'groq' || prefs.atlas_llm_provider === 'google'" x-transition>
                             <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
                                 x-text="prefs.atlas_llm_provider === 'groq' ? 'Groq Model' : 'Gemini Model'"></label>
-                            <div style="position:relative;">
-                                <select x-model="prefs.atlas_model_name" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                    <template x-for="m in models.filter(x => x.provider === prefs.atlas_llm_provider)" :key="m.id">
-                                        <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.atlas_model_name"
-                                            style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                    </template>
-                                </select>
-                                <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </div>
-                            </div>
+                            {{ m.model_dropdown("prefs.atlas_model_name", "models.filter(x => x.provider === prefs.atlas_llm_provider)") }}
                         </div>
 
                         <!-- NVIDIA NIM -->
                         <div x-show="prefs.atlas_llm_provider === 'nvidia'" x-transition style="display:flex; flex-direction:column; gap:14px;">
                             <div>
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
-                                <div style="position:relative;">
-                                    <select x-model="prefs.atlas_nvidia_model" @change="savePrefs()" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                                        <template x-for="m in nvidiaChatModels()" :key="m.id">
-                                            <option :value="m.id" x-text="m.name || m.id" :selected="m.id === prefs.atlas_nvidia_model"
-                                                style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                                        </template>
-                                    </select>
-                                    <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;">
-                                        <i class="fa-solid fa-chevron-down"></i>
-                                    </div>
-                                </div>
+                                {{ m.model_dropdown("prefs.atlas_nvidia_model", "nvidiaChatModels()") }}
                                 <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>.</p>
                             </div>
                         </div>
 
-                        <!-- Local -->
-                        <div x-show="prefs.atlas_llm_provider === 'local'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                        <!-- Custom -->
+                        <div x-show="prefs.atlas_llm_provider === 'custom'" x-transition style="display:flex; flex-direction:column; gap:14px;">
                             <div>
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">llama.cpp Server URL</label>
-                                <input type="text" x-model="prefs.atlas_local_url" @blur="savePrefs()" placeholder="http://localhost:8080/v1" class="apple-field">
-                                <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Full OpenAI-compatible endpoint.</p>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Provider</label>
+                                {{ m.custom_provider_selector('atlas', 'prefs.atlas_active_custom_provider_id') }}
                             </div>
                             <div>
-                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model Identifier</label>
-                                <input type="text" x-model="prefs.atlas_local_model" @blur="savePrefs()" placeholder="local-model" class="apple-field">
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model</label>
+                                {{ m.model_dropdown("prefs.atlas_custom_model", "customModelsFor('atlas')") }}
                             </div>
                         </div>
                     </div>
@@ -1943,16 +1883,13 @@
                 </div>
                 <!-- Per-Provider Model -->
                 <div>
-                    <label class="apple-label" x-text="'Preferred ' + (prefs.llm_provider === 'google' ? 'Gemini' : prefs.llm_provider === 'nvidia' ? 'NVIDIA' : prefs.llm_provider === 'local' ? 'Local' : 'Groq') + ' Model'"></label>
-                    <div style="position:relative;">
-                        <select x-model="currentCharModel" class="apple-field" style="padding-right:36px; cursor:pointer;">
-                            <option value="default" style="background:var(--bg-canvas); color:var(--text-primary);">Default (Global Setting)</option>
-                            <template x-for="m in models.filter(x => x.provider === prefs.llm_provider)" :key="m.id">
-                                <option :value="m.id" x-text="m.name || m.id" style="background:var(--bg-canvas); color:var(--text-primary);"></option>
-                            </template>
-                        </select>
-                        <div style="position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); font-size:10px;"><i class="fa-solid fa-chevron-down"></i></div>
-                    </div>
+                    <label class="apple-label" x-text="'Preferred ' + (prefs.llm_provider === 'google' ? 'Gemini' : prefs.llm_provider === 'nvidia' ? 'NVIDIA' : prefs.llm_provider === 'custom' ? (prefs.custom_name || 'Custom') : 'Groq') + ' Model'"></label>
+                    {{ m.model_dropdown(
+                        "currentCharModel",
+                        "prefs.llm_provider === 'nvidia' ? nvidiaChatModels() : prefs.llm_provider === 'custom' ? customModelsFor('chat') : models.filter(x => x.provider === prefs.llm_provider)",
+                        default_label="Default (Global Setting)",
+                        save_prefs=False
+                    ) }}
                 </div>
                 <!-- Voice -->
                 <div>
@@ -2140,6 +2077,41 @@
                     <button type="button" @click="saveMCP()" :disabled="saving" class="btn-accent">
                         <span x-show="!saving" x-text="mcpEditId ? 'Save' : 'Add Server'"></span>
                         <span x-show="saving"><i class="fa-solid fa-spinner fa-spin" style="font-size:11px;"></i></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Add / Edit Custom Provider Modal ── -->
+    <div x-show="customProviderModal" x-cloak class="modal-overlay" @keydown.escape.window="customProviderModal = false">
+        <div class="modal-backdrop" @click="customProviderModal = false"
+            x-show="customProviderModal" x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
+        <div class="modal-sheet" x-show="customProviderModal"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 translate-y-4"
+            x-transition:enter-end="opacity-100 translate-y-0">
+            <div class="modal-handle"></div>
+            <h3 style="font-size:17px; font-weight:700; color:var(--text-primary); margin-bottom:20px;" x-text="customProviderEditId ? 'Edit Custom Provider' : 'Add Custom Provider'"></h3>
+            <div style="display:flex; flex-direction:column; gap:16px;">
+                <div>
+                    <label class="apple-label">Provider Name</label>
+                    <input x-model="cpForm.name" type="text" required placeholder="e.g. My RTX Box, Work vLLM" class="apple-field" />
+                </div>
+                <div>
+                    <label class="apple-label">Base URL</label>
+                    <input x-model="cpForm.base_url" type="text" required placeholder="http://localhost:8080/v1" class="apple-field" style="font-family:'SF Mono','JetBrains Mono',monospace; font-size:12px;" />
+                    <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, OpenRouter, a hosted provider...).</p>
+                </div>
+                <div>
+                    <label class="apple-label">API Key</label>
+                    <input x-model="cpForm.api_key" type="password" required placeholder="Required — even local servers usually accept any string" class="apple-field" />
+                </div>
+                <div style="display:flex; align-items:center; justify-content:flex-end; gap:7px; padding-top:6px;">
+                    <button type="button" @click="customProviderModal = false" class="btn-ghost">Cancel</button>
+                    <button type="button" @click="saveCustomProviderModal()" class="btn-accent">
+                        <span x-text="customProviderEditId ? 'Save' : 'Add Provider'"></span>
                     </button>
                 </div>
             </div>

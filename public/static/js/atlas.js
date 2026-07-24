@@ -399,7 +399,7 @@ function atlasApp() {
     resolvedAtlasModel() {
       if (!this.prefs) return 'Loading...';
       const provider = this.prefs.atlas_llm_provider || 'groq';
-      if (provider === 'local') return this.prefs.atlas_local_model || 'Local Model';
+      if (provider === 'custom') return this.prefs.atlas_custom_model || 'Custom Model';
       if (provider === 'nvidia') return this.prefs.atlas_nvidia_model || 'NVIDIA NIM';
       return this.prefs.atlas_model_name || 'qwen-2.5-32b';
     },
@@ -407,7 +407,7 @@ function atlasApp() {
       if (!this.prefs) return 'Loading...';
       const provider = this.prefs.atlas_llm_provider || 'groq';
       let rawName = 'qwen-2.5-32b';
-      if (provider === 'local') rawName = this.prefs.atlas_local_model || 'Local Model';
+      if (provider === 'custom') rawName = this.prefs.atlas_custom_model || 'Custom Model';
       else if (provider === 'nvidia') rawName = this.prefs.atlas_nvidia_model || 'NVIDIA NIM';
       else rawName = this.prefs.atlas_model_name || 'qwen-2.5-32b';
       
@@ -420,7 +420,7 @@ function atlasApp() {
       if (!this.prefs) return 'fa-solid fa-circle-notch fa-spin';
       const provider = this.prefs.atlas_llm_provider || 'groq';
       let rawName = '';
-      if (provider === 'local') rawName = this.prefs.atlas_local_model || 'local';
+      if (provider === 'custom') rawName = this.prefs.atlas_custom_model || 'custom';
       else if (provider === 'nvidia') rawName = this.prefs.atlas_nvidia_model || 'nvidia';
       else rawName = this.prefs.atlas_model_name || 'groq';
       
@@ -441,7 +441,7 @@ function atlasApp() {
       
       if (provider === 'groq') return 'fa-solid fa-bolt';
       if (provider === 'google') return 'fa-brands fa-google';
-      if (provider === 'local') return 'fa-solid fa-desktop';
+      if (provider === 'custom') return 'fa-solid fa-plug';
       return 'fa-solid fa-brain';
     },
 

@@ -413,7 +413,7 @@
                     <option value="groq">Groq (Ultra-Fast)</option>
                     <option value="google">Google Gemini</option>
                     <option value="nvidia">NVIDIA NIM</option>
-                    <option value="local">Local Model (Ollama/LMStudio)</option>
+                    <option value="custom">Custom (any OpenAI-compatible endpoint)</option>
                 </select>
 
                 <div x-show="prefs.llm_provider === 'groq'" style="margin-top: 16px;">
@@ -428,9 +428,19 @@
                     <label class="apple-label">NVIDIA API Key</label>
                     <input type="password" x-model="prefs.nvidia_api_key" class="apple-input-setup" placeholder="nvapi-...">
                 </div>
-                <div x-show="prefs.llm_provider === 'local'" style="margin-top: 16px;">
-                    <label class="apple-label">Local Base URL</label>
-                    <input type="text" x-model="prefs.local_url" class="apple-input-setup" placeholder="http://localhost:8080/v1">
+                <div x-show="prefs.llm_provider === 'custom'" style="margin-top: 16px; display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <label class="apple-label">Provider Name</label>
+                        <input type="text" x-model="prefs.custom_name" class="apple-input-setup" placeholder="e.g. My RTX Box, Work vLLM">
+                    </div>
+                    <div>
+                        <label class="apple-label">Base URL</label>
+                        <input type="text" x-model="prefs.custom_base_url" class="apple-input-setup" placeholder="http://localhost:8080/v1">
+                    </div>
+                    <div>
+                        <label class="apple-label">API Key</label>
+                        <input type="password" x-model="prefs.custom_api_key" class="apple-input-setup" placeholder="Required by most OpenAI-compatible servers">
+                    </div>
                 </div>
             </div>
 
@@ -444,7 +454,7 @@
                 </div>
                 
                 <div x-show="!loadingModels">
-                    <select x-model="prefs.model_name" class="apple-select-setup" style="margin-top:10px;">
+                    <select x-model="prefs[prefs.llm_provider === 'nvidia' ? 'nvidia_model' : prefs.llm_provider === 'custom' ? 'custom_model' : 'model_name']" class="apple-select-setup" style="margin-top:10px;">
                         <template x-for="m in models" :key="m.id">
                             <option :value="m.id" x-text="m.name"></option>
                         </template>
@@ -638,7 +648,10 @@
                     google_api_key: '',
                     nvidia_api_key: '',
                     model_name: 'llama-3.3-70b-versatile',
-                    local_url: 'http://localhost:8080/v1',
+                    custom_name: 'Custom',
+                    custom_base_url: 'http://localhost:8080/v1',
+                    custom_api_key: '',
+                    custom_model: 'local-model',
                     web_search_enabled: false,
                     search_provider: 'tavily',
                     tavily_api_key: '',
@@ -776,9 +789,12 @@
                         let res = await fetch('/api/models');
                         let allModels = await res.json();
                         this.models = allModels.filter(m => m.provider === this.prefs.llm_provider);
-                        
+
                         if (this.models.length > 0) {
-                            this.prefs.model_name = this.models[0].id;
+                            const key = this.prefs.llm_provider === 'nvidia' ? 'nvidia_model'
+                                : this.prefs.llm_provider === 'custom' ? 'custom_model'
+                                : 'model_name';
+                            this.prefs[key] = this.models[0].id;
                         }
                     } catch(e) {
                         console.error(e);
