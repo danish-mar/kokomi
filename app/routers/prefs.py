@@ -4,7 +4,7 @@ import httpx
 from fastapi import APIRouter, UploadFile, File
 
 from app.config import GROQ_API_KEY, GOOGLE_API_KEY, NVIDIA_API_KEY
-from app.models import PrefsUpdate
+from app.models import PrefsUpdate, CustomModelsRequest
 from app.storage import load_prefs, save_prefs
 
 router = APIRouter(prefix="/api")
@@ -100,7 +100,6 @@ async def list_available_models():
         {"id": "gemini-2.5-pro",                      "name": "Gemini 2.5 Pro",             "provider": "google"},
         {"id": "gemini-2.0-flash",                    "name": "Gemini 2.0 Flash",           "provider": "google"},
         {"id": "gemini-2.0-flash-lite",               "name": "Gemini 2.0 Flash Lite",      "provider": "google"},
-        {"id": "local-model",                         "name": "Local Model",                "provider": "local"},
     ]
 
     all_models = list(curated)
@@ -156,6 +155,32 @@ async def list_available_models():
                 print(f"Error fetching NVIDIA models: {e}")
 
     return all_models
+
+
+@router.post("/models/custom")
+async def list_custom_provider_models(req: CustomModelsRequest):
+    """Query an arbitrary OpenAI-compatible endpoint's own /models route.
+
+    Unlike the other providers above, a "custom" endpoint isn't singular — a user
+    can save several presets (see prefs.custom_providers), each pointing at a
+    different server. So this can't just read a fixed base_url/api_key out of
+    prefs; the frontend passes whichever preset's credentials it wants listed.
+    """
+    base_url = (req.base_url or "").rstrip("/")
+    if not base_url or not req.api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{base_url}/models",
+                headers={"Authorization": f"Bearer {req.api_key}"},
+            )
+        if resp.status_code != 200:
+            return []
+        return [{"id": m["id"], "name": m["id"]} for m in resp.json().get("data", [])]
+    except Exception as e:
+        print(f"Error fetching custom provider models: {e}")
+        return []
 
 
 @router.post("/prefs/avatar")

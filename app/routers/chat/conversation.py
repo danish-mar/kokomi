@@ -114,8 +114,8 @@ async def chat(req: ChatRequest):
 
     if provider == "google":
         active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
-    elif provider == "local":
-        active_model = _normalize_model(prefs.get("local_model", "local-model"))
+    elif provider == "custom":
+        active_model = _normalize_model(prefs.get("custom_model", "local-model"))
     elif provider == "nvidia":
         active_model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
     else:  # groq
@@ -440,8 +440,8 @@ async def chat_stream(req: ChatRequest):
 
     if provider == "google":
         active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
-    elif provider == "local":
-        active_model = _normalize_model(prefs.get("local_model", "local-model"))
+    elif provider == "custom":
+        active_model = _normalize_model(prefs.get("custom_model", "local-model"))
     elif provider == "nvidia":
         active_model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
     else:  # groq

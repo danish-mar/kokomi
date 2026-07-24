@@ -59,6 +59,42 @@ def migrate_embedding_model():
         print(f"Embedding model migration skipped: {e}")
 
 
+def migrate_local_provider_to_custom():
+    """One-time: the "local" provider (llama.cpp/Ollama, no auth) became "custom"
+    (any OpenAI-compatible endpoint, requiring a base URL + API key). Carries
+    over prefs saved under the old `local_*` keys to the new `custom_*` keys
+    for the chat, title and Atlas provider slots. Idempotent — safe to run
+    every startup."""
+    try:
+        from app.storage import load_prefs, save_prefs
+        prefs = load_prefs()
+        changed = False
+
+        renames = [
+            ("llm_provider", "local_url", "local_model", "custom_base_url", "custom_model"),
+            ("atlas_llm_provider", "atlas_local_url", "atlas_local_model", "atlas_custom_base_url", "atlas_custom_model"),
+            ("title_llm_provider", "title_local_url", "title_local_model", "title_custom_base_url", "title_custom_model"),
+        ]
+        for provider_key, old_url_key, old_model_key, new_url_key, new_model_key in renames:
+            if prefs.get(provider_key) == "local":
+                prefs[provider_key] = "custom"
+                changed = True
+            if old_url_key in prefs:
+                prefs.setdefault(new_url_key, prefs[old_url_key])
+                del prefs[old_url_key]
+                changed = True
+            if old_model_key in prefs:
+                prefs.setdefault(new_model_key, prefs[old_model_key])
+                del prefs[old_model_key]
+                changed = True
+
+        if changed:
+            save_prefs(prefs)
+            print("🔧 Migrated 'local' provider prefs → 'custom' (now requires an API key).")
+    except Exception as e:
+        print(f"Local-to-custom provider migration skipped: {e}")
+
+
 async def auto_migrate_and_cleanup():
     # Legacy files in data/
     DATA_DIR = "data"
@@ -139,7 +175,7 @@ async def auto_migrate_and_cleanup():
                     google_model=char.get("google_model", "default"),
                     groq_model=char.get("groq_model", "default"),
                     nvidia_model=char.get("nvidia_model"),
-                    local_model=char.get("local_model", "default"),
+                    custom_model=char.get("custom_model", char.get("local_model", "default")),
                     mcp_servers=j_dumps(char.get("mcp_servers", [])),
                     selected_tools=j_dumps(char.get("selected_tools", [])),
                     created_at=char.get("created_at"),

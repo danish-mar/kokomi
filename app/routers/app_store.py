@@ -241,7 +241,7 @@ async def install_item(payload: InstallPayload):
                 "mcp_servers": mcp_list,
                 "groq_model": manifest.get("config", {}).get("groq_model", "default"),
                 "google_model": manifest.get("config", {}).get("google_model", "default"),
-                "local_model": manifest.get("config", {}).get("local_model", "default"),
+                "custom_model": manifest.get("config", {}).get("custom_model", "default"),
                 "nvidia_model": manifest.get("config", {}).get("nvidia_model", "default"),
                 "voice": manifest.get("config", {}).get("voice", "aoede"),
                 "memory_enabled": manifest.get("config", {}).get("memory_enabled", True),

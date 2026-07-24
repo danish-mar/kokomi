@@ -37,6 +37,11 @@ class ConversationFolderUpdate(BaseModel):
     folder_id: Optional[str] = None
 
 
+class CustomModelsRequest(BaseModel):
+    base_url: str
+    api_key: str
+
+
 class PrefsUpdate(BaseModel):
     model_name: Optional[str] = "llama-3.3-70b-versatile"
     user_persona: Optional[str] = ""
@@ -44,8 +49,12 @@ class PrefsUpdate(BaseModel):
     streaming_mode: bool = True
     inject_time: bool = False
     llm_provider: Optional[str] = "groq"
-    local_url: Optional[str] = "http://localhost:8080/v1"
-    local_model: Optional[str] = "local-model"
+    custom_name: Optional[str] = "Custom"
+    custom_base_url: Optional[str] = "http://localhost:8080/v1"
+    custom_api_key: Optional[str] = ""
+    custom_model: Optional[str] = "local-model"
+    custom_providers: Optional[list] = []
+    active_custom_provider_id: Optional[str] = None
     nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
     embedding_provider: Optional[str] = "google"
     embedding_model: Optional[str] = "gemini-embedding-001"
@@ -89,15 +98,19 @@ class PrefsUpdate(BaseModel):
     atlas_llm_provider: Optional[str] = "google"
     atlas_model_name: Optional[str] = "gemini-2.5-flash"
     atlas_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
-    atlas_local_url: Optional[str] = "http://localhost:8080/v1"
-    atlas_local_model: Optional[str] = "local-model"
+    atlas_custom_base_url: Optional[str] = "http://localhost:8080/v1"
+    atlas_custom_api_key: Optional[str] = ""
+    atlas_custom_model: Optional[str] = "local-model"
+    atlas_active_custom_provider_id: Optional[str] = None
 
     # Model that names conversations
     title_llm_provider: Optional[str] = "groq"
     title_model_name: Optional[str] = "meta-llama/llama-4-scout-17b-16e-instruct"
     title_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
-    title_local_url: Optional[str] = "http://localhost:8080/v1"
-    title_local_model: Optional[str] = "local-model"
+    title_custom_base_url: Optional[str] = "http://localhost:8080/v1"
+    title_custom_api_key: Optional[str] = ""
+    title_custom_model: Optional[str] = "local-model"
+    title_active_custom_provider_id: Optional[str] = None
     setup_completed: bool = False
     groq_api_key: Optional[str] = ""
     google_api_key: Optional[str] = ""

@@ -201,7 +201,7 @@ def _normalize_model(name: str) -> str:
 def resolve_character_model(char: dict, provider: str) -> str:
     """Pick the model from a character's per-provider slots.
 
-    Characters store groq_model, google_model, local_model, nvidia_model.
+    Characters store groq_model, google_model, custom_model, nvidia_model.
     Falls back to 'default' which means use the global setting.
     """
     key = f"{provider}_model"              # e.g. "nvidia_model"
@@ -257,14 +257,17 @@ def get_llm(
     google_key = prefs.get("google_api_key") or GOOGLE_API_KEY
     nvidia_key = prefs.get("nvidia_api_key") or NVIDIA_API_KEY
 
-    if provider == "local":
-        base_url = prefs.get("local_url", "http://localhost:8080/v1")
-        model = _normalize_model(prefs.get("local_model", "local-model"))
+    if provider == "custom":
+        custom_key = prefs.get("custom_api_key")
+        if not custom_key:
+            raise ValueError("Custom provider API key not found in preferences")
+        base_url = prefs.get("custom_base_url", "http://localhost:8080/v1")
+        model = _normalize_model(prefs.get("custom_model", "local-model"))
         if model_override and model_override != "default":
             model = _normalize_model(model_override)
         return ChatOpenAI(
             base_url=base_url,
-            api_key="sk-no-key-required",
+            api_key=custom_key,
             model_name=model,
             temperature=0.7,
             streaming=streaming,
@@ -335,10 +338,12 @@ def get_title_llm(prefs: dict):
         title_prefs["model_name"] = prefs["title_model_name"]
     if "title_nvidia_model" in prefs:
         title_prefs["nvidia_model"] = prefs["title_nvidia_model"]
-    if "title_local_url" in prefs:
-        title_prefs["local_url"] = prefs["title_local_url"]
-    if "title_local_model" in prefs:
-        title_prefs["local_model"] = prefs["title_local_model"]
+    if "title_custom_base_url" in prefs:
+        title_prefs["custom_base_url"] = prefs["title_custom_base_url"]
+    if "title_custom_model" in prefs:
+        title_prefs["custom_model"] = prefs["title_custom_model"]
+    if "title_custom_api_key" in prefs:
+        title_prefs["custom_api_key"] = prefs["title_custom_api_key"]
     return get_llm(title_prefs)
 
 
@@ -355,10 +360,12 @@ def get_atlas_llm(
         atlas_prefs["model_name"] = prefs["atlas_model_name"]
     if "atlas_nvidia_model" in prefs:
         atlas_prefs["nvidia_model"] = prefs["atlas_nvidia_model"]
-    if "atlas_local_url" in prefs:
-        atlas_prefs["local_url"] = prefs["atlas_local_url"]
-    if "atlas_local_model" in prefs:
-        atlas_prefs["local_model"] = prefs["atlas_local_model"]
+    if "atlas_custom_base_url" in prefs:
+        atlas_prefs["custom_base_url"] = prefs["atlas_custom_base_url"]
+    if "atlas_custom_model" in prefs:
+        atlas_prefs["custom_model"] = prefs["atlas_custom_model"]
+    if "atlas_custom_api_key" in prefs:
+        atlas_prefs["custom_api_key"] = prefs["atlas_custom_api_key"]
     return get_llm(atlas_prefs, streaming=streaming, model_override=model_override)
 
 

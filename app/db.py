@@ -98,7 +98,7 @@ class CharacterRow(Base):
     google_model   = Column(Text, nullable=True, default="default")
     groq_model     = Column(Text, nullable=True, default="default")
     nvidia_model   = Column(Text, nullable=True)
-    local_model    = Column(Text, nullable=True, default="default")
+    custom_model   = Column(Text, nullable=True, default="default")
     mcp_servers    = Column(Text, nullable=False, default="[]")  # JSON list
     selected_tools = Column(Text, nullable=False, default="[]")  # JSON list
     created_at     = Column(Text, nullable=True)
@@ -238,6 +238,22 @@ async def init_db() -> None:
         # Schema migration: Triton last_seen tracking (added after initial table)
         try:
             await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN last_seen TEXT"))
+        except Exception:
+            pass
+
+        # Schema migration: the "local" provider became "custom" (base_url + api_key
+        # instead of an assumed-unauthenticated localhost server). Carry over any
+        # per-character model override saved under the old column name.
+        try:
+            await conn.execute(text("ALTER TABLE characters ADD COLUMN custom_model TEXT DEFAULT 'default'"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text(
+                "UPDATE characters SET custom_model = local_model "
+                "WHERE (custom_model IS NULL OR custom_model = 'default') "
+                "AND local_model IS NOT NULL AND local_model != 'default'"
+            ))
         except Exception:
             pass
 

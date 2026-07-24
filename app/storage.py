@@ -240,7 +240,7 @@ def _char_row_to_dict(row: CharacterRow) -> dict:
         "google_model": row.google_model or "default",
         "groq_model": row.groq_model or "default",
         "nvidia_model": row.nvidia_model,
-        "local_model": row.local_model or "default",
+        "custom_model": row.custom_model or "default",
         "mcp_servers": j_loads(row.mcp_servers) or [],
         "selected_tools": j_loads(row.selected_tools) or [],
         "created_at": row.created_at,
@@ -258,7 +258,7 @@ def _default_chars() -> dict:
                 "You use markdown for formatting. Speak with grace and wisdom."
             ),
             "avatar": None, "mcp_servers": [], "selected_tools": [], "google_model": "default",
-            "groq_model": "default", "nvidia_model": None, "local_model": "default",
+            "groq_model": "default", "nvidia_model": None, "custom_model": "default",
             "voice": "kore", "memory_enabled": True, "created_at": now,
         },
         "nahida": {
@@ -270,7 +270,7 @@ def _default_chars() -> dict:
                 "kindness and a sense of wonder. Use markdown for formatting."
             ),
             "avatar": None, "mcp_servers": [], "selected_tools": [], "google_model": "default",
-            "groq_model": "default", "nvidia_model": None, "local_model": "default",
+            "groq_model": "default", "nvidia_model": None, "custom_model": "default",
             "voice": "aoede", "memory_enabled": True, "created_at": now,
         },
     }
@@ -301,7 +301,7 @@ async def _save_chars_async(chars: dict) -> None:
                     google_model=char.get("google_model", "default"),
                     groq_model=char.get("groq_model", "default"),
                     nvidia_model=char.get("nvidia_model"),
-                    local_model=char.get("local_model", "default"),
+                    custom_model=char.get("custom_model", "default"),
                     mcp_servers=j_dumps(char.get("mcp_servers", [])),
                     selected_tools=j_dumps(char.get("selected_tools", [])),
                     created_at=char.get("created_at"),
@@ -315,7 +315,7 @@ async def _save_chars_async(chars: dict) -> None:
                 existing.google_model = char.get("google_model", "default")
                 existing.groq_model = char.get("groq_model", "default")
                 existing.nvidia_model = char.get("nvidia_model")
-                existing.local_model = char.get("local_model", "default")
+                existing.custom_model = char.get("custom_model", "default")
                 existing.mcp_servers = j_dumps(char.get("mcp_servers", []))
                 existing.selected_tools = j_dumps(char.get("selected_tools", []))
         # Delete characters removed from dict

@@ -56,21 +56,33 @@ DEFAULT_PREFS: dict = {
     "dynamic_suggestions": True,
     "streaming_mode": True,
     "llm_provider": "groq",
-    "local_url": "http://localhost:8080/v1",
-    "local_model": "local-model",
+    "custom_name": "Custom",
+    "custom_base_url": "http://localhost:8080/v1",
+    "custom_api_key": "",
+    "custom_model": "local-model",
+    # Saved custom-provider presets: [{id, name, base_url, api_key, model}, ...].
+    # Purely a frontend convenience for switching between several OpenAI-compatible
+    # endpoints — picking one just copies its fields onto the plain custom_* prefs
+    # above (and the title_/atlas_ equivalents), which is what get_llm() reads.
+    "custom_providers": [],
+    "active_custom_provider_id": None,
     "nvidia_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
     "atlas_llm_provider": "google",
     "atlas_model_name": "gemini-2.5-flash",
     "atlas_nvidia_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
-    "atlas_local_url": "http://localhost:8080/v1",
-    "atlas_local_model": "local-model",
+    "atlas_custom_base_url": "http://localhost:8080/v1",
+    "atlas_custom_api_key": "",
+    "atlas_custom_model": "local-model",
+    "atlas_active_custom_provider_id": None,
     # Model that names conversations. Titles are one short line, so this
     # defaults to a small fast model rather than the conversational one.
     "title_llm_provider": "groq",
     "title_model_name": "meta-llama/llama-4-scout-17b-16e-instruct",
     "title_nvidia_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
-    "title_local_url": "http://localhost:8080/v1",
-    "title_local_model": "local-model",
+    "title_custom_base_url": "http://localhost:8080/v1",
+    "title_custom_api_key": "",
+    "title_custom_model": "local-model",
+    "title_active_custom_provider_id": None,
     "inject_time": False,
     # RAG embeddings. Provider selects which service embeds documents/queries.
     # NOTE: changing the embedding model/provider invalidates existing vectors —

@@ -15,7 +15,7 @@ from app.storage import load_chars, save_chars, load_prefs
 router = APIRouter(prefix="/api/characters")
 
 # ── Supported provider model keys ────────────────────────────────────
-PROVIDER_MODEL_KEYS = ("groq_model", "google_model", "local_model", "nvidia_model")
+PROVIDER_MODEL_KEYS = ("groq_model", "google_model", "custom_model", "nvidia_model")
 
 
 @router.get("")
@@ -39,7 +39,7 @@ async def create_character(
     selected_tools: str = Form(""),
     groq_model: str = Form("default"),
     google_model: str = Form("default"),
-    local_model: str = Form("default"),
+    custom_model: str = Form("default"),
     nvidia_model: str = Form("default"),
     voice: str = Form("aoede"),
     memory_enabled: bool = Form(True),
@@ -67,7 +67,7 @@ async def create_character(
         "selected_tools": tools_list,
         "groq_model": groq_model.strip(),
         "google_model": google_model.strip(),
-        "local_model": local_model.strip(),
+        "custom_model": custom_model.strip(),
         "nvidia_model": nvidia_model.strip(),
         "voice": voice.strip(),
         "memory_enabled": memory_enabled,
@@ -86,7 +86,7 @@ async def update_character(
     selected_tools: str = Form(""),
     groq_model: str = Form("default"),
     google_model: str = Form("default"),
-    local_model: str = Form("default"),
+    custom_model: str = Form("default"),
     nvidia_model: str = Form("default"),
     voice: str = Form("aoede"),
     memory_enabled: bool = Form(True),
@@ -113,7 +113,7 @@ async def update_character(
     chars[cid]["selected_tools"] = tools_list
     chars[cid]["groq_model"] = groq_model.strip()
     chars[cid]["google_model"] = google_model.strip()
-    chars[cid]["local_model"] = local_model.strip()
+    chars[cid]["custom_model"] = custom_model.strip()
     chars[cid]["nvidia_model"] = nvidia_model.strip()
     chars[cid]["voice"] = voice.strip()
     chars[cid]["memory_enabled"] = memory_enabled
