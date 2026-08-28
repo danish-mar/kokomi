@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.0.2] - 2026-08-29
+
+### Fixed
+
+- **Composer tier slider showed the wrong model name for a tier set to the Custom provider.** Its tooltip still checked for the provider name `local`, from before that provider was renamed to `custom` — so a Fast/Smart tier pointed at a Custom endpoint fell through to the wrong pref field (`fast_model_name` instead of `fast_custom_model`) and showed a stale/default value instead of the actual configured model.
+
 ## [v6.0.1] - 2026-08-29
 
 ### Added

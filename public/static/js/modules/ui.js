@@ -113,7 +113,7 @@ export function getUiActions() {
             const prefix = tier === 'normal' ? '' : `${tier}_`;
             const provider = this.prefs[`${prefix}llm_provider`] || 'groq';
             const field = provider === 'google' ? 'model_name'
-                : provider === 'local' ? 'local_model'
+                : provider === 'custom' ? 'custom_model'
                 : provider === 'nvidia' ? 'nvidia_model'
                 : 'model_name';
             return this.prefs[`${prefix}${field}`] || '';
