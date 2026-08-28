@@ -4,7 +4,11 @@
 
 export function getInitialState() {
     return {
-        sidebarOpen: window.innerWidth > 768,
+        // Persists across refreshes; a first-ever visit falls back to
+        // open-on-desktop/closed-on-mobile since there's no stored value yet.
+        sidebarOpen: localStorage.getItem('sidebarOpen') !== null
+            ? localStorage.getItem('sidebarOpen') === 'true'
+            : window.innerWidth > 768,
         input: '',
         attachments: [],
         loading: false,
@@ -89,6 +93,10 @@ export function getInitialState() {
         isAnonymous: false,
         exitTempModal: false,
         useWebSearch: localStorage.getItem('useWebSearch') === 'true',
+        // Composer brain-icon slider: 'fast' | 'normal' | 'smart'
+        modelTier: localStorage.getItem('modelTier') || 'normal',
+        modelTierHover: false,
+        modelTierPinned: false,
         isRecording: false,
         liveStats: { tps: null, ttft: null, context: null },
         showTourPrompt: false,

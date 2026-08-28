@@ -14,6 +14,10 @@ class ChatRequest(BaseModel):
     # Artifact id of the canvas the user currently has open, if any. Its live
     # contents get injected into the system prompt so edits are visible.
     canvas_id: Optional[str] = None
+    # Composer brain-icon slider: "fast", "normal", or "smart". Selects among
+    # the three model presets configured in Settings instead of the default
+    # per-character/provider model.
+    model_tier: Optional[str] = "normal"
 
 
 
@@ -111,6 +115,23 @@ class PrefsUpdate(BaseModel):
     title_custom_api_key: Optional[str] = ""
     title_custom_model: Optional[str] = "local-model"
     title_active_custom_provider_id: Optional[str] = None
+
+    # Composer model tiers (brain-icon slider)
+    fast_llm_provider: Optional[str] = "groq"
+    fast_model_name: Optional[str] = "llama-3.1-8b-instant"
+    fast_nvidia_model: Optional[str] = "nvidia/llama-3.1-8b-instruct"
+    fast_custom_base_url: Optional[str] = "http://localhost:8080/v1"
+    fast_custom_api_key: Optional[str] = ""
+    fast_custom_model: Optional[str] = "local-model"
+    fast_active_custom_provider_id: Optional[str] = None
+    smart_llm_provider: Optional[str] = "google"
+    smart_model_name: Optional[str] = "gemini-2.5-pro"
+    smart_nvidia_model: Optional[str] = "nvidia/llama-3.3-nemotron-super-49b-v1"
+    smart_custom_base_url: Optional[str] = "http://localhost:8080/v1"
+    smart_custom_api_key: Optional[str] = ""
+    smart_custom_model: Optional[str] = "local-model"
+    smart_active_custom_provider_id: Optional[str] = None
+
     setup_completed: bool = False
     groq_api_key: Optional[str] = ""
     google_api_key: Optional[str] = ""

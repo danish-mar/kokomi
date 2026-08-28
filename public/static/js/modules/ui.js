@@ -4,9 +4,121 @@
 
 import { isCanvasArtifact } from './canvas.js';
 
+// Tools shown only as a muted dot beside the model name, never as a chip in
+// the transcript: their result is internal state, not something to read.
+const AMBIENT_TOOLS = ['memory_search'];
+
+// Model-tier bar geometry, in px. Kept in sync with the .kokomi-tier-pill /
+// .kokomi-tier-knob rules in the composer's stylesheet. The knob is inset
+// from the bar on every side so it rides fully inside the track.
+const TIER_BAR_W = 116;
+const TIER_BAR_H = 28;
+const TIER_KNOB_W = 22;
+const TIER_INSET = (TIER_BAR_H - TIER_KNOB_W) / 2;                  // 3
+const TIER_TRAVEL = TIER_BAR_W - TIER_KNOB_W - TIER_INSET * 2;      // 88
+
 
 export function getUiActions() {
     return {
+        // ── Tool-call indicators ──────────────────────────────────────────
+        // Tools split into two presentations. "Ambient" ones are background
+        // activity with nothing worth reading, so they show only as a muted
+        // dot next to the model name. The rest keep an expandable chip in the
+        // transcript because their result is content (web-search hits, tool
+        // output). search_images is excluded everywhere — it renders as a
+        // gallery instead.
+        ambientTools(msg) {
+            return (msg.tool_calls || []).filter(t => AMBIENT_TOOLS.includes(t.name));
+        },
+        detailTools(msg) {
+            return (msg.tool_calls || []).filter(
+                t => t.name !== 'search_images' && !AMBIENT_TOOLS.includes(t.name)
+            );
+        },
+        toolIcon(tc) {
+            if (tc.name === 'memory_search') return 'fa-brain';
+            if (tc.name === 'web_search') {
+                return tc.result === 'Executing...' ? 'fa-circle-notch fa-spin' : 'fa-globe';
+            }
+            return tc.icon || 'fa-wrench';
+        },
+        toolLabel(tc) {
+            const running = tc.result === 'Executing...';
+            if (tc.name === 'memory_search') return running ? 'Accessing memory…' : 'Accessed memory';
+            if (tc.name === 'web_search') return running ? 'Searching the web…' : 'Searched the web';
+            return tc.description || tc.name;
+        },
+
+        // Composer brain-icon slider. tier is 'fast' | 'normal' | 'smart'.
+        setModelTier(tier) {
+            this.modelTier = tier;
+            try { localStorage.setItem('modelTier', tier); } catch (err) {}
+        },
+
+        // Icon shown on the brain button for a given tier: microchip (raw
+        // speed) -> brain (default) -> atom (deepest reasoning).
+        tierIcon(tier) {
+            return tier === 'fast' ? 'fa-microchip' : (tier === 'smart' ? 'fa-atom' : 'fa-brain');
+        },
+
+        // Whether the tier bar is unfurled (hovered, or pinned open by a click).
+        get modelTierOpen() {
+            return this.modelTierHover || this.modelTierPinned;
+        },
+
+        // Slider step (0/1/2) and fill percentage (0/50/100) for a tier.
+        tierSliderIndex(tier) {
+            return tier === 'fast' ? 0 : (tier === 'smart' ? 2 : 1);
+        },
+        tierPercent(tier) {
+            return this.tierSliderIndex(tier) * 50;
+        },
+
+        // Geometry of the tier bar (must match the .kokomi-tier-* CSS sizes).
+        // Collapsed, the bar is exactly the knob, so every offset has to be 0
+        // or the knob would be translated outside its own pill.
+        tierKnobPx(tier, open) {
+            if (!open) return 0;
+            return (this.tierPercent(tier) / 100) * TIER_TRAVEL;
+        },
+        // Centre of the knob at a given stop — the single anchor the fill, the
+        // preset dot and the tooltip all line up on. The knob starts inset
+        // from the bar's left edge, so that offset carries into every centre.
+        tierCentrePx(tier) {
+            return TIER_INSET + TIER_KNOB_W / 2 + this.tierKnobPx(tier, true);
+        },
+        // The fill sweeps from the left edge to just past the knob (its far
+        // edge plus the knob's inset), so the knob always rides the tip of the
+        // fill and the bar is filled EDGE TO EDGE at the top stop.
+        tierFillPx(tier, open) {
+            if (!open) return 0;
+            return this.tierKnobPx(tier, open) + TIER_BAR_H;
+        },
+        // Each preset dot sits at a knob centre (CSS pulls it back by half its
+        // own size, so this is a true centre, not a left edge).
+        tierDotLeft(tier) {
+            return this.tierCentrePx(tier);
+        },
+        // The tooltip is anchored from the right, since the bar grows leftward
+        // off a fixed icon: distance from the bar's right edge to the knob.
+        tierTooltipRight(tier) {
+            return TIER_BAR_W - this.tierCentrePx(tier);
+        },
+
+        // The model name Settings has configured for a given tier, shown as a
+        // tooltip on the slider. Mirrors the provider -> field-name mapping
+        // the backend uses in app/llm.py's active_model_name().
+        tierModelLabel(tier) {
+            if (!this.prefs) return '';
+            const prefix = tier === 'normal' ? '' : `${tier}_`;
+            const provider = this.prefs[`${prefix}llm_provider`] || 'groq';
+            const field = provider === 'google' ? 'model_name'
+                : provider === 'local' ? 'local_model'
+                : provider === 'nvidia' ? 'nvidia_model'
+                : 'model_name';
+            return this.prefs[`${prefix}${field}`] || '';
+        },
+
         // Drag-to-resize the sidebar (desktop). Width persists in localStorage.
         startSidebarResize(e) {
             e.preventDefault();

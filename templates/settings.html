@@ -283,6 +283,105 @@
                         </div>
                     </div>
 
+                    <!-- Composer model tiers (brain-icon slider) -->
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:2px;">Faster Model</label>
+                        <p style="font-size:11px; color:var(--text-quaternary); margin-bottom:10px;">Used when the composer's brain-icon slider is set to "Faster" — the quickest/cheapest model for throwaway questions.</p>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
+                            <button @click="prefs.fast_llm_provider = 'groq'; savePrefs()"
+                                :class="(prefs.fast_llm_provider || 'groq') === 'groq' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-bolt" style="font-size:9px;"></i> Groq
+                            </button>
+                            <button @click="prefs.fast_llm_provider = 'google'; savePrefs()"
+                                :class="prefs.fast_llm_provider === 'google' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-brands fa-google" style="font-size:9px;"></i> Gemini
+                            </button>
+                            <button @click="prefs.fast_llm_provider = 'nvidia'; savePrefs()"
+                                :class="prefs.fast_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
+                            </button>
+                            <button @click="prefs.fast_llm_provider = 'custom'; savePrefs()"
+                                :class="prefs.fast_llm_provider === 'custom' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-plug" style="font-size:9px;"></i> Custom
+                            </button>
+                        </div>
+
+                        <!-- Cloud model (Groq / Google) -->
+                        <div x-show="(prefs.fast_llm_provider || 'groq') === 'groq' || prefs.fast_llm_provider === 'google'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
+                                x-text="prefs.fast_llm_provider === 'google' ? 'Gemini Model' : 'Groq Model'"></label>
+                            {{ m.model_dropdown("prefs.fast_model_name", "models.filter(x => x.provider === (prefs.fast_llm_provider || 'groq'))") }}
+                        </div>
+
+                        <!-- NVIDIA NIM -->
+                        <div x-show="prefs.fast_llm_provider === 'nvidia'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
+                            {{ m.model_dropdown("prefs.fast_nvidia_model", "nvidiaChatModels()") }}
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>.</p>
+                        </div>
+
+                        <!-- Custom (any OpenAI-compatible endpoint) -->
+                        <div x-show="prefs.fast_llm_provider === 'custom'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Provider</label>
+                                {{ m.custom_provider_selector('fast', 'prefs.fast_active_custom_provider_id') }}
+                            </div>
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model</label>
+                                {{ m.model_dropdown("prefs.fast_custom_model", "customModelsFor('fast')") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-row">
+                        <label class="apple-label" style="margin-bottom:2px;">Smarter Model</label>
+                        <p style="font-size:11px; color:var(--text-quaternary); margin-bottom:10px;">Used when the composer's brain-icon slider is set to "Smarter" — a slower, higher-quality model for harder requests.</p>
+                        <div class="seg-control" style="margin-bottom:16px; max-width:520px;">
+                            <button @click="prefs.smart_llm_provider = 'groq'; savePrefs()"
+                                :class="prefs.smart_llm_provider === 'groq' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-bolt" style="font-size:9px;"></i> Groq
+                            </button>
+                            <button @click="prefs.smart_llm_provider = 'google'; savePrefs()"
+                                :class="(prefs.smart_llm_provider || 'google') === 'google' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-brands fa-google" style="font-size:9px;"></i> Gemini
+                            </button>
+                            <button @click="prefs.smart_llm_provider = 'nvidia'; savePrefs()"
+                                :class="prefs.smart_llm_provider === 'nvidia' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-network-wired" style="font-size:9px;"></i> NVIDIA NIM
+                            </button>
+                            <button @click="prefs.smart_llm_provider = 'custom'; savePrefs()"
+                                :class="prefs.smart_llm_provider === 'custom' ? 'seg-active' : ''" class="seg-btn">
+                                <i class="fa-solid fa-plug" style="font-size:9px;"></i> Custom
+                            </button>
+                        </div>
+
+                        <!-- Cloud model (Groq / Google) -->
+                        <div x-show="prefs.smart_llm_provider === 'groq' || (prefs.smart_llm_provider || 'google') === 'google'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;"
+                                x-text="(prefs.smart_llm_provider || 'google') === 'google' ? 'Gemini Model' : 'Groq Model'"></label>
+                            {{ m.model_dropdown("prefs.smart_model_name", "models.filter(x => x.provider === (prefs.smart_llm_provider || 'google'))") }}
+                        </div>
+
+                        <!-- NVIDIA NIM -->
+                        <div x-show="prefs.smart_llm_provider === 'nvidia'" x-transition>
+                            <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">NVIDIA NIM Model</label>
+                            {{ m.model_dropdown("prefs.smart_nvidia_model", "nvidiaChatModels()") }}
+                            <p style="font-size:10px; color:var(--text-quaternary); margin-top:5px;">Requires <code>NVIDIA_API_KEY</code> in your <code>.env</code>.</p>
+                        </div>
+
+                        <!-- Custom (any OpenAI-compatible endpoint) -->
+                        <div x-show="prefs.smart_llm_provider === 'custom'" x-transition style="display:flex; flex-direction:column; gap:14px;">
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Provider</label>
+                                {{ m.custom_provider_selector('smart', 'prefs.smart_active_custom_provider_id') }}
+                            </div>
+                            <div>
+                                <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model</label>
+                                {{ m.model_dropdown("prefs.smart_custom_model", "customModelsFor('smart')") }}
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- User Persona -->
                     <div class="card-row">
                         <label class="apple-label" style="margin-bottom:8px;">About Me</label>

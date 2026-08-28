@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.0.1] - 2026-08-29
+
+### Added
+
+- **Composer model-tier control**: a brain-icon button beside the attach button now morphs, on hover or click, into a progress bar with three presets — Fast, Normal, Smart — each pointing at its own configurable provider/model in Settings (mirrors how the Title and Atlas models already get their own slots). The icon itself rides the bar as the knob and travels to the active preset's stop, with the accent fill sweeping up behind it (full width at Smart); a tooltip above the knob names the resolved model. Selecting a tier picks the model for that message via a new `model_tier` field on the chat request, bypassing per-character model pinning for that one send. Persists across reloads like the web-search toggle.
+- **Sidebar open/closed state now persists across page reloads** instead of always reopening on desktop — it previously ignored how you'd last left it.
+
+### Changed
+
+- **Message header decluttered**: long-term-memory access no longer renders as a full-width bordered card in the transcript — it's now a small muted dot beside the model badge, with an accent ring that sweeps its edge while the lookup is running. The remaining tool-call chips (web search, MCP tools) were similarly muted (no more accent border/background by default) and turned into real `<button>`s with `aria-expanded`, replacing the `▸`/`▾` text-glyph toggle with an animated `fa-chevron-down`.
+
+### Fixed
+
+- **Model badge on assistant messages had no vertical padding** — `py-0.25` isn't a real Tailwind spacing step (the app doesn't extend the scale), so it silently generated nothing and the badge sat flush against its own border.
+
 ## [v6.0.0] - 2026-07-25 — "coral atelier"
 
 ### Added

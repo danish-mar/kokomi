@@ -369,6 +369,51 @@ def get_atlas_llm(
     return get_llm(atlas_prefs, streaming=streaming, model_override=model_override)
 
 
+# ── Model-tier selection (the composer's brain-icon slider) ───────────
+
+def _tier_prefs(prefs: dict, tier: str) -> dict:
+    """Remap fast_*/smart_* keys onto the generic keys get_llm() reads.
+
+    Mirrors get_title_llm/get_atlas_llm's remap; "normal" just passes prefs
+    through unchanged since it already uses the generic keys.
+    """
+    if tier not in ("fast", "smart"):
+        return prefs
+    prefix = f"{tier}_"
+    remapped = prefs.copy()
+    for generic_key in (
+        "llm_provider", "model_name", "nvidia_model",
+        "custom_base_url", "custom_model", "custom_api_key",
+    ):
+        tiered_key = prefix + generic_key
+        if tiered_key in prefs:
+            remapped[generic_key] = prefs[tiered_key]
+    return remapped
+
+
+def get_llm_for_tier(
+    prefs: dict,
+    tier: str = "normal",
+    streaming: bool = False,
+    model_override: Optional[str] = None,
+):
+    """Build the LLM for a composer model tier: "fast", "normal", or "smart"."""
+    return get_llm(_tier_prefs(prefs, tier), streaming=streaming, model_override=model_override)
+
+
+def active_model_name(prefs: dict, tier: str = "normal") -> str:
+    """The display model name get_llm_for_tier(tier) would actually use."""
+    p = _tier_prefs(prefs, tier)
+    provider = p.get("llm_provider", "groq")
+    if provider == "google":
+        return _normalize_model(p.get("model_name", "gemini-2.5-flash"))
+    if provider == "custom":
+        return _normalize_model(p.get("custom_model", "local-model"))
+    if provider == "nvidia":
+        return p.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
+    return _normalize_model(p.get("model_name", "llama-3.3-70b-versatile"))
+
+
 # ── Title generation helper ───────────────────────────────────────────
 
 async def generate_title(user_msg: str, ai_msg: str, prefs: Optional[dict] = None) -> str:

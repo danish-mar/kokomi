@@ -83,6 +83,24 @@ DEFAULT_PREFS: dict = {
     "title_custom_api_key": "",
     "title_custom_model": "local-model",
     "title_active_custom_provider_id": None,
+    # Chat model-tier presets (the brain icon in the composer). "Normal" is
+    # just the main llm_provider/model_name above; fast/smart are separate
+    # slots so a quick throwaway question and a "think harder" request can
+    # point at genuinely different models.
+    "fast_llm_provider": "groq",
+    "fast_model_name": "llama-3.1-8b-instant",
+    "fast_nvidia_model": "nvidia/llama-3.1-8b-instruct",
+    "fast_custom_base_url": "http://localhost:8080/v1",
+    "fast_custom_api_key": "",
+    "fast_custom_model": "local-model",
+    "fast_active_custom_provider_id": None,
+    "smart_llm_provider": "google",
+    "smart_model_name": "gemini-2.5-pro",
+    "smart_nvidia_model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "smart_custom_base_url": "http://localhost:8080/v1",
+    "smart_custom_api_key": "",
+    "smart_custom_model": "local-model",
+    "smart_active_custom_provider_id": None,
     "inject_time": False,
     # RAG embeddings. Provider selects which service embeds documents/queries.
     # NOTE: changing the embedding model/provider invalidates existing vectors —

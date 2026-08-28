@@ -71,6 +71,11 @@ function aiApp() {
         });
         document.title = `${this.currentTitle} - KokomiAi`;
 
+        // Sidebar open/closed state persists across refreshes.
+        this.$watch('sidebarOpen', (val) => {
+            try { localStorage.setItem('sidebarOpen', val); } catch (err) {}
+        });
+
         // Live Artifact Preview Watcher
         this.$watch('artifactModal.content', (val) => {
             if (this.artifactModal.tab === 'preview' && (this.artifactModal.type === 'html' || this.artifactModal.type === 'svg')) {

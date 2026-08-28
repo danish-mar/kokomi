@@ -236,6 +236,129 @@
     }
     .kokomi-canvas-btn:hover { background: var(--bg-input); color: var(--text-primary); }
 
+    /* Ambient tool indicator beside the model name. Muted by default; while
+       the tool is still running an accent arc sweeps its edge (masked to a
+       ring so only the rim lights up, not the disc). */
+    .kokomi-tool-dot {
+        position: relative; flex-shrink: 0;
+        width: 18px; height: 18px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: var(--bg-input); color: var(--text-quaternary);
+        font-size: 8.5px; line-height: 1;
+        transition: color 0.25s;
+    }
+    .kokomi-tool-dot.is-running { color: var(--accent); }
+    .kokomi-tool-dot.is-running::after {
+        content: ''; position: absolute; inset: -1.5px; border-radius: 50%;
+        background: conic-gradient(from 0deg, transparent 0deg,
+                    color-mix(in srgb, var(--accent) 35%, transparent) 200deg,
+                    var(--accent) 360deg);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+                mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1.5px));
+        animation: kokomi-tool-ring 0.9s linear infinite;
+    }
+    @keyframes kokomi-tool-ring { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+        .kokomi-tool-dot.is-running::after { animation: none; }
+    }
+
+    /* ── Model-tier control ──────────────────────────────────────────────
+       A thick progress bar rather than a hairline track with a blob: the
+       icon button itself IS the knob. Collapsed, the pill is exactly the
+       icon (28px). On hover/click it grows leftward into a 116px bar and
+       the icon travels to the slot for the active tier, with the accent
+       fill sweeping up to it. The pill is absolutely positioned so the
+       composer's own layout never reflows. */
+    .kokomi-tier { position: relative; width: 28px; height: 28px; flex-shrink: 0; }
+
+    .kokomi-tier-pill {
+        position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+        width: 28px; height: 28px; border-radius: 999px; overflow: hidden;
+        background: transparent;
+        transition: width 0.34s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s;
+    }
+    .kokomi-tier-pill.is-open { width: 116px; background: var(--bg-input); }
+
+    /* Filled portion, sweeping from the left edge to the knob's centre. */
+    .kokomi-tier-fill {
+        position: absolute; left: 0; top: 0; bottom: 0; z-index: 1;
+        width: 0; border-radius: 999px; opacity: 0;
+        background: linear-gradient(90deg,
+            color-mix(in srgb, var(--accent) 65%, transparent), var(--accent));
+        transition: width 0.34s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s;
+    }
+    .kokomi-tier-pill.is-open .kokomi-tier-fill { opacity: 1; }
+
+    /* Preset ticks. Each is placed by its CENTRE at a knob stop (flex
+       space-between would align the outer dots' boxes, leaving them 1.5px
+       inside the knob's true centre). The active one is hidden under the knob. */
+    .kokomi-tier-dots {
+        position: absolute; inset: 0; z-index: 2;
+        opacity: 0; pointer-events: none; transition: opacity 0.22s;
+    }
+    .kokomi-tier-pill.is-open .kokomi-tier-dots { opacity: 1; }
+    .kokomi-tier-dot {
+        position: absolute; top: 50%;
+        width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; border-radius: 50%;
+        background: var(--text-tertiary); opacity: 0.45;
+        transition: opacity 0.2s;
+    }
+    .kokomi-tier-dot.is-active { opacity: 0; }
+
+    /* The icon knob — rides the bar, its CENTRE landing on the active dot.
+       Inset 3px so the circle sits fully INSIDE the 28px bar with track
+       visible all around it, rather than being as tall as the bar and
+       reading as a bulge on its edge. One circle only: the glyph is centred
+       inside the knob itself rather than carrying a second circle. */
+    .kokomi-tier-knob {
+        position: absolute; left: 3px; top: 3px; z-index: 3;
+        width: 22px; height: 22px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-quaternary); pointer-events: none;
+        transition: transform 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+                    background 0.25s, color 0.25s, box-shadow 0.25s;
+    }
+    /* display:block + line-height:1 so the glyph's own line box can't push it
+       off the knob's optical centre (an inline <i> centres its line box, not
+       the glyph). */
+    .kokomi-tier-knob > i {
+        display: block; line-height: 1; font-size: 11px;
+        width: 11px; height: 11px; text-align: center;
+    }
+    .kokomi-tier.is-active .kokomi-tier-knob { color: var(--accent); }
+    .kokomi-tier-pill.is-open .kokomi-tier-knob {
+        background: var(--bg-elevated); color: var(--accent);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Native range stretched invisibly over the bar to handle the dragging. */
+    .kokomi-tier-input {
+        position: absolute; inset: 0; z-index: 4; margin: 0;
+        width: 100%; height: 100%; opacity: 0; cursor: pointer;
+        -webkit-appearance: none; appearance: none; background: transparent;
+        pointer-events: none;
+    }
+    .kokomi-tier-pill.is-open .kokomi-tier-input { pointer-events: auto; }
+    .kokomi-tier-input::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none; width: 28px; height: 28px;
+    }
+    .kokomi-tier-input::-moz-range-thumb { width: 28px; height: 28px; border: none; }
+
+    /* Selected model name, parked above the knob. Anchored from the right,
+       since the bar grows leftward from a fixed icon. */
+    .kokomi-tier-tooltip {
+        position: absolute; bottom: 100%; z-index: 40;
+        transform: translateX(50%) translateY(-8px);
+        padding: 3px 8px; border-radius: 7px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        font-size: 10px; font-weight: 600; color: var(--text-primary);
+        white-space: nowrap; pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.18s, right 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .kokomi-tier-tooltip.is-visible { opacity: 1; }
+
     /* Split download button + format menu */
     .kokomi-canvas-dl { position: relative; display: flex; align-items: center; }
     .kokomi-canvas-caret { width: 18px; font-size: 8px; margin-left: -4px; }
@@ -2148,9 +2271,24 @@
                                             </div>
                                         </template>
 
-                                        <template x-if="msg.role === 'assistant' && msg.model">
-                                            <span class="text-[10px] text-4 font-medium px-1.5 py-0.25 rounded-[6px] bg-accent-sub border border-themed ml-auto" x-text="msg.model"></span>
-                                        </template>
+                                        <!-- Right-hand group: ambient tool indicators, then the model badge -->
+                                        <div class="ml-auto flex items-center gap-1.5 shrink-0">
+                                            <!-- Ambient tool indicators. Memory access is background
+                                                 activity, so it stays a muted dot here rather than a
+                                                 card in the transcript; the ring runs its edge while
+                                                 the tool is still executing. -->
+                                            <template x-for="(tc, ti) in ambientTools(msg)" :key="ti">
+                                                <span class="kokomi-tool-dot"
+                                                    :class="tc.result === 'Executing...' && 'is-running'"
+                                                    :title="toolLabel(tc)">
+                                                    <i class="fa-solid" :class="toolIcon(tc)"></i>
+                                                </span>
+                                            </template>
+
+                                            <template x-if="msg.role === 'assistant' && msg.model">
+                                                <span class="text-[10px] text-4 font-medium px-1.5 py-0.5 rounded-[6px] bg-accent-sub border border-themed" x-text="msg.model"></span>
+                                            </template>
+                                        </div>
                                     </div>
                                     <template x-if="msg.role === 'user'">
                                         <div>
@@ -2260,11 +2398,11 @@
                                                 </div>
                                             </template>
                                             <!-- Tool Calls (image search is shown as a gallery, not a pill) -->
-                                            <template x-if="msg.tool_calls && msg.tool_calls.some(t => t.name !== 'search_images')">
-                                                <div class="mb-3 space-y-1.5">
-                                                    <template x-for="(tc, ti) in msg.tool_calls.filter(t => t.name !== 'search_images')" :key="ti">
-                                                        <div class="rounded-[10px] border border-themed p-2.5 t-apple" style="background: var(--accent-subtle);" 
-                                                             x-data="{ 
+                                            <template x-if="detailTools(msg).length">
+                                                <div class="mb-3 space-y-2">
+                                                    <template x-for="(tc, ti) in detailTools(msg)" :key="ti">
+                                                        <div class="min-w-0"
+                                                             x-data="{
                                                                  expanded: false,
                                                                  init() {
                                                                      if (tc.name === 'web_search') {
@@ -2276,28 +2414,17 @@
                                                                      }
                                                                  }
                                                              }">
-                                                            <div class="flex items-center gap-2 cursor-pointer" @click="expanded = !expanded">
-                                                                <i x-show="tc.name === 'web_search'" class="fa-solid text-[10px] text-accent-c" :class="(tc.result === 'Executing...') ? 'fa-circle-notch fa-spin' : 'fa-globe'"></i>
-                                                                <i x-show="tc.name === 'memory_search'" class="fa-solid fa-brain text-[10px] text-accent-c" :class="(tc.result === 'Executing...') ? 'animate-pulse' : ''"></i>
-                                                                <i x-show="tc.name !== 'web_search' && tc.name !== 'memory_search'" class="fa-solid text-[10px] text-accent-c" :class="tc.icon || 'fa-wrench'"></i>
+                                                            <button type="button" @click="expanded = !expanded" :aria-expanded="expanded"
+                                                                class="inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/5 text-3 select-none t-apple hover:text-1 hover:bg-black/10 dark:hover:bg-white/10">
+                                                                <i class="fa-solid text-[10px] text-4" :class="toolIcon(tc)"></i>
+                                                                <span class="text-[11px] font-semibold truncate"
+                                                                    :class="tc.name !== 'web_search' && !tc.description && 'font-mono'"
+                                                                    x-text="toolLabel(tc)"></span>
 
-                                                                <span x-show="tc.name === 'web_search'" class="text-[12px] font-semibold text-accent-c" x-text="(tc.result === 'Executing...') ? 'Searching the web...' : 'Searched the web'"></span>
-                                                                <span x-show="tc.name === 'memory_search'" class="text-[12px] font-semibold text-accent-c flex items-center">
-                                                                     <span x-text="(tc.result === 'Executing...') ? 'Accessing long-term memory' : 'Accessed memory'"></span>
-                                                                     <template x-if="tc.result === 'Executing...'">
-                                                                         <span class="inline-flex ml-1.5 gap-0.5 items-center">
-                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c/40 animate-[pulse_0.8s_infinite_0ms]"></span>
-                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c/60 animate-[pulse_0.8s_infinite_150ms]"></span>
-                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c/80 animate-[pulse_0.8s_infinite_300ms]"></span>
-                                                                             <span class="w-1.5 h-1.5 rounded-sm bg-accent-c animate-[pulse_0.8s_infinite_450ms]"></span>
-                                                                         </span>
-                                                                     </template>
-                                                                 </span>
-                                                                <span x-show="tc.name !== 'web_search' && tc.name !== 'memory_search'" class="text-[12px] font-semibold text-accent-c" :class="!tc.description && 'font-mono'" x-text="tc.description || tc.name"></span>
-
-                                                                <span class="text-[10px] text-4 ml-auto" x-text="expanded ? '▾' : '▸'"></span>
-                                                            </div>
-                                                            <div x-show="expanded" x-collapse>
+                                                                <i class="fa-solid fa-chevron-down text-[8px] text-4 transition-transform duration-200"
+                                                                    :class="expanded && 'rotate-180'"></i>
+                                                            </button>
+                                                            <div x-show="expanded" x-collapse class="ml-1 pl-3 border-l-2 border-accent/30">
                                                                 <template x-if="tc.name === 'web_search' && (function() { try { return Array.isArray(JSON.parse(tc.result)); } catch(e) { return false; } })()">
                                                                     <div class="mt-2 space-y-1.5">
                                                                         <template x-for="(res, index) in JSON.parse(tc.result)" :key="res.url || Math.random()">
@@ -2664,6 +2791,47 @@
                         </div>
 
                         <div class="flex items-center gap-2">
+                            <!-- Model tier: the icon button morphs into a progress bar on
+                                 hover/click, with the icon itself riding it as the knob.
+                                 The bar is absolutely positioned and unfurls to the LEFT,
+                                 so the composer's own layout is never reflowed. -->
+                            <div class="kokomi-tier" :class="modelTier !== 'normal' && 'is-active'"
+                                @mouseenter="modelTierHover = true" @mouseleave="modelTierHover = false"
+                                @click="modelTierPinned = !modelTierPinned"
+                                @click.outside="modelTierPinned = false">
+
+                                <!-- Model name, above the knob (outside the bar so its
+                                     overflow-hidden can't clip it) -->
+                                <div class="kokomi-tier-tooltip" :class="modelTierOpen && 'is-visible'"
+                                    :style="`right: ${tierTooltipRight(modelTier)}px`"
+                                    x-text="tierModelLabel(modelTier)"></div>
+
+                                <div class="kokomi-tier-pill" :class="modelTierOpen && 'is-open'"
+                                    :title="modelTierOpen ? '' : 'Model speed / intelligence'">
+
+                                    <div class="kokomi-tier-fill"
+                                        :style="`width: ${tierFillPx(modelTier, modelTierOpen)}px`"></div>
+
+                                    <div class="kokomi-tier-dots">
+                                        <template x-for="t in ['fast', 'normal', 'smart']" :key="t">
+                                            <span class="kokomi-tier-dot" :class="modelTier === t && 'is-active'"
+                                                :style="`left: ${tierDotLeft(t)}px`"></span>
+                                        </template>
+                                    </div>
+
+                                    <div class="kokomi-tier-knob"
+                                        :style="`transform: translateX(${tierKnobPx(modelTier, modelTierOpen)}px)`">
+                                        <i class="fa-solid" :class="tierIcon(modelTier)"></i>
+                                    </div>
+
+                                    <input type="range" min="0" max="2" step="1"
+                                        :value="tierSliderIndex(modelTier)"
+                                        @input="setModelTier(['fast', 'normal', 'smart'][$event.target.value])"
+                                        @click.stop
+                                        class="kokomi-tier-input">
+                                </div>
+                            </div>
+
                             <!-- Attachment button -->
                             <button @click="triggerFileUpload()" title="Attach file"
                                 class="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center t-apple hover-surface transition-all duration-300"

@@ -18,7 +18,7 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 
 from app.mcp import MCP_TOOL_CALL_TIMEOUT, get_pool_tools
-from app.llm import get_llm, generate_title, parse_thinking, _normalize_model, resolve_character_model
+from app.llm import get_llm, get_llm_for_tier, active_model_name, generate_title, parse_thinking, _normalize_model, resolve_character_model
 from app.models import ChatRequest
 from app.storage import load_prefs, load_chars, load_convos, save_convos
 from app.insights import log_generation
@@ -131,24 +131,19 @@ async def chat(req: ChatRequest):
     t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
+    tier = req.model_tier or "normal"
 
-    if provider == "google":
-        active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
-    elif provider == "custom":
-        active_model = _normalize_model(prefs.get("custom_model", "local-model"))
-    elif provider == "nvidia":
-        active_model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
-    else:  # groq
-        active_model = _normalize_model(prefs.get("model_name", "llama-3.3-70b-versatile"))
+    active_model = active_model_name(prefs, tier)
 
     user_p = prefs.get("user_persona", "")
     chars = load_chars()
     char_id = req.character_id or "kokomi"
     char = chars.get(char_id, chars.get("kokomi"))
 
-    # Resolve model for this character + current provider
-    char_model = resolve_character_model(char, provider)
-    current_llm = get_llm(prefs, model_override=char_model)
+    # Per-character model pinning only applies to the "normal" tier — the
+    # fast/smart slider is an explicit override for this one message.
+    char_model = resolve_character_model(char, provider) if tier == "normal" else None
+    current_llm = get_llm_for_tier(prefs, tier, model_override=char_model)
 
     # Track the actual model used for display
     if char_model and char_model != "default":
@@ -457,15 +452,9 @@ async def chat_stream(req: ChatRequest):
     t0 = time.time()
     prefs = load_prefs()
     provider = prefs.get("llm_provider", "groq")
+    tier = req.model_tier or "normal"
 
-    if provider == "google":
-        active_model = _normalize_model(prefs.get("model_name", "gemini-2.5-flash"))
-    elif provider == "custom":
-        active_model = _normalize_model(prefs.get("custom_model", "local-model"))
-    elif provider == "nvidia":
-        active_model = prefs.get("nvidia_model", "nvidia/llama-3.3-nemotron-super-49b-v1")
-    else:  # groq
-        active_model = _normalize_model(prefs.get("model_name", "qwen-2.5-32b"))
+    active_model = active_model_name(prefs, tier)
 
     user_p = prefs.get("user_persona", "")
     chars = load_chars()
@@ -965,8 +954,8 @@ async def chat_stream(req: ChatRequest):
                     p_lc_msgs.append(HumanMessage(content=human_content))
 
 
-                    char_model = resolve_character_model(p_char, provider)
-                    char_llm = get_llm(prefs, streaming=True, model_override=char_model)
+                    char_model = resolve_character_model(p_char, provider) if tier == "normal" else None
+                    char_llm = get_llm_for_tier(prefs, tier, streaming=True, model_override=char_model)
 
                     # Bind tools including memory tool if enabled
                     char_tool_defs = tool_defs.copy()

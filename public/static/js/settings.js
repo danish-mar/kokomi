@@ -92,6 +92,9 @@ function settingsApp() {
             chat:  { id: 'active_custom_provider_id', name: 'custom_name', url: 'custom_base_url', key: 'custom_api_key', model: 'custom_model' },
             title: { id: 'title_active_custom_provider_id', url: 'title_custom_base_url', key: 'title_custom_api_key', model: 'title_custom_model' },
             atlas: { id: 'atlas_active_custom_provider_id', url: 'atlas_custom_base_url', key: 'atlas_custom_api_key', model: 'atlas_custom_model' },
+            // Composer model tiers (brain-icon slider) — same "Custom" slot pattern.
+            fast:  { id: 'fast_active_custom_provider_id', url: 'fast_custom_base_url', key: 'fast_custom_api_key', model: 'fast_custom_model' },
+            smart: { id: 'smart_active_custom_provider_id', url: 'smart_custom_base_url', key: 'smart_custom_api_key', model: 'smart_custom_model' },
         },
 
         cropModal: false,

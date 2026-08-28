@@ -58,7 +58,8 @@ export function getChatActions() {
                         is_anonymous: this.isAnonymous,
                         use_web_search: this.useWebSearch,
                         attachments: currentAttachments,
-                        canvas_id: this.canvas.open ? this.canvas.id : null
+                        canvas_id: this.canvas.open ? this.canvas.id : null,
+                        model_tier: this.modelTier
                     }),
                     signal: this.abortController.signal,
                 });
@@ -121,7 +122,8 @@ export function getChatActions() {
                         is_anonymous: this.isAnonymous,
                         use_web_search: this.useWebSearch,
                         attachments: attachments,
-                        canvas_id: this.canvas.open ? this.canvas.id : null
+                        canvas_id: this.canvas.open ? this.canvas.id : null,
+                        model_tier: this.modelTier
                     }),
                     signal: this.abortController.signal
                 });
