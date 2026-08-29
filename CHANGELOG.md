@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.0.4] - 2026-08-29
+
+### Added
+
+- **Regression test for the v6.0.3 event-loop-blocking fixes** (`tests/test_event_loop_blocking.py`): patches the PDF-artifact render with a controlled synchronous sleep and asserts a concurrent, unrelated `/health` request still returns in milliseconds instead of waiting behind it. Verified against the commit immediately before the fix (`a0e44ba`) via a git worktree using this checkout's venv: the concurrent request took ~1.0s there (blocked) vs. ~0.01s on the fixed commit (served concurrently).
+
 ## [v6.0.3] - 2026-08-29
 
 ### Fixed
