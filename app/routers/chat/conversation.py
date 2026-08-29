@@ -1377,10 +1377,19 @@ async def chat_stream(req: ChatRequest):
                             async def background_memory_task(msgs, char_id, p_copy):
                                 facts = await summarize_conversation(msgs, p_copy)
                                 for item in facts:
+                                    # save_memory is synchronous — an embedding call plus a
+                                    # Qdrant dedup query and upsert. This task already runs
+                                    # off the request via create_task, but its own body still
+                                    # executes ON the event loop, so calling save_memory
+                                    # directly would freeze the whole app for every user
+                                    # for the duration of that round-trip, on every turn.
                                     if isinstance(item, dict):
-                                        save_memory(char_id, item["fact"], importance=item.get("importance", 3.0))
+                                        await asyncio.to_thread(
+                                            save_memory, char_id, item["fact"],
+                                            importance=item.get("importance", 3.0),
+                                        )
                                     else:
-                                        save_memory(char_id, str(item))
+                                        await asyncio.to_thread(save_memory, char_id, str(item))
 
                             # Summarize the last few turns to extract new facts
                             asyncio.create_task(background_memory_task(history[-4:], pid, prefs))

@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.0.3] - 2026-08-29
+
+### Fixed
+
+- **Several unwrapped blocking calls were freezing the entire app** (a single-process, single-event-loop server — one slow synchronous call anywhere stalls every other request, WebSocket, and background task, not just the one that made it):
+  - Rendering a PDF artifact (`POST /api/artifacts/render-pdf`) did ReportLab layout plus a blocking `requests.get` per embedded image directly on the event loop — viewing/downloading any AI-generated PDF froze the whole app for the duration.
+  - The App Store's catalog fetch and app/persona install (`requests.get`, `subprocess.run` for pip/uv, up to 120s) ran unwrapped in their route handlers.
+  - The software updater (`/update/check`, `/update/run`) ran every `git`/`uv`/`pip` `subprocess.run` call (up to 60s) directly on the loop.
+  - The long-term-memory background save (after every chat turn) called the synchronous `save_memory()` directly instead of off-thread, unlike `search_memories()` which got this exact fix in v5.11.0.
+
+  All now run via `asyncio.to_thread`, matching the pattern already used elsewhere (RAG/Spaces queries, workflow tool dispatch).
+
+### Changed
+
+- **Faster request handling on repeat calls**, not just fewer freezes:
+  - `GeminiDirectLLM` no longer constructs two fresh `genai.Client` transports on every single chat message — the client is now cached per API key and reused (the LLM wrapper itself still isn't cached/shared across requests, since `bind_tools()` mutates it in place and a shared instance would let one request's tools leak into another's concurrent generation).
+  - Added a shared, connection-pooled `httpx.AsyncClient` (`app/httpc.py`) for hot/repeating outbound calls — wired into the same-origin image proxy (`/api/img`, hit once per gallery image) instead of opening a fresh client per request.
+
 ## [v6.0.2] - 2026-08-29
 
 ### Fixed

@@ -84,6 +84,8 @@ async def lifespan(app):
         await triton_manager.stop_discovery()
     except Exception:
         pass
+    from app.httpc import close_http_client
+    await close_http_client()
 
 
 app = FastAPI(title="Kokomi AI", lifespan=lifespan)

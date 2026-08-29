@@ -32,12 +32,35 @@ title_llm = (
 
 # ── Gemini direct wrapper ─────────────────────────────────────────────
 
+# genai.Client() is a plain credentialed transport with no per-conversation
+# state (unlike GeminiDirectLLM itself, whose .tools gets mutated by
+# bind_tools() — see the note below), so it's safe to build once per API key
+# and reuse instead of constructing two fresh clients on every single chat
+# request.
+_genai_client_cache: dict[str, genai.Client] = {}
+
+
+def _get_genai_client(api_key: str) -> genai.Client:
+    client = _genai_client_cache.get(api_key)
+    if client is None:
+        client = genai.Client(api_key=api_key)
+        _genai_client_cache[api_key] = client
+    return client
+
+
 class GeminiDirectLLM:
     """
     Direct wrapper for google-genai SDK mimicking a LangChain-style interface.
 
     We reuse a single async_client (no custom http_options) for both
     ainvoke and astream to avoid 404 errors on the v1beta endpoint.
+
+    NOTE: instances of this class are NOT safe to cache/share across
+    requests — bind_tools() mutates self.tools and returns self rather than
+    a new bound copy, so a shared instance could leak one request's tools
+    into another's concurrent generation. get_llm() must keep constructing
+    a fresh GeminiDirectLLM per call; only the genai.Client transport above
+    is reused.
     """
 
     def __init__(self, model_name: str, api_key: str, temperature: float = 0.7):
@@ -45,8 +68,8 @@ class GeminiDirectLLM:
         self.api_key = api_key
         self.temperature = temperature
         self.tools = None
-        self.client = genai.Client(api_key=api_key)
-        self.async_client = genai.Client(api_key=api_key)
+        self.client = _get_genai_client(api_key)
+        self.async_client = _get_genai_client(api_key)
 
     def _convert_messages(self, messages):
         genai_msgs = []

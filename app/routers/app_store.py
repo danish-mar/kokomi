@@ -3,6 +3,7 @@ import sys
 import json
 import shutil
 import uuid
+import asyncio
 import datetime
 import subprocess
 import traceback
@@ -27,7 +28,10 @@ class InstallPayload(BaseModel):
 async def get_catalog():
     """Fetch app store catalog from GitHub and cross-reference with installed apps."""
     try:
-        resp = requests.get(GITHUB_MANIFEST_URL, timeout=10)
+        # requests.get is blocking — off the event loop, or a slow/unreachable
+        # GitHub freezes the whole app for every user for up to the 10s timeout
+        # every time anyone opens the App Store.
+        resp = await asyncio.to_thread(requests.get, GITHUB_MANIFEST_URL, timeout=10)
         if resp.status_code != 200:
             raise HTTPException(502, f"Failed to fetch manifest from GitHub: HTTP {resp.status_code}")
         catalog = resp.json()
@@ -87,10 +91,16 @@ async def get_catalog():
         "catalogBaseUrl": GITHUB_RAW_BASE
     }
 
-@router.post("/install")
-async def install_item(payload: InstallPayload):
-    """Download and install app or persona from GitHub repository."""
-    
+def _install_item_sync(payload: InstallPayload) -> dict:
+    """All the blocking work for an install — GitHub downloads, writing files,
+    subprocess pip/uv installs — run off the event loop via asyncio.to_thread
+    in install_item() below. This is a straight-line sequential chain of
+    blocking calls (multiple requests.get, then a subprocess.run that can run
+    up to 120s for pip), so rather than threading each call individually the
+    whole thing runs as one unit in a worker thread; only the MCP pool
+    refresh at the end needs the event loop, signalled back via _refresh_pool
+    rather than awaited here.
+    """
     try:
         # ── INSTALL APP ──────────────────────────────────────────────────
         if payload.type == "mcp":
@@ -182,13 +192,7 @@ async def install_item(payload: InstallPayload):
             except Exception as e:
                 print(f"[App Store Manager] warning enabling app for characters: {e}")
 
-            # Refresh MCP Pool
-            try:
-                await init_pool(force=True)
-            except Exception as e:
-                print(f"[App Store Manager] warning refreshing pool: {e}")
-
-            return {"ok": True, "message": "App installed and bridge server loaded."}
+            return {"ok": True, "message": "App installed and bridge server loaded.", "_refresh_pool": True}
 
         # ── INSTALL PERSONA ──────────────────────────────────────────────
         elif payload.type == "character":
@@ -258,6 +262,18 @@ async def install_item(payload: InstallPayload):
         print(f"[App Store] ❌ Unhandled error in install_item: {e}")
         traceback.print_exc()
         raise HTTPException(500, f"Installation failed: {str(e)}")
+
+
+@router.post("/install")
+async def install_item(payload: InstallPayload):
+    """Download and install app or persona from GitHub repository."""
+    result = await asyncio.to_thread(_install_item_sync, payload)
+    if result.pop("_refresh_pool", False):
+        try:
+            await init_pool(force=True)
+        except Exception as e:
+            print(f"[App Store Manager] warning refreshing pool: {e}")
+    return result
 
 
 class TogglePayload(BaseModel):
