@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.2.2] - 2026-09-02
+
+### Changed
+
+- **Reworked the message rail to be legible at small message counts.** Ticks were previously positioned proportionally to scroll height, which scatters five or six marks thinly down a tall empty strip. They're now spaced evenly and centred as a group, giving a tight readable cluster in short conversations while still compressing into a conventional scrollbar once there are enough messages to fill the rail.
+- **Every message now gets a tick**, not just your questions, and the preview bubble names who wrote it — so the rail maps the whole conversation rather than only one side of it.
+- **Scrolling now drives the fisheye** instead of merely recolouring the active tick: the rail swells around wherever you're currently reading, and hands off to your pointer when you touch it.
+- **Added step chevrons** at each end of the rail to jump one message at a time.
+
 ## [v6.2.1] - 2026-09-02
 
 ### Fixed

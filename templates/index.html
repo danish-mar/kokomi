@@ -924,16 +924,34 @@
         transform: scaleY(1.8);
     }
 
+    /* Step chevrons at each end of the rail — jump one message at a time. */
+    .kokomi-rail-step {
+        position: absolute; right: 6px; width: 20px; height: 20px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 6px; color: var(--text-quaternary);
+        font-size: 9px; cursor: pointer; background: transparent;
+        opacity: 0; transition: opacity 0.22s ease, color 0.18s ease, background 0.18s ease;
+    }
+    .kokomi-rail-step.is-up { top: 0; }
+    .kokomi-rail-step.is-down { bottom: 0; }
+    .kokomi-rail-step:hover { color: var(--text-secondary); background: var(--bg-surface-hover); }
+    .kokomi-rail:hover .kokomi-rail-step, .kokomi-rail.is-active .kokomi-rail-step { opacity: 1; }
+
     .kokomi-rail-bubble {
         position: absolute; right: 44px; top: 50%; z-index: 19; pointer-events: none;
-        max-width: min(300px, 60vw); padding: 8px 11px;
+        max-width: min(300px, 62vw); padding: 9px 12px;
         background: var(--bg-elevated); border: 1px solid var(--border);
-        border-radius: 12px; box-shadow: var(--shadow-lg);
-        font-size: 11.5px; line-height: 1.5; color: var(--text-secondary);
-        display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
-        overflow: hidden; text-overflow: ellipsis;
+        border-radius: 14px; box-shadow: var(--shadow-lg);
         opacity: 0; transform: translateY(-50%) translateX(8px) scale(0.96);
         transition: opacity 0.2s ease, transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .kokomi-rail-bubble-name {
+        display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+        color: var(--text-quaternary); margin-bottom: 3px;
+    }
+    .kokomi-rail-bubble-text {
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+        overflow: hidden; font-size: 11.5px; line-height: 1.5; color: var(--text-secondary);
     }
     .kokomi-rail-bubble.is-visible {
         opacity: 1; transform: translateY(-50%) translateX(0) scale(1);
@@ -2662,16 +2680,26 @@
              @pointerdown.prevent="onRailDown($event)"
              @pointermove="onRailMove($event)"
              @pointerup="onRailUp($event)"
-             @pointercancel="railDragging = false; railHoverIdx = -1"
+             @pointercancel="railDragging = false; railHoverIdx = -1; railPointerY = -1"
              @pointerleave="onRailLeave()">
+            <button class="kokomi-rail-step is-up" title="Previous message"
+                    @pointerdown.stop @click.stop="railStep(-1)">
+                <i class="fa-solid fa-chevron-up"></i>
+            </button>
             <template x-for="t in railTicks" :key="t.index">
                 <span class="kokomi-rail-tick"
                       :class="{ 'is-active': t.index === railActiveIdx, 'is-hover': t.index === railHoverIdx }"
-                      :style="`top: ${t.topPct}%; width: ${railTickWidth(t)}px`"></span>
+                      :style="`top: ${t.y}px; width: ${railTickWidth(t)}px`"></span>
             </template>
+            <button class="kokomi-rail-step is-down" title="Next message"
+                    @pointerdown.stop @click.stop="railStep(1)">
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
         </div>
-        <div class="kokomi-rail-bubble" :class="railHoverIdx !== -1 && 'is-visible'"
-             x-show="railVisible" x-text="railBubbleText"></div>
+        <div class="kokomi-rail-bubble" :class="railHoverIdx !== -1 && 'is-visible'" x-show="railVisible">
+            <span class="kokomi-rail-bubble-name" x-text="railBubbleName"></span>
+            <span class="kokomi-rail-bubble-text" x-text="railBubbleText"></span>
+        </div>
         </div>
 
         <!-- Scroll to bottom -->
