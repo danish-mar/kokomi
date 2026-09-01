@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.4.3] - 2026-09-02
+
+### Changed
+
+- **Scroll-to-bottom button now just fades out on click** instead of shrinking away — a plain opacity transition reads calmer than the scale-down it had.
+
 ## [v6.4.2] - 2026-09-02
 
 ### Fixed
