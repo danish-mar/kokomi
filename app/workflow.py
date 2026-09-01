@@ -715,6 +715,8 @@ def docx_export(markdown_content: str, filename: str) -> str:
         from docx import Document
         from docx.shared import Inches, Pt, RGBColor
         from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
         
         clean_name = os.path.basename(filename)
         if not clean_name.endswith(".docx"):
@@ -739,36 +741,37 @@ def docx_export(markdown_content: str, filename: str) -> str:
         c_indigo = RGBColor(0x50, 0x50, 0x81)
         c_lavender = RGBColor(0x86, 0x86, 0xAC)
         
+        # Inline emphasis has to become styled runs — Word has no inline
+        # markup — so this lives in app/docx_md.py alongside table building and
+        # is shared with the canvas exporter.
+        from app.docx_md import add_inline_runs, add_table, is_table_row, parse_table
+
         def add_formatted_text(paragraph, text, size=10.5, color=None, force_bold=False):
-            import re as _re_clean
-            parts = _re_clean.split(r'(\*\*.*?\*\*)', text)
-            for part in parts:
-                if not part:
-                    continue
-                if part.startswith('**') and part.endswith('**'):
-                    clean_part = part[2:-2].replace('*', '')
-                    run = paragraph.add_run(clean_part)
-                    run.bold = True
-                else:
-                    clean_part = part.replace('*', '')
-                    run = paragraph.add_run(clean_part)
-                    if force_bold:
-                        run.bold = True
-                run.font.name = 'Arial'
-                run.font.size = Pt(size)
-                if color:
-                    run.font.color.rgb = color
+            add_inline_runs(paragraph, text, size=size, color=color, force_bold=force_bold)
 
         lines = markdown_content.split("\n")
         in_code_block = False
         in_bullet_list = False
-        
-        for line in lines:
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
             stripped = line.strip()
             if stripped.startswith("```"):
                 in_code_block = not in_code_block
+                i += 1
                 continue
-                
+
+            # Tables: without this a row falls through to the plain-paragraph
+            # branch below and lands in the document as literal "| a | b |"
+            # text instead of a table.
+            if not in_code_block and is_table_row(stripped):
+                rows, i = parse_table(lines, i)
+                if rows:
+                    add_table(doc, rows)
+                    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+                continue
+
             if in_code_block:
                 p = doc.add_paragraph()
                 p.paragraph_format.left_indent = Inches(0.5)
@@ -776,10 +779,40 @@ def docx_export(markdown_content: str, filename: str) -> str:
                 run.font.name = 'Consolas'
                 run.font.size = Pt(9.5)
                 run.font.color.rgb = RGBColor(100, 100, 100)
+                i += 1
                 continue
-                
+
+            # Horizontal rule — an empty bordered paragraph, since Word has no
+            # <hr>. Checked before headings so '---' isn't taken as text.
+            if stripped in ("---", "***", "___"):
+                p = doc.add_paragraph()
+                pr = p._p.get_or_add_pPr()
+                borders = OxmlElement('w:pBdr')
+                bottom = OxmlElement('w:bottom')
+                bottom.set(qn('w:val'), 'single')
+                bottom.set(qn('w:sz'), '6')
+                bottom.set(qn('w:color'), 'D1D5DB')
+                borders.append(bottom)
+                pr.append(borders)
+                i += 1
+                continue
+
             # Headers
-            if stripped.startswith("# "):
+            if stripped.startswith("#### "):
+                p = doc.add_paragraph()
+                p.paragraph_format.space_before = Pt(6)
+                p.paragraph_format.space_after = Pt(3)
+                add_formatted_text(p, stripped[5:], size=11, color=c_lavender, force_bold=True)
+                in_bullet_list = False
+            elif stripped.startswith("> "):
+                p = doc.add_paragraph()
+                p.paragraph_format.left_indent = Inches(0.4)
+                p.paragraph_format.space_after = Pt(4)
+                add_formatted_text(p, stripped[2:], size=10.5, color=c_lavender)
+                for r in p.runs:
+                    r.italic = True
+                in_bullet_list = False
+            elif stripped.startswith("# "):
                 p = doc.add_paragraph()
                 p.paragraph_format.space_before = Pt(12)
                 p.paragraph_format.space_after = Pt(6)
@@ -812,13 +845,16 @@ def docx_export(markdown_content: str, filename: str) -> str:
                 in_bullet_list = True
             elif not stripped:
                 in_bullet_list = False
+                i += 1
                 continue
             else:
                 p = doc.add_paragraph()
                 p.paragraph_format.space_after = Pt(4)
                 add_formatted_text(p, line)
                 in_bullet_list = False
-                
+
+            i += 1
+
         doc.save(docx_path)
         return f"Successfully compiled and saved beautiful Word Document (.docx) at: {docx_path}"
     except Exception as e:

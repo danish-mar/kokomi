@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.5.0] - 2026-09-02
+
+### Fixed
+
+- **Tables and formatting were lost when exporting to Word.** Neither DOCX exporter handled markdown tables at all, so a table row fell through to the generic paragraph branch and landed in the document as literal `| Symptom | Cause | Fix |` text — divider row included. Both now emit a real Word table with a shaded header row, and cells keep their own inline emphasis.
+- **The canvas exporter dropped every bold, italic and inline-code span.** It stripped the markdown markers on the way out with a comment claiming the writers applied real styling, but the writers just wrote the stripped text — so emphasis silently disappeared rather than being converted. Emphasis now becomes real Word runs. The same handling was added to the workflow exporter, which previously managed `**bold**` only and quietly deleted the markers around anything else.
+- Markdown table support also added to the canvas PDF export, and tables now survive an export→re-import round trip as tables rather than flattening to text.
+
+### Added
+
+- `app/docx_md.py` — one shared implementation of markdown → Word inline runs and tables for both exporters, following the same reasoning as `app/pdf_render.py` (which exists so the workflow and chat PDF paths can't drift apart). Also covers `####` headings, blockquotes, horizontal rules and links, which the workflow exporter previously ignored.
+- `tests/test_docx_export.py` — asserts against the saved document rather than the code shape, since a table row falling through to a generic paragraph branch still looks fine in a diff and lost emphasis fails silently.
+
 ## [v6.4.3] - 2026-09-02
 
 ### Changed

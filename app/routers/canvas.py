@@ -90,18 +90,33 @@ class _QuillHtmlParser(HTMLParser):
 
 
 def _markdown_to_blocks(md: str) -> list[tuple[str, str, int]]:
+    from app.docx_md import is_table_row, parse_table
+
     blocks: list[tuple[str, str, int]] = []
     in_code = False
-    for raw in (md or "").split("\n"):
-        line = raw.rstrip()
+    lines = (md or "").split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
         if line.strip().startswith("```"):
             in_code = not in_code
+            i += 1
             continue
         if in_code:
-            blocks.append(("code", raw, 0))
+            blocks.append(("code", lines[i], 0))
+            i += 1
             continue
         s = line.strip()
         if not s:
+            i += 1
+            continue
+        # Tables are carried as a whole block — the rows are kept together in
+        # the payload because a table can only be written as one object, not
+        # line by line like every other block kind.
+        if is_table_row(s):
+            rows, i = parse_table(lines, i)
+            if rows:
+                blocks.append(("table", rows, 0))
             continue
         h = re.match(r"^(#{1,6})\s+(.*)$", s)
         if h:
@@ -114,6 +129,7 @@ def _markdown_to_blocks(md: str) -> list[tuple[str, str, int]]:
             blocks.append(("quote", s.lstrip("> ").strip(), 0))
         else:
             blocks.append(("para", s, 0))
+        i += 1
     return blocks
 
 
@@ -808,31 +824,44 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
 def _build_docx(blocks, title: str) -> bytes:
     from docx import Document
     from docx.shared import Pt, Inches, RGBColor
+    from app.docx_md import add_inline_runs, add_table
 
     doc = Document()
     for kind, text, level in blocks:
-        text = _strip_inline_md(text)
-        if kind == "heading":
-            doc.add_heading(text, level=min(max(level, 1), 6))
-        elif kind == "bullet":
-            doc.add_paragraph(text, style="List Bullet")
-        elif kind == "number":
-            doc.add_paragraph(text, style="List Number")
-        elif kind == "quote":
-            p = doc.add_paragraph(text)
-            p.paragraph_format.left_indent = Inches(0.4)
-            for run in p.runs:
-                run.italic = True
-                run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
-        elif kind == "code":
+        if kind == "table":
+            # `text` is the parsed row list, not a string.
+            add_table(doc, text)
+            doc.add_paragraph()
+            continue
+        if kind == "code":
+            # Code is literal: emphasis markers inside it are content.
             p = doc.add_paragraph()
             p.paragraph_format.left_indent = Inches(0.3)
             p.paragraph_format.space_after = Pt(0)
             run = p.add_run(text)
             run.font.name = "Consolas"
             run.font.size = Pt(9.5)
+            continue
+
+        # Everything else keeps its inline markers all the way to here, so the
+        # emphasis can be turned into real runs. Stripping the markers first
+        # and writing plain text — as this did — silently dropped every bold,
+        # italic and inline-code span from the exported document.
+        if kind == "heading":
+            p = doc.add_heading("", level=min(max(level, 1), 6))
+            add_inline_runs(p, text, font_name=None)
+        elif kind == "bullet":
+            add_inline_runs(doc.add_paragraph(style="List Bullet"), text)
+        elif kind == "number":
+            add_inline_runs(doc.add_paragraph(style="List Number"), text)
+        elif kind == "quote":
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.4)
+            add_inline_runs(p, text, color=RGBColor(0x55, 0x55, 0x55))
+            for run in p.runs:
+                run.italic = True
         else:
-            doc.add_paragraph(text)
+            add_inline_runs(doc.add_paragraph(), text)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -857,8 +886,30 @@ def _build_pdf(blocks, title: str) -> bytes:
         leftMargin=inch, rightMargin=inch, topMargin=inch, bottomMargin=inch,
     )
 
+    from reportlab.platypus import Table as RLTable, TableStyle
+    from reportlab.lib import colors as rl_colors
+
     flow = []
     for kind, text, level in blocks:
+        if kind == "table":
+            # `text` is the parsed row list, not a string — a table has to be
+            # emitted as one object rather than line by line.
+            data = [[Paragraph(escape(_strip_inline_md(c)), styles["BodyText"]) for c in row]
+                    for row in text]
+            col_w = (LETTER[0] - 2 * inch) / max(1, len(data[0]))
+            t = RLTable(data, colWidths=[col_w] * len(data[0]), repeatRows=1)
+            t.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), rl_colors.HexColor("#505081")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, rl_colors.HexColor("#D1D5DB")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]))
+            flow.append(Spacer(1, 6))
+            flow.append(t)
+            flow.append(Spacer(1, 6))
+            continue
         text = _strip_inline_md(text)
         if kind == "code":
             # Preformatted keeps whitespace; it must not be XML-escaped twice.
@@ -883,6 +934,16 @@ def _build_pdf(blocks, title: str) -> bytes:
 def _blocks_to_markdown(blocks) -> str:
     out = []
     for kind, text, level in blocks:
+        if kind == "table":
+            # Round-trip back to pipe syntax, header divider included, so a
+            # table survives an export→re-import cycle as a table.
+            rows = text
+            out.append("| " + " | ".join(rows[0]) + " |")
+            out.append("| " + " | ".join("---" for _ in rows[0]) + " |")
+            for r in rows[1:]:
+                out.append("| " + " | ".join(r) + " |")
+            out.append("")
+            continue
         if kind == "heading":
             out.append(f"{'#' * min(max(level, 1), 6)} {text}")
         elif kind == "bullet":
