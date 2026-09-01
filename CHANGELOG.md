@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.2.3] - 2026-09-02
+
+### Fixed
+
+- **Clicking the message rail jumped instantly instead of scrolling smoothly.** `onRailDown` fired an initial move event while already marked as dragging, so even a plain click was treated as a drag and took the instant-scrub path — the smooth-jump-on-release code was unreachable. A press now has to move a few pixels before it counts as a drag; anything short of that eases to the nearest tick on release, as intended.
+
 ## [v6.2.2] - 2026-09-02
 
 ### Changed

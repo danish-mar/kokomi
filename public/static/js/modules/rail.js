@@ -35,6 +35,11 @@ const RAIL_END_PAD = 26;
 const RAIL_FISHEYE_PX = 20;
 const RAIL_FISHEYE_SIGMA = 34;
 
+// A press has to move this many px before it counts as a drag (and starts
+// instantly scrubbing) rather than a click (which smooth-scrolls once, on
+// release, to the tick nearest where you let go).
+const RAIL_DRAG_THRESHOLD = 4;
+
 export function getRailActions() {
     return {
         // Rebuild tick geometry from the live DOM. Runs on scroll as well as on
@@ -166,6 +171,13 @@ export function getRailActions() {
             this.railHoverIdx = hit.tick.index;
 
             if (this.railDragging) {
+                // Only start actually scrubbing once the press has moved past a
+                // small threshold — otherwise the very first move event fired
+                // by the down-press itself would count as a drag, and a plain
+                // click would jump instantly instead of easing in on release.
+                if (!this.railMoved && Math.abs(e.clientY - this.railDownY) < RAIL_DRAG_THRESHOLD) {
+                    return;
+                }
                 this.railMoved = true;
                 // Ticks are evenly spaced by message, so dragging scrubs message
                 // to message rather than mapping onto raw scroll height.
@@ -176,6 +188,7 @@ export function getRailActions() {
         onRailDown(e) {
             this.railDragging = true;
             this.railMoved = false;
+            this.railDownY = e.clientY;
             // Pointer capture keeps the drag alive when the finger/cursor
             // wanders off the rail's narrow hit area mid-swipe.
             try { this.$refs.railEl.setPointerCapture(e.pointerId); } catch (err) {}
@@ -183,8 +196,9 @@ export function getRailActions() {
         },
 
         onRailUp(e) {
-            // A tap (press with no drag) is an animated jump — dragging already
-            // scrolled live, so only the tap needs easing.
+            // A click/tap (press that never crossed the drag threshold) eases
+            // to the tick nearest the release point — dragging already scrolled
+            // live, so only this path needs the animation.
             if (this.railDragging && !this.railMoved) {
                 const hit = this._railHit(e.clientY);
                 if (hit) this.$refs.chatBox.scrollTo({ top: hit.tick.offset, behavior: 'smooth' });
