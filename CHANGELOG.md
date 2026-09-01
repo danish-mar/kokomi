@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.4.2] - 2026-09-02
+
+### Fixed
+
+- **The scroll-to-bottom button sat inside the composer, over the input.** It was positioned with a fixed offset from the bottom of the page, which only lined up for a minimal composer — as soon as the composer grew (a knowledge-space bar, the toolbar row, a multi-line message) the button ended up on top of it. It's now docked to the composer's own box, so it clears it by a consistent gap at any height, and it's a small capsule rather than a circle. It also hides while a clarifying-question card is using the same slot.
+
 ## [v6.4.1] - 2026-09-02
 
 ### Fixed

@@ -2702,23 +2702,28 @@
         </div>
         </div>
 
-        <!-- Scroll to bottom -->
-        <button x-show="showScrollToBottom" @click="jumpToBottom()"
-            x-transition:enter="transition ease-out duration-150"
-            x-transition:enter-start="opacity-0 translate-y-1 scale-90"
-            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-            x-transition:leave="transition ease-in duration-100"
-            x-transition:leave-start="opacity-100 scale-100"
-            x-transition:leave-end="opacity-0 scale-90"
-            class="absolute left-1/2 -translate-x-1/2 bottom-[104px] z-20 w-8 h-8 rounded-full flex items-center justify-center hover-surface t-apple"
-            style="background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-lg);"
-            title="Scroll to bottom">
-            <i class="fa-solid fa-arrow-down text-[12px] text-3"></i>
-        </button>
-
         <!-- ═══════════════ INPUT ═══════════════ -->
         <footer id="tour-input" class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">
             <div class="max-w-[680px] mx-auto relative">
+                <!-- Scroll to bottom — docked to the composer's own box with
+                     `bottom-full`, so it always clears the composer by a fixed
+                     gap no matter how tall it grows (space bar, toolbar row,
+                     multi-line input). A hardcoded offset from the page bottom
+                     lands inside the composer as soon as it's taller than the
+                     guess. Hidden while a question card occupies the same slot. -->
+                <button x-show="showScrollToBottom && !pendingQuestion" @click="jumpToBottom()"
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="opacity-0 translate-y-1 scale-95"
+                    x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                    x-transition:leave="transition ease-in duration-100"
+                    x-transition:leave-start="opacity-100 scale-100"
+                    x-transition:leave-end="opacity-0 scale-95"
+                    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-20 flex items-center justify-center gap-1 px-2.5 py-1 rounded-full hover-surface t-apple"
+                    style="background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-lg);"
+                    title="Scroll to bottom">
+                    <i class="fa-solid fa-arrow-down text-[10px] text-3"></i>
+                </button>
+
                 <!-- Clarifying question — a floating card docked just above the composer,
                      positioned absolutely (no reflow: the message list never shrinks) and
                      animated with a plain fade+slide, which stays smooth regardless of
