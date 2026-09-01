@@ -127,6 +127,10 @@ export function getChatActions() {
                 console.time('ChatRequest_Stream_TTFB');
                 console.time('ChatRequest_Stream_Total');
             }
+            // Identifies this reader. Switching conversation (or reattaching)
+            // supersedes an earlier one, and the superseded reader must not
+            // clobber the newer reader's state when its abort finally lands.
+            const seq = (this._streamSeq = (this._streamSeq || 0) + 1);
             try {
                 const response = attachConvId
                     ? await fetch(`/api/chat/attach/${encodeURIComponent(attachConvId)}`, {
@@ -394,14 +398,24 @@ export function getChatActions() {
                     this.$nextTick(() => this.scrollToBottom());
                 }
             } catch (e) {
-                console.error("Stream reader error:", e);
-                if (e.name === 'AbortError') {
+                if (this._streamSeq !== seq) {
+                    // Superseded — we navigated away or reattached. The abort
+                    // that lands here is expected, not a failure to report.
+                } else if (e.name === 'AbortError') {
                     this.showToast('Generation stopped.', 'info');
                 } else {
+                    console.error("Stream reader error:", e);
                     this.showToast(`Connection error: ${e.message}`, 'error');
                 }
             } finally {
-                this.messages.forEach(m => { 
+                if (this._streamSeq !== seq) {
+                    // A newer reader owns loading/abortController/messages now;
+                    // resetting them here would strand it (loading stuck false
+                    // mid-stream, or its controller nulled out).
+                    if (this.prefs.debug_mode) console.timeEnd('ChatRequest_Stream_Total');
+                    return;
+                }
+                this.messages.forEach(m => {
                     if (m.streaming) {
                         m.streaming = false;
                         if (m.character_name && m.content) {
@@ -562,6 +576,28 @@ export function getChatActions() {
             this.messages.splice(index, 1);
         },
         
+        /** Stop *reading* a stream without stopping the generation itself.
+         *
+         *  Used when navigating away from a conversation that's mid-response:
+         *  the server keeps writing (that's the point), we simply stop
+         *  rendering it here and can reattach later. Deliberately not
+         *  stopGeneration(), which would cancel the work server-side.
+         *
+         *  `loading` is cleared synchronously because maybeResume() refuses to
+         *  attach while it's set — leaving it true is what made a
+         *  switched-away-from conversation come back empty until a refresh. */
+        detachStream() {
+            this._streamSeq = (this._streamSeq || 0) + 1;
+            if (this.abortController) {
+                try { this.abortController.abort(); } catch (e) {}
+            }
+            this.abortController = null;
+            this.loading = false;
+            this.currentStreamingCharId = null;
+            this.streamingConvId = null;
+            this.liveStats = { tps: null, ttft: null, context: null };
+        },
+
         stopGeneration() {
             // Aborting the fetch only detaches this viewer now that generations
             // outlive their request — without telling the server to stop, the
@@ -595,6 +631,14 @@ export function getChatActions() {
             // streaming, so refreshing its saved copy can't attach a second
             // reader to the same generation.
             if (this.currentConvId === id && resume) return;
+
+            // Leaving a conversation that's still streaming: detach this
+            // reader first. Its charMsgMap holds indices into the message
+            // array we're about to replace, so letting it keep writing would
+            // scribble into the wrong conversation — and its `loading` flag
+            // would block reattaching when we come back.
+            if (this.loading && this.streamingConvId !== id) this.detachStream();
+
             this.messagesLoaded = false;
             try {
                 const r = await fetch(`/api/conversations/${id}`);
@@ -1594,7 +1638,13 @@ const KokomiPdf = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content }),
         });
-        if (!resp.ok) throw new Error(`Render failed (${resp.status})`);
+        if (!resp.ok) {
+            // Surface the server's reason. Logging only the status code meant
+            // a failed render gave nothing to act on but "500".
+            let detail = '';
+            try { detail = (await resp.json()).detail || ''; } catch (e) {}
+            throw new Error(`Render failed (${resp.status})${detail ? ': ' + detail : ''}`);
+        }
         const blob = await resp.blob();
         const url = URL.createObjectURL(blob);
         this._cache.set(id, url);

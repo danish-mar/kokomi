@@ -144,3 +144,55 @@ class TestCanvasDocxExport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPdfImageRendering(unittest.TestCase):
+    """A single awkward image used to fail the whole PDF with a 500.
+
+    Only the width was clamped, so a portrait image scaled to the page width
+    became taller than the page and ReportLab refused to lay it out — and
+    because layout happens in doc.build(), that error landed outside the
+    per-image try/except and took the entire document down.
+    """
+
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+
+    def _png(self, name, size):
+        from PIL import Image
+        path = os.path.join(self.dir, name)
+        Image.new("RGB", size, (200, 120, 160)).save(path)
+        return path
+
+    def _render(self, md):
+        from app.pdf_render import render_markdown_to_pdf
+        buf = io.BytesIO()
+        render_markdown_to_pdf(md, buf, image_base_dir=self.dir)
+        return buf.getvalue()
+
+    def test_tall_portrait_image_does_not_fail_the_render(self):
+        tall = self._png("tall.png", (900, 3000))
+        out = self._render(f"# Gallery\n\n![a]({tall})\n\nAfter.")
+        self.assertTrue(out.startswith(b"%PDF-"))
+
+    def test_image_wider_than_the_page(self):
+        wide = self._png("wide.png", (5000, 400))
+        out = self._render(f"# Gallery\n\n![a]({wide})\n\nAfter.")
+        self.assertTrue(out.startswith(b"%PDF-"))
+
+    def test_download_that_is_not_an_image_degrades_to_a_placeholder(self):
+        bad = os.path.join(self.dir, "broken.png")
+        with open(bad, "wb") as f:
+            f.write(b"<html><body>404 Not Found</body></html>")
+        out = self._render(f"# Gallery\n\n![b]({bad})\n\nText after.")
+        self.assertTrue(out.startswith(b"%PDF-"), "one bad image must not fail the document")
+
+    def test_several_awkward_images_together(self):
+        tall = self._png("t2.png", (900, 4000))
+        wide = self._png("w2.png", (6000, 300))
+        bad = os.path.join(self.dir, "b2.png")
+        with open(bad, "wb") as f:
+            f.write(b"not an image at all")
+        out = self._render(f"# Gallery\n\n![a]({tall})\n\n![b]({wide})\n\n![c]({bad})\n\nEnd.")
+        self.assertTrue(out.startswith(b"%PDF-"))

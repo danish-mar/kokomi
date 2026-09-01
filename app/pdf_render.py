@@ -243,12 +243,29 @@ def render_markdown_to_pdf(markdown_content: str, dest, image_base_dir: str | No
                                 break
 
                 if os.path.exists(local_img):
+                    # Decode it now rather than letting ReportLab do it during
+                    # doc.build(): a download that isn't really an image (an
+                    # HTML error page, an unsupported format) constructs an
+                    # Image flowable happily and only fails at build time —
+                    # outside this try/except, taking the whole document with
+                    # it instead of degrading to a placeholder.
+                    from reportlab.lib.utils import ImageReader
+                    reader = ImageReader(local_img)
+                    iw, ih = reader.getSize()
+                    if not iw or not ih:
+                        raise ValueError("image has no dimensions")
+
                     img = RLImage(local_img)
+                    # Fit BOTH dimensions. Clamping only the width lets a
+                    # portrait image scale to the page width and end up taller
+                    # than the page, which ReportLab refuses to lay out
+                    # ("too large on page") and which fails the entire render.
                     max_w = letter[0] - 80
-                    if img.drawWidth > max_w:
-                        ratio = max_w / float(img.drawWidth)
-                        img.drawWidth = max_w
-                        img.drawHeight = img.drawHeight * ratio
+                    max_h = letter[1] - 120        # leave room for the margins
+                    scale = min(max_w / float(img.drawWidth),
+                                max_h / float(img.drawHeight), 1.0)
+                    img.drawWidth *= scale
+                    img.drawHeight *= scale
                     story.append(Spacer(1, 10))
                     story.append(img)
                     story.append(Spacer(1, 10))
@@ -346,4 +363,22 @@ def render_markdown_to_pdf(markdown_content: str, dest, image_base_dir: str | No
 
         i += 1
 
-    doc.build(story)
+    try:
+        doc.build(story)
+    except Exception as build_err:
+        # Layout happens only here, so a flowable that can't be placed (an
+        # oversized image, an unbreakable line) fails the whole render after
+        # every element has already been accepted. Rather than returning
+        # nothing for an otherwise fine document, rebuild without the images —
+        # they're the usual culprit and the least essential part.
+        print(f"[pdf_render] build failed ({build_err}); retrying without images")
+        if hasattr(dest, "seek"):
+            dest.seek(0)
+            dest.truncate()
+        fallback = [f for f in story if not isinstance(f, RLImage)]
+        placeholder = Paragraph(
+            "<i>[Some images could not be rendered and were omitted.]</i>", s_quote
+        )
+        doc = SimpleDocTemplate(dest, pagesize=letter, rightMargin=40, leftMargin=40,
+                                topMargin=40, bottomMargin=40)
+        doc.build(fallback + [Spacer(1, 10), placeholder])

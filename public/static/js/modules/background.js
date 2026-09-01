@@ -64,12 +64,22 @@ export function getBackgroundActions() {
             this.loadingStatus = 'Reconnecting…';
             this.abortController = new AbortController();
             this.streamingConvId = convId;
+            let finishedBeforeAttach = false;
             try {
                 await this.sendMessageStream(null, [], convId);
+            } catch (e) {
+                // The response landed in the gap between reading the saved
+                // conversation and attaching, so the generation was already
+                // gone. The saved copy now has the reply — load it, rather
+                // than leaving the user looking at their own message alone.
+                finishedBeforeAttach = true;
             } finally {
                 this.loading = false;
                 this.streamingConvId = null;
                 this.refreshActiveGenerations();
+            }
+            if (finishedBeforeAttach) {
+                await this.loadConversation(convId, { resume: false });
             }
         },
 

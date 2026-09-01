@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.6.1] - 2026-09-02
+
+### Fixed
+
+- **Switching conversation mid-response left the transcript empty until a refresh.** Leaving a conversation that was still generating never detached the stream reader, so it kept writing into message indices belonging to a transcript that had already been replaced — and its `loading` flag stayed set, which made the reconnect logic refuse to attach when you came back. Navigating away now detaches the reader (without stopping the generation, which is the point of it running in the background), and a superseded reader can no longer tear down the state of the one that replaced it.
+- **PDF generation failed outright on portrait images** — the reported "Render failed (500)". Only the image width was clamped, so a tall image scaled to the page width ended up taller than the page, and ReportLab refused to lay it out. Because layout only happens when the document is built, that error escaped the per-image error handling and failed the entire render. Images are now fitted to both dimensions.
+- **A download that isn't really an image also killed the whole document.** ReportLab defers decoding to build time, so an HTML error page or unsupported format saved as `.png` was accepted when added and only exploded at the end. Images are now decoded when added, so a bad one degrades to a placeholder, and a build failure retries without images rather than returning nothing.
+- Failed PDF renders now report the server's actual reason in the console instead of a bare `Render failed (500)`.
+
 ## [v6.6.0] - 2026-09-02
 
 ### Added
