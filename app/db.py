@@ -203,6 +203,7 @@ class TritonDeviceRow(Base):
     id           = Column(Text, primary_key=True)  # stable device_id chosen by the client
     name         = Column(Text, nullable=False)     # human label (hostname by default)
     platform     = Column(Text, nullable=True)       # "linux" | "windows" | ...
+    description  = Column(Text, nullable=True)        # user-written note so the AI knows what this machine is
     token_hash   = Column(Text, nullable=False)      # sha256 of the device token (client keeps raw)
     capabilities = Column(Text, nullable=False, default="[]")  # JSON list advertised by client
     paired_at    = Column(Text, nullable=True)
@@ -238,6 +239,13 @@ async def init_db() -> None:
         # Schema migration: Triton last_seen tracking (added after initial table)
         try:
             await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN last_seen TEXT"))
+        except Exception:
+            pass
+
+        # Schema migration: Triton device description (so the AI knows what a
+        # paired machine actually is, not just its hostname/platform)
+        try:
+            await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN description TEXT"))
         except Exception:
             pass
 

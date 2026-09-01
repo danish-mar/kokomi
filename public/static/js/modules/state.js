@@ -11,6 +11,7 @@ export function getInitialState() {
             : window.innerWidth > 768,
         input: '',
         attachments: [],
+        showScrollToBottom: false,
         loading: false,
         loadingStatus: 'Thinking...',
         messages: [],

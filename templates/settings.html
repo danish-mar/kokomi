@@ -1190,6 +1190,15 @@
                             </button>
                         </div>
 
+                        <!-- Description: free-text note so the AI knows what this machine actually
+                             is/does, not just its hostname — e.g. "home NAS, media under /media". -->
+                        <div style="margin-top:10px;">
+                            <input type="text" x-model="d.description" @blur="describeTriton(d)"
+                                   @keydown.enter="$event.target.blur()"
+                                   placeholder="What is this machine? e.g. home server, runs Docker + Qdrant"
+                                   class="apple-field" style="width:100%; font-size:11.5px; padding:7px 10px;">
+                        </div>
+
                         <!-- Inline file-browse tester -->
                         <div x-show="tritonBrowseOpen===d.id" x-transition style="margin-top:14px; background:var(--bg-input); border:1px solid var(--border); border-radius:12px; padding:14px;">
                             <div style="display:flex; gap:8px; flex-wrap:wrap;">

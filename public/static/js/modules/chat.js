@@ -250,6 +250,17 @@ export function getChatActions() {
                                         if (isCanvasArtifact(art)) {
                                             this.streamCanvasChunk(art.id, data.delta);
                                         }
+                                        if ((art.type || '').toLowerCase() === 'pdf') {
+                                            // The card's inner HTML is fully replaced on every
+                                            // re-render (x-html), so keep the live preview
+                                            // pinned to its newest line instead of resetting
+                                            // to the top on each chunk.
+                                            this.$nextTick(() => {
+                                                const box = document.querySelector(
+                                                    `.kokomi-pdf[data-pdf-id="${art.id}"] .kokomi-pdf-preview`);
+                                                if (box) box.scrollTop = box.scrollHeight;
+                                            });
+                                        }
                                         // Update modal in real-time if open
                                         if (this.artifactModal.show && this.artifactModal.id === data.id) {
                                             this.artifactModal.content = art.content;
@@ -878,7 +889,7 @@ export function getChatActions() {
             const title = art.title || 'Document';
             const content = art.content || '';
 
-            if (art.streaming || !content.trim()) {
+            if (!content.trim()) {
                 return `
                 <div class="kokomi-pdf kokomi-pdf--loading mt-4 mb-2">
                     <div class="artifact-header">
@@ -897,18 +908,28 @@ export function getChatActions() {
 
             const words = content.trim().split(/\s+/).length;
             const estPages = Math.max(1, Math.round(words / 400));
+            // Live formatted preview instead of a blackbox card — reuses the same
+            // markdown renderer as chat messages so what's shown here roughly
+            // matches what ReportLab will actually lay out, updating as the model
+            // streams the artifact in (art.content is reactive) rather than only
+            // appearing once the whole thing is done.
+            let previewHtml;
+            try { previewHtml = window.marked.parse(content, { breaks: true }); }
+            catch (e) { previewHtml = this.escapeHtml(content); }
 
             return `
                 <div class="kokomi-pdf mt-4 mb-2" data-pdf-id="${art.id}" data-pdf-content="${window.KokomiCharts.escapeAttr(content)}" data-pdf-title="${this.escapeHtml(title)}">
                     <div class="artifact-header">
                         <div class="artifact-info">
-                            <div class="artifact-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                            <div class="artifact-icon">${art.streaming ? '<i class="fa-solid fa-spinner fa-spin"></i>' : '<i class="fa-solid fa-file-pdf"></i>'}</div>
                             <div>
                                 <p class="artifact-title">${this.escapeHtml(title)}</p>
-                                <p class="artifact-meta uppercase tracking-wider">PDF · ~${estPages} page${estPages === 1 ? '' : 's'}</p>
+                                <p class="artifact-meta uppercase tracking-wider">${art.streaming
+                                    ? 'Writing<span class="mx-1">&bull;</span><span class="animate-pulse text-accent normal-case tracking-normal">generating&hellip;</span>'
+                                    : `PDF &middot; ~${estPages} page${estPages === 1 ? '' : 's'}`}</p>
                             </div>
                         </div>
-                        <div class="kokomi-chart-actions">
+                        <div class="kokomi-chart-actions" ${art.streaming ? 'style="display:none"' : ''}>
                             <button class="kokomi-chart-btn" title="View PDF"
                                     onclick="window.KokomiPdf.view('${art.id}', this)">
                                 <i class="fa-solid fa-eye"></i>
@@ -923,6 +944,7 @@ export function getChatActions() {
                             </button>
                         </div>
                     </div>
+                    <div class="kokomi-pdf-preview chat-prose ${art.streaming ? 'is-streaming' : ''}">${previewHtml}</div>
                 </div>`;
         },
 

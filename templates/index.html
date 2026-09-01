@@ -905,6 +905,22 @@
         background: linear-gradient(90deg, var(--bg-canvas), rgba(128,128,128,0.12), var(--bg-canvas));
         background-size: 200% 100%; animation: shimmer 1.6s infinite;
     }
+    /* Live formatted preview of the PDF's markdown, shown in the card itself
+       instead of only after clicking View — capped height with a fade so a long
+       document doesn't blow up the message list; expands while streaming so you
+       can watch it get written. */
+    .kokomi-pdf-preview {
+        position: relative; margin: 0 16px 14px; padding-top: 10px;
+        border-top: 1px solid var(--border);
+        max-height: 220px; overflow: hidden; font-size: 0.84em;
+    }
+    .kokomi-pdf-preview::after {
+        content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 48px;
+        background: linear-gradient(to bottom, transparent, var(--bg-elevated));
+        pointer-events: none;
+    }
+    .kokomi-pdf-preview.is-streaming { max-height: 340px; overflow-y: auto; }
+    .kokomi-pdf-preview.is-streaming::after { display: none; }
 
     /* ── AI image gallery (justified rows) ───────────────
        Each image keeps its aspect ratio at a shared row height; flex-grow then
@@ -2019,7 +2035,7 @@
         </header>
 
         <!-- ═══════════════ MESSAGES ═══════════════ -->
-        <main class="flex-grow overflow-y-auto" x-ref="chatBox">
+        <main class="flex-grow overflow-y-auto" x-ref="chatBox" @scroll.passive="onChatScroll()">
 
             <!-- Anonymous Chat Banner -->
             <template x-if="isAnonymous">
@@ -2579,6 +2595,20 @@
                     <div id="bottom-anchor" class="h-1"></div>
                 </div>
         </main>
+
+        <!-- Scroll to bottom -->
+        <button x-show="showScrollToBottom" @click="jumpToBottom()"
+            x-transition:enter="transition ease-out duration-150"
+            x-transition:enter-start="opacity-0 translate-y-1 scale-90"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:leave="transition ease-in duration-100"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-90"
+            class="absolute left-1/2 -translate-x-1/2 bottom-[104px] z-20 w-8 h-8 rounded-full flex items-center justify-center hover-surface t-apple"
+            style="background: var(--bg-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-lg);"
+            title="Scroll to bottom">
+            <i class="fa-solid fa-arrow-down text-[12px] text-3"></i>
+        </button>
 
         <!-- ═══════════════ INPUT ═══════════════ -->
         <footer id="tour-input" class="shrink-0 px-4 pb-4 pt-2 bg-canvas t-apple">

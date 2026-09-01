@@ -55,12 +55,16 @@ def get_triton_tools():
     lines = []
     for d in devices:
         state = "online" if d["id"] in online else "offline"
-        lines.append(f"{d.get('name', d['id'])} ({d.get('platform', '?')}, {state})")
+        entry = f"{d.get('name', d['id'])} ({d.get('platform', '?')}, {state})"
+        if d.get("description"):
+            entry += f" — {d['description']}"
+        lines.append(entry)
     roster = "; ".join(lines)
 
     @tool("triton_list_devices")
     async def triton_list_devices() -> str:
-        """List the user's paired computers (Triton moorings) and whether each is online right now."""
+        """List the user's paired computers (Triton moorings), whether each is online right
+        now, and the user-written description of what that machine actually is/does."""
         devs = list_triton_devices()
         on = manager.online_ids()
         if not devs:
@@ -68,6 +72,7 @@ def get_triton_tools():
         return "\n".join(
             f"- {d.get('name', d['id'])} — {d.get('platform', '?')} — "
             f"{'online' if d['id'] in on else 'offline'}"
+            + (f" — {d['description']}" if d.get("description") else "")
             for d in devs
         )
 

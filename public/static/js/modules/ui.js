@@ -258,6 +258,24 @@ export function getUiActions() {
         scrollToBottom() {
             const box = this.$refs.chatBox;
             if (box) box.scrollTop = box.scrollHeight;
+            this.showScrollToBottom = false;
+        },
+        // Smooth, user-triggered jump for the floating "scroll to bottom" button
+        // (scrollToBottom above stays instant since it also fires mid-stream on
+        // every chunk — smooth-scrolling there would fight itself).
+        jumpToBottom() {
+            const box = this.$refs.chatBox;
+            if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+            this.showScrollToBottom = false;
+        },
+        // Toggle the floating button once the user has scrolled more than a
+        // screen's-worth away from the bottom, so it doesn't flicker in/out on
+        // tiny scroll jitter near the bottom.
+        onChatScroll() {
+            const box = this.$refs.chatBox;
+            if (!box) return;
+            const distanceFromBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
+            this.showScrollToBottom = distanceFromBottom > 240;
         },
         // Keep a specific message bubble anchored near the top of the viewport —
         // used after editing/switching a branch so the message you were just

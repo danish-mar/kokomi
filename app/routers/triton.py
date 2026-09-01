@@ -6,6 +6,7 @@ Management (admin cookie auth, via the global middleware):
   GET    /api/triton/discovered            unpaired clients currently connected
   POST   /api/triton/pair                  {code} -> approve a pending client
   POST   /api/triton/devices/{id}/rename   {name}
+  POST   /api/triton/devices/{id}/describe {description} -> free-text note the AI reads
   DELETE /api/triton/devices/{id}          revoke (unpair)
   POST   /api/triton/devices/{id}/command  {action,args} -> dispatch & await result
   POST   /api/triton/devices/{id}/forward  {filename,content} -> save to ~/Documents
@@ -114,6 +115,19 @@ async def triton_rename(device_id: str, payload: dict):
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
     upsert_triton_device({**dev, "name": name, "token_hash": get_triton_token_hash(device_id)})
+    return {"ok": True}
+
+
+@router.post("/devices/{device_id}/describe")
+async def triton_describe(device_id: str, payload: dict):
+    """Set/clear the free-text note the AI reads to know what this machine
+    actually is (e.g. "home NAS, media library under /media") — devices only
+    otherwise carry a hostname and platform, which isn't enough context."""
+    dev = get_triton_device(device_id)
+    if not dev:
+        raise HTTPException(status_code=404, detail="Device not found")
+    description = (payload or {}).get("description", "").strip()
+    upsert_triton_device({**dev, "description": description, "token_hash": get_triton_token_hash(device_id)})
     return {"ok": True}
 
 

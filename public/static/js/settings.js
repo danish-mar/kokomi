@@ -211,6 +211,15 @@ function settingsApp() {
                 }
             } catch (e) { this.showToast('Pairing failed', 'error'); }
         },
+        async describeTriton(d) {
+            const description = (d.description || '').trim();
+            try {
+                await fetch('/api/triton/devices/' + encodeURIComponent(d.id) + '/describe', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description }),
+                });
+            } catch (e) { this.showToast('Failed to save description', 'error'); }
+        },
         async revokeTriton(d) {
             if (!confirm(`Revoke "${d.name}"? It will need to pair again with a new code.`)) return;
             try {

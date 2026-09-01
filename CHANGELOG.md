@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.1.0] - 2026-09-02
+
+### Added
+
+- **Scroll-to-bottom button**: a small floating button fades in once you've scrolled more than a screen's-worth away from the latest message, and smooth-scrolls you back down.
+- **Triton devices can carry a description** — a free-text note ("home server, runs Docker + Qdrant") editable per device in Settings → Triton. Devices previously only had a hostname and platform, so the AI had no idea what any given machine actually *was*; the description now appears both in the `triton_list_devices` tool output and in the device roster injected into the system prompt.
+
+### Changed
+
+- **PDF artifacts are no longer a black box.** The artifact card used to show only a title and page estimate — the actual document existed nowhere in the UI until you clicked View and waited for a round-trip through ReportLab. It now renders the markdown inline as a live formatted preview, using the same renderer as chat messages, so you can read the document as it's being written (auto-following the newest line while streaming) and skim it afterwards in a capped, fade-bottomed panel. View/Download still produce the real PDF.
+
 ## [v6.0.4] - 2026-08-29
 
 ### Added

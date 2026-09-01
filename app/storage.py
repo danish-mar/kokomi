@@ -496,6 +496,7 @@ def save_spaces(d: dict) -> None:
 def _triton_row_to_dict(row: TritonDeviceRow) -> dict:
     return {
         "id": row.id, "name": row.name, "platform": row.platform,
+        "description": row.description or "",
         "capabilities": j_loads(row.capabilities) or [],
         "paired_at": row.paired_at, "last_seen": row.last_seen,
     }
@@ -525,13 +526,16 @@ async def _upsert_triton_device_async(device: dict) -> None:
         if row is None:
             sess.add(TritonDeviceRow(
                 id=device["id"], name=device.get("name", ""),
-                platform=device.get("platform"), token_hash=device["token_hash"],
+                platform=device.get("platform"), description=device.get("description"),
+                token_hash=device["token_hash"],
                 capabilities=j_dumps(device.get("capabilities", [])),
                 paired_at=device.get("paired_at"), last_seen=device.get("last_seen"),
             ))
         else:
             row.name = device.get("name", row.name)
             row.platform = device.get("platform", row.platform)
+            if "description" in device:
+                row.description = device.get("description")
             if device.get("token_hash"):
                 row.token_hash = device["token_hash"]
             if "capabilities" in device:
