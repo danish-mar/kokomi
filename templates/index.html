@@ -909,19 +909,23 @@
         position: absolute; right: 11px; height: 2px; border-radius: 2px;
         background: var(--text-quaternary);
         transform-origin: right center;
-        transition: width 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+        /* Short, not slow: width is driven live by the fisheye on every pointer
+           move, so a long transition here reads as lag rather than smoothing. */
+        transition: width 0.16s cubic-bezier(0.32, 0.72, 0, 1),
                     background-color 0.22s ease,
-                    transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+                    transform 0.2s cubic-bezier(0.32, 0.72, 0, 1),
                     opacity 0.22s ease;
     }
     .kokomi-rail-tick.is-active { background: var(--accent); }
+    /* Width comes from the fisheye, so the hovered tick only thickens + tints —
+       scaling it horizontally too would fight the computed width. */
     .kokomi-rail-tick.is-hover {
         background: var(--accent);
-        transform: scaleX(1.35) scaleY(1.8);
+        transform: scaleY(1.8);
     }
 
     .kokomi-rail-bubble {
-        position: absolute; right: 44px; z-index: 19; pointer-events: none;
+        position: absolute; right: 44px; top: 50%; z-index: 19; pointer-events: none;
         max-width: min(300px, 60vw); padding: 8px 11px;
         background: var(--bg-elevated); border: 1px solid var(--border);
         border-radius: 12px; box-shadow: var(--shadow-lg);
@@ -2663,11 +2667,10 @@
             <template x-for="t in railTicks" :key="t.index">
                 <span class="kokomi-rail-tick"
                       :class="{ 'is-active': t.index === railActiveIdx, 'is-hover': t.index === railHoverIdx }"
-                      :style="`top: ${t.topPct}%; width: ${t.len}px`"></span>
+                      :style="`top: ${t.topPct}%; width: ${railTickWidth(t)}px`"></span>
             </template>
         </div>
         <div class="kokomi-rail-bubble" :class="railHoverIdx !== -1 && 'is-visible'"
-             :style="`top: ${railBubbleTop}px`"
              x-show="railVisible" x-text="railBubbleText"></div>
         </div>
 

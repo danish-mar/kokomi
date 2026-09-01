@@ -16,9 +16,12 @@ export function getInitialState() {
         railTicks: [],
         railActiveIdx: -1,
         railHoverIdx: -1,
-        railBubbleTop: 0,
         railDragging: false,
         railMoved: false,
+        // Pointer position within the rail, in px (-1 = not on the rail).
+        // Drives the fisheye swell; see railTickWidth() in modules/rail.js.
+        railPointerY: -1,
+        railHeight: 0,
         loading: false,
         loadingStatus: 'Thinking...',
         messages: [],

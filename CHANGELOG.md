@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.2.1] - 2026-09-02
+
+### Fixed
+
+- **The live PDF preview stuttered while the document was being written.** Three compounding causes, all introduced with the preview in v6.1.0: the entire accumulated document was re-parsed as markdown on every streamed chunk (quadratic over the stream, so it got visibly worse the longer the document ran), and the auto-scroll that keeps the preview on its newest line read `scrollHeight` on every chunk, forcing a synchronous layout each time. Parsing is now cached per artifact and rate-limited while streaming, and the scroll is coalesced into an animation frame. On a fast 600-chunk stream this cuts markdown parses from 601 to 33; re-rendering an already-finished document now costs none at all, where previously every unrelated re-render re-parsed it from scratch.
+- **The message rail's preview bubble overlapped the header** when hovering a tick near the top of the transcript. It now sits at a fixed centre height on the right, so it can't collide with the header or composer and doesn't chase your finger up and down while you scrub.
+
+### Changed
+
+- **The message rail now has a fisheye.** Ticks swell toward your cursor or finger and taper off with distance (gaussian falloff, so there's no hard edge where the effect stops), letting the rail bend around wherever you are instead of only reacting one tick at a time.
+
 ## [v6.2.0] - 2026-09-02
 
 ### Changed

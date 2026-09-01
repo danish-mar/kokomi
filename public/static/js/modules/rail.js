@@ -20,6 +20,13 @@ const RAIL_MAX_LEN = 30;
 const RAIL_CHARS_PER_PX = 14;
 const RAIL_PREVIEW_CHARS = 160;
 
+// Fisheye: ticks swell toward the cursor/finger and taper off with distance,
+// so the rail bends around wherever you are instead of reacting one tick at a
+// time. Gaussian falloff rather than linear — linear gives a visible hard edge
+// where the effect stops.
+const RAIL_FISHEYE_PX = 24;    // extra width for a tick directly under the pointer
+const RAIL_FISHEYE_SIGMA = 48; // px of influence either side
+
 export function getRailActions() {
     return {
         // Rebuild tick geometry from the live DOM. Runs on scroll as well as on
@@ -82,6 +89,18 @@ export function getRailActions() {
             return t ? t.text : '';
         },
 
+        // A tick's rendered width: its base length, plus a gaussian swell based
+        // on how close it is to the pointer. Computed in the style binding
+        // rather than baked into railTicks so pointer movement restyles the
+        // existing tick elements instead of rebuilding the whole x-for list.
+        railTickWidth(t) {
+            if (this.railPointerY < 0 || !this.railHeight) return t.len;
+            const tickY = (t.topPct / 100) * this.railHeight;
+            const d = tickY - this.railPointerY;
+            const boost = Math.exp(-(d * d) / (2 * RAIL_FISHEYE_SIGMA * RAIL_FISHEYE_SIGMA));
+            return Math.round(t.len + boost * RAIL_FISHEYE_PX);
+        },
+
         // Nearest tick to a pointer position on the rail, plus that position as
         // a 0-1 fraction of the rail's height.
         _railHit(clientY) {
@@ -101,7 +120,8 @@ export function getRailActions() {
             const hit = this._railHit(e.clientY);
             if (!hit) return;
             this.railHoverIdx = hit.tick.index;
-            this.railBubbleTop = (hit.tick.topPct / 100) * hit.height;
+            this.railHeight = hit.height;
+            this.railPointerY = hit.pct * hit.height;
 
             if (this.railDragging) {
                 this.railMoved = true;
@@ -138,10 +158,14 @@ export function getRailActions() {
             }
             this.railDragging = false;
             this.railHoverIdx = -1;
+            this.railPointerY = -1;
         },
 
         onRailLeave() {
-            if (!this.railDragging) this.railHoverIdx = -1;
+            if (!this.railDragging) {
+                this.railHoverIdx = -1;
+                this.railPointerY = -1;
+            }
         },
     };
 }

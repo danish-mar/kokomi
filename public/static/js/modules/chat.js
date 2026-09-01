@@ -5,6 +5,19 @@
 import { parseWithMath } from './markdown.js';
 import { isCanvasArtifact } from './canvas.js';
 
+/**
+ * Rendered-markdown cache for PDF artifact previews, keyed by artifact id.
+ *
+ * The card's HTML is rebuilt by Alpine on every streamed chunk, and re-parsing
+ * the whole accumulated document each time is quadratic over the stream — a
+ * long document visibly stutters near the end. Parsing is throttled while
+ * streaming and the result reused in between; once finished, the cache also
+ * spares every later re-render of that message from re-parsing the document.
+ */
+const _pdfPreviewCache = new Map();
+const PDF_PREVIEW_THROTTLE_MS = 150;
+const PDF_PREVIEW_CACHE_MAX = 60;
+
 export function getChatActions() {
     const actions = {
         async sendMessage() {
@@ -254,12 +267,19 @@ export function getChatActions() {
                                             // The card's inner HTML is fully replaced on every
                                             // re-render (x-html), so keep the live preview
                                             // pinned to its newest line instead of resetting
-                                            // to the top on each chunk.
-                                            this.$nextTick(() => {
-                                                const box = document.querySelector(
-                                                    `.kokomi-pdf[data-pdf-id="${art.id}"] .kokomi-pdf-preview`);
-                                                if (box) box.scrollTop = box.scrollHeight;
-                                            });
+                                            // to the top on each chunk. Coalesced into a frame:
+                                            // reading scrollHeight forces a synchronous layout,
+                                            // and doing that per token is its own source of
+                                            // stutter.
+                                            const pdfId = art.id;
+                                            if (!this._pdfScrollFrame) {
+                                                this._pdfScrollFrame = requestAnimationFrame(() => {
+                                                    this._pdfScrollFrame = null;
+                                                    const box = document.querySelector(
+                                                        `.kokomi-pdf[data-pdf-id="${pdfId}"] .kokomi-pdf-preview`);
+                                                    if (box) box.scrollTop = box.scrollHeight;
+                                                });
+                                            }
                                         }
                                         // Update modal in real-time if open
                                         if (this.artifactModal.show && this.artifactModal.id === data.id) {
@@ -913,9 +933,24 @@ export function getChatActions() {
             // matches what ReportLab will actually lay out, updating as the model
             // streams the artifact in (art.content is reactive) rather than only
             // appearing once the whole thing is done.
-            let previewHtml;
-            try { previewHtml = window.marked.parse(content, { breaks: true }); }
-            catch (e) { previewHtml = this.escapeHtml(content); }
+            let cached = _pdfPreviewCache.get(art.id);
+            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            const changed = !cached || cached.len !== content.length;
+            // Always re-parse once the document is complete; while it's still
+            // streaming, rate-limit so a fast token stream doesn't re-parse the
+            // whole thing dozens of times per second.
+            const due = !art.streaming || !cached || (now - cached.at) >= PDF_PREVIEW_THROTTLE_MS;
+            if (changed && due) {
+                let html;
+                try { html = window.marked.parse(content, { breaks: true }); }
+                catch (e) { html = this.escapeHtml(content); }
+                cached = { len: content.length, html, at: now };
+                _pdfPreviewCache.set(art.id, cached);
+                if (_pdfPreviewCache.size > PDF_PREVIEW_CACHE_MAX) {
+                    _pdfPreviewCache.delete(_pdfPreviewCache.keys().next().value);
+                }
+            }
+            const previewHtml = cached.html;
 
             return `
                 <div class="kokomi-pdf mt-4 mb-2" data-pdf-id="${art.id}" data-pdf-content="${window.KokomiCharts.escapeAttr(content)}" data-pdf-title="${this.escapeHtml(title)}">
