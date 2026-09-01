@@ -276,6 +276,14 @@ export function getUiActions() {
             if (!box) return;
             const distanceFromBottom = box.scrollHeight - box.scrollTop - box.clientHeight;
             this.showScrollToBottom = distanceFromBottom > 240;
+            // Coalesce into a frame: scroll fires far more often than the rail
+            // needs to move, and each pass measures every user message.
+            if (!this._railFrame) {
+                this._railFrame = requestAnimationFrame(() => {
+                    this._railFrame = null;
+                    this.computeRailTicks();
+                });
+            }
         },
         // Keep a specific message bubble anchored near the top of the viewport —
         // used after editing/switching a branch so the message you were just

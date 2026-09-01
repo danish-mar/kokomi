@@ -9,6 +9,7 @@ import { getApiActions } from './modules/api.js';
 import { getChatActions } from './modules/chat.js';
 import { getCharacterActions } from './modules/characters.js';
 import { getCanvasActions } from './modules/canvas.js';
+import { getRailActions } from './modules/rail.js';
 
 // Initialize Markdown
 setupMarkdown();
@@ -21,7 +22,8 @@ function aiApp() {
         getApiActions(),
         getChatActions(),
         getCharacterActions(),
-        getCanvasActions()
+        getCanvasActions(),
+        getRailActions()
     ];
 
     modules.forEach(mod => {
@@ -75,6 +77,14 @@ function aiApp() {
         this.$watch('sidebarOpen', (val) => {
             try { localStorage.setItem('sidebarOpen', val); } catch (err) {}
         });
+
+        // Keep the message rail in step with the transcript. Scroll-driven
+        // recomputation lives in onChatScroll; these cover the cases where the
+        // content changes without any scrolling (a new message, a finished
+        // response settling to its final height, a window resize).
+        this.$watch('messages.length', () => this.$nextTick(() => this.computeRailTicks()));
+        this.$watch('loading', () => this.$nextTick(() => this.computeRailTicks()));
+        window.addEventListener('resize', () => this.computeRailTicks());
 
         // Live Artifact Preview Watcher
         this.$watch('artifactModal.content', (val) => {

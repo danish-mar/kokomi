@@ -891,6 +891,56 @@
     .kokomi-diagram-modal-body { display: flex; align-items: center; justify-content: center; overflow: auto; }
     .kokomi-diagram-modal-body svg { max-width: 100%; height: auto; }
 
+    /* ── Message rail (scrollbar replacement) ────────────
+       A minimap of the questions asked: one tick per user message, length
+       scaled to that message's size, positioned where it actually sits in the
+       transcript. Hover/drag reveals the message in a bubble; dragging scrolls.
+       The native scrollbar is hidden on the transcript in favour of this. */
+    .kokomi-noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+    .kokomi-noscrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+    .kokomi-rail {
+        position: absolute; top: 8px; right: 0; bottom: 8px; width: 34px;
+        z-index: 18; touch-action: none; cursor: pointer;
+        opacity: 0.55; transition: opacity 0.25s ease;
+    }
+    .kokomi-rail:hover, .kokomi-rail.is-active { opacity: 1; }
+    .kokomi-rail-tick {
+        position: absolute; right: 11px; height: 2px; border-radius: 2px;
+        background: var(--text-quaternary);
+        transform-origin: right center;
+        transition: width 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+                    background-color 0.22s ease,
+                    transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+                    opacity 0.22s ease;
+    }
+    .kokomi-rail-tick.is-active { background: var(--accent); }
+    .kokomi-rail-tick.is-hover {
+        background: var(--accent);
+        transform: scaleX(1.35) scaleY(1.8);
+    }
+
+    .kokomi-rail-bubble {
+        position: absolute; right: 44px; z-index: 19; pointer-events: none;
+        max-width: min(300px, 60vw); padding: 8px 11px;
+        background: var(--bg-elevated); border: 1px solid var(--border);
+        border-radius: 12px; box-shadow: var(--shadow-lg);
+        font-size: 11.5px; line-height: 1.5; color: var(--text-secondary);
+        display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+        overflow: hidden; text-overflow: ellipsis;
+        opacity: 0; transform: translateY(-50%) translateX(8px) scale(0.96);
+        transition: opacity 0.2s ease, transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .kokomi-rail-bubble.is-visible {
+        opacity: 1; transform: translateY(-50%) translateX(0) scale(1);
+    }
+    /* Touch: the rail is the primary scroll affordance, so give it a wider
+       hit area and keep the ticks visible rather than fading them out. */
+    @media (hover: none) {
+        .kokomi-rail { width: 40px; opacity: 0.75; }
+        .kokomi-rail-bubble { max-width: min(260px, 70vw); }
+    }
+
     /* ── Inline AI-generated PDF documents ───────────────
        Rendered on demand (View/Download) — the card itself is just a document
        summary until clicked, so nothing is generated unless requested. */
@@ -2035,7 +2085,10 @@
         </header>
 
         <!-- ═══════════════ MESSAGES ═══════════════ -->
-        <main class="flex-grow overflow-y-auto" x-ref="chatBox" @scroll.passive="onChatScroll()">
+        <!-- Positioning context for the message rail, which overlays the right
+             edge of the transcript only (not the header or composer). -->
+        <div class="flex-grow relative min-h-0 flex flex-col">
+        <main class="flex-grow overflow-y-auto kokomi-noscrollbar" x-ref="chatBox" @scroll.passive="onChatScroll()">
 
             <!-- Anonymous Chat Banner -->
             <template x-if="isAnonymous">
@@ -2595,6 +2648,28 @@
                     <div id="bottom-anchor" class="h-1"></div>
                 </div>
         </main>
+
+        <!-- ═══════════════ MESSAGE RAIL ═══════════════
+             Replaces the chat scrollbar: one tick per question asked, length
+             scaled to how long that message was. Hover (or drag, on touch)
+             reveals the message; dragging scrolls the transcript. -->
+        <div x-show="railVisible" x-ref="railEl" class="kokomi-rail"
+             :class="(railHoverIdx !== -1 || railDragging) && 'is-active'"
+             @pointerdown.prevent="onRailDown($event)"
+             @pointermove="onRailMove($event)"
+             @pointerup="onRailUp($event)"
+             @pointercancel="railDragging = false; railHoverIdx = -1"
+             @pointerleave="onRailLeave()">
+            <template x-for="t in railTicks" :key="t.index">
+                <span class="kokomi-rail-tick"
+                      :class="{ 'is-active': t.index === railActiveIdx, 'is-hover': t.index === railHoverIdx }"
+                      :style="`top: ${t.topPct}%; width: ${t.len}px`"></span>
+            </template>
+        </div>
+        <div class="kokomi-rail-bubble" :class="railHoverIdx !== -1 && 'is-visible'"
+             :style="`top: ${railBubbleTop}px`"
+             x-show="railVisible" x-text="railBubbleText"></div>
+        </div>
 
         <!-- Scroll to bottom -->
         <button x-show="showScrollToBottom" @click="jumpToBottom()"

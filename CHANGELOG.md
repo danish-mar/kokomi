@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.2.0] - 2026-09-02
+
+### Changed
+
+- **The chat scrollbar is now a message rail** — a minimap of the questions you've asked instead of a generic scroll thumb. Each user message becomes a tick positioned where it actually sits in the transcript, with its length scaled to how long that message was, and the tick covering what you're currently reading stays highlighted. Hovering a tick reveals that message in a bubble; on touch, dragging down the rail scrolls the transcript while the bubble follows your finger, so you can skim back through a long conversation by feel rather than scrubbing blindly. A tap jumps to that message. The native scrollbar is hidden in favour of it.
+
 ## [v6.1.0] - 2026-09-02
 
 ### Added

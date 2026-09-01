@@ -12,6 +12,13 @@ export function getInitialState() {
         input: '',
         attachments: [],
         showScrollToBottom: false,
+        // Message rail (scrollbar replacement) — see modules/rail.js
+        railTicks: [],
+        railActiveIdx: -1,
+        railHoverIdx: -1,
+        railBubbleTop: 0,
+        railDragging: false,
+        railMoved: false,
         loading: false,
         loadingStatus: 'Thinking...',
         messages: [],
