@@ -431,6 +431,32 @@
                         </button>
                     </div>
 
+                    <!-- Notify when a response finishes while you're elsewhere.
+                         Stored per browser (it's tied to that browser's
+                         notification permission), not in server prefs. -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px;">Notify When Ready</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Browser notification when a reply finishes while you're on another tab.</p>
+                        </div>
+                        <button @click="toggleNotifications()"
+                            class="apple-toggle" :class="notificationsEnabled ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
+
+                    <!-- Completion Sound -->
+                    <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
+                        <div>
+                            <label class="apple-label" style="margin-bottom:1px;">Completion Chime</label>
+                            <p style="font-size:11px; color:var(--text-quaternary);">Play a short tone when a background response lands.</p>
+                        </div>
+                        <button @click="toggleNotificationSound()"
+                            class="apple-toggle" :class="notificationSound ? 'on' : 'off'">
+                            <div class="toggle-knob"></div>
+                        </button>
+                    </div>
+
                     <!-- Debug Mode -->
                     <div class="card-row" style="display:flex; align-items:center; justify-content:space-between;">
                         <div>

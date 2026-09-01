@@ -24,6 +24,7 @@ from app.storage import load_prefs, load_chars, load_convos, save_convos
 from app.insights import log_generation
 from app.memory import save_memory, search_memories, summarize_conversation
 from app.tools.memory_tool import get_memory_tool
+from app import generation_registry as gen_registry
 
 from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_tool, _ensure_pool
 
@@ -491,14 +492,44 @@ async def chat_stream(req: ChatRequest):
     now = time.time()
     history.append({"role": "user", "content": req.message, "timestamp": now_iso})
 
+    # Persist the user's message before generating rather than only at the end.
+    # The conversation used to be written once, after the response completed,
+    # so a disconnect lost the user's own message too and left nothing to
+    # reattach to after a page reload. The provisional title is replaced by the
+    # generated one when the response finishes.
+    provisional_title = (req.message or "New Chat").strip().split("\n")[0][:60] or "New Chat"
+    if is_new:
+        convos[conv_id] = {
+            "title": provisional_title,
+            "character_id": char_id,
+            "messages": history,
+            "updated_at": now_iso,
+            "participants": req.participants or [char_id],
+            "is_anonymous": req.is_anonymous,
+        }
+    else:
+        convos[conv_id].update({"messages": history, "updated_at": now_iso})
+    save_convos(convos)
+
+    # Registered before streaming starts so the conversation id is already
+    # known to the client (it goes out in the 'start' event) — otherwise a
+    # brand-new conversation that disconnects mid-response could never be
+    # reattached to, because nobody would know what to ask for.
+    generation = gen_registry.start(conv_id, provisional_title)
+
     async def event_generator():
         nonlocal history
-        queue = asyncio.Queue()
+        # Writes go through the registry rather than a bare queue: it records
+        # every event for replay and fans out to however many clients are
+        # attached (including none, while you're away).
+        queue = generation
 
         async def process_chat():
             now_iso = datetime.datetime.utcnow().isoformat()
             try:
-                await queue.put(f"data: {json.dumps({'type': 'start'})}\n\n")
+                # conversation_id goes out immediately so a client that drops mid-
+                # response knows what to reattach to.
+                await queue.put(f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id})}\n\n")
 
                 pids = req.participants or [char_id]
                 all_chars = load_chars()
@@ -1577,16 +1608,26 @@ async def chat_stream(req: ChatRequest):
                 await queue.put(None) # Sentinel to stop generator
 
         task = asyncio.create_task(process_chat())
+        generation.task = task
 
+        sub = generation.subscribe()
         try:
             while True:
-                item = await queue.get()
+                item = await sub.get()
                 if item is None:
                     break
                 yield item
         except asyncio.CancelledError:
-            task.cancel()
+            # The client went away (tab closed, navigated, network dropped).
+            # Detach this viewer but let the generation finish: it will keep
+            # buffering for a reconnect and still save the conversation at the
+            # end. Cancelling here is what used to lose the entire response —
+            # and the user's own message with it, since the conversation is
+            # only written once generation completes.
+            generation.unsubscribe(sub)
             raise
+        finally:
+            generation.unsubscribe(sub)
 
     return StreamingResponse(
         event_generator(),
@@ -1597,3 +1638,58 @@ async def chat_stream(req: ChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ── Reconnecting to an in-flight generation ──────────────────────────────────
+# A response now outlives the request that started it (see
+# app/generation_registry.py), so these let the UI find one, re-attach to it,
+# and genuinely stop it.
+
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
+
+
+@router.get("/chat/active")
+async def chat_active():
+    """Conversations currently generating — drives the sidebar's live glow."""
+    return {"active": gen_registry.active()}
+
+
+@router.get("/chat/attach/{conv_id}")
+async def chat_attach(conv_id: str):
+    """Re-attach to a generation already in progress.
+
+    Replays everything emitted so far, then continues streaming live from that
+    point, so reopening a conversation mid-response shows the whole answer
+    rather than only the part that arrives after you return.
+    """
+    generation = gen_registry.get(conv_id)
+    if not generation:
+        raise HTTPException(status_code=404, detail="No active generation for that conversation")
+
+    async def replay():
+        sub = generation.subscribe()
+        try:
+            while True:
+                item = await sub.get()
+                if item is None:
+                    break
+                yield item
+        finally:
+            generation.unsubscribe(sub)
+
+    return StreamingResponse(replay(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@router.post("/chat/cancel/{conv_id}")
+async def chat_cancel(conv_id: str):
+    """Actually stop a generation.
+
+    Aborting the fetch client-side no longer stops anything now that
+    generations are detached from their request — without this, Stop would
+    only hide the response while it kept running and consuming tokens.
+    """
+    return {"ok": gen_registry.cancel(conv_id)}

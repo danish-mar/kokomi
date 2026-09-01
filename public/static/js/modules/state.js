@@ -12,6 +12,12 @@ export function getInitialState() {
         input: '',
         attachments: [],
         showScrollToBottom: false,
+        // Conversations the server is still generating a response for — drives
+        // the sidebar glow and the reconnect prompt. See modules/background.js
+        activeGenerations: [],
+        streamingConvId: null,
+        notificationsEnabled: localStorage.getItem('notificationsEnabled') === 'true',
+        notificationSound: localStorage.getItem('notificationSound') !== 'false',
         // Debate mode: characters in a group chat argue among themselves for
         // several turns without waiting for you between each one.
         debateMode: false,

@@ -10,6 +10,7 @@ import { getChatActions } from './modules/chat.js';
 import { getCharacterActions } from './modules/characters.js';
 import { getCanvasActions } from './modules/canvas.js';
 import { getRailActions } from './modules/rail.js';
+import { getBackgroundActions } from './modules/background.js';
 
 // Initialize Markdown
 setupMarkdown();
@@ -23,7 +24,8 @@ function aiApp() {
         getChatActions(),
         getCharacterActions(),
         getCanvasActions(),
-        getRailActions()
+        getRailActions(),
+        getBackgroundActions()
     ];
 
     modules.forEach(mod => {
@@ -63,6 +65,12 @@ function aiApp() {
 
         this.updateSuggestions();
         this.initGlobalListeners();
+
+        // Responses outlive the page now, so find out what's still running —
+        // including work started in another tab or before this reload — and
+        // rejoin the current conversation's stream if it's mid-response.
+        this.startActivePolling();
+        if (this.currentConvId) this.maybeResume(this.currentConvId);
 
         // Bridge AI-emitted action chips (kokomi-actions widget) into the chat component.
         window.addEventListener('kokomi-action', (e) => this.handleWidgetAction(e.detail));

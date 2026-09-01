@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.6.0] - 2026-09-02
+
+### Added
+
+- **Responses now survive you leaving.** Closing the tab, navigating away or losing connection used to abort generation outright — and because a conversation was only written to the database once the response finished, the entire exchange was lost, including your own message. Generation is now decoupled from the request that started it: it runs to completion regardless of who is watching, and your message is saved before generation begins rather than after.
+- **Reconnecting picks up exactly where you left off.** Every event is retained server-side while a response is being written, so reopening a conversation mid-generation replays what you missed and then carries on streaming live, instead of leaving you with a half-finished transcript or a blank wait.
+- **Conversations still being written glow in the sidebar** — a slow accent pulse on the card until the response lands, including for work started in another tab or before a reload. Respects `prefers-reduced-motion` (keeps the ring, drops the pulse).
+- **Notification when a reply finishes while you're on another tab**, with a short two-note chime. The chime is synthesized with WebAudio rather than loaded from an audio file, so it can't break the app's offline guarantee. Both the notification and the sound are toggles in Settings → General; the notification one asks for browser permission when you enable it.
+
+### Changed
+
+- **Stop now really stops.** Aborting the request no longer ends a generation (that is the point of the change above), so the stop button calls a new cancel endpoint that actually halts the work — otherwise stopping would merely have hidden a response that kept running and kept consuming tokens.
+
 ## [v6.5.0] - 2026-09-02
 
 ### Fixed

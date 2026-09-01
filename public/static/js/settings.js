@@ -30,11 +30,16 @@ function settingsApp() {
         updateClicks: 0,
         charSelectedTools: [],
         allPoolTools: [],
-        // ── Triton (remote client moorings) ──
+        // Notification prefs live in localStorage, not server prefs: they're
+        // tied to this browser's notification permission.
+        notificationsEnabled: localStorage.getItem('notificationsEnabled') === 'true',
+        notificationSound: localStorage.getItem('notificationSound') !== 'false',
+        // ── Skills (on-demand instruction packs) ──
         skills: [],
         skillDraft: null,
         skillImportUrl: '',
         skillImporting: false,
+        // ── Triton (remote client moorings) ──
         tritonDevices: [],
         tritonPending: [],
         tritonCodes: {},          // conn_id -> typed 8-digit code
@@ -172,6 +177,30 @@ function settingsApp() {
             if (tabName === 'triton') {
                 this.loadTriton();
             }
+        },
+
+        async toggleNotifications() {
+            if (this.notificationsEnabled) {
+                this.notificationsEnabled = false;
+                localStorage.setItem('notificationsEnabled', 'false');
+                return;
+            }
+            if (!('Notification' in window)) {
+                this.showToast('This browser has no notification support', 'error');
+                return;
+            }
+            // Must be requested from a user gesture, which is why this is a
+            // toggle rather than something asked for automatically.
+            const res = await Notification.requestPermission();
+            this.notificationsEnabled = res === 'granted';
+            localStorage.setItem('notificationsEnabled', this.notificationsEnabled);
+            if (!this.notificationsEnabled) {
+                this.showToast('Your browser blocked notifications for this site', 'error');
+            }
+        },
+        toggleNotificationSound() {
+            this.notificationSound = !this.notificationSound;
+            localStorage.setItem('notificationSound', this.notificationSound);
         },
 
         // ── Skills ───────────────────────────────────────────────────────────

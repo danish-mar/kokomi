@@ -116,33 +116,42 @@ export function getChatActions() {
             }
         },
 
-        async sendMessageStream(msg, attachments = []) {
+        // `attachConvId` re-attaches to a generation already running on the
+        // server instead of starting a new one. Everything downstream is
+        // identical — the attach endpoint replays what was missed and then
+        // continues the same event stream — so the entire handler below is
+        // shared rather than duplicated.
+        async sendMessageStream(msg, attachments = [], attachConvId = null) {
             if (this.prefs.debug_mode) {
-                console.log(`[DEBUG] Sending stream chat req. Conv: ${this.currentConvId}, Space: ${this.activeSpaceId}`);
+                console.log(`[DEBUG] ${attachConvId ? 'Re-attaching to' : 'Sending'} stream. Conv: ${attachConvId || this.currentConvId}`);
                 console.time('ChatRequest_Stream_TTFB');
                 console.time('ChatRequest_Stream_Total');
             }
             try {
-                const response = await fetch('/api/chat/stream', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: msg,
-                        character_id: this.activeCharId,
-                        conversation_id: this.currentConvId,
-                        participants: this.groupParticipants,
-                        space_id: this.activeSpaceId,
-                        is_anonymous: this.isAnonymous,
-                        use_web_search: this.useWebSearch,
-                        attachments: attachments,
-                        canvas_id: this.canvas.open ? this.canvas.id : null,
-                        model_tier: this.modelTier,
-                        debate: this.debateMode
-                    }),
-                    signal: this.abortController.signal
-                });
+                const response = attachConvId
+                    ? await fetch(`/api/chat/attach/${encodeURIComponent(attachConvId)}`, {
+                        signal: this.abortController.signal,
+                    })
+                    : await fetch('/api/chat/stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: msg,
+                            character_id: this.activeCharId,
+                            conversation_id: this.currentConvId,
+                            participants: this.groupParticipants,
+                            space_id: this.activeSpaceId,
+                            is_anonymous: this.isAnonymous,
+                            use_web_search: this.useWebSearch,
+                            attachments: attachments,
+                            canvas_id: this.canvas.open ? this.canvas.id : null,
+                            model_tier: this.modelTier,
+                            debate: this.debateMode
+                        }),
+                        signal: this.abortController.signal
+                    });
 
-                if (!response.ok) throw new Error("Failed to start stream");
+                if (!response.ok) throw new Error(attachConvId ? "That response already finished" : "Failed to start stream");
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -355,6 +364,14 @@ export function getChatActions() {
                                 }
                             } else if (data.type === 'warning') {
                                 this.showToast(data.message, 'warning');
+                            } else if (data.type === 'start') {
+                                // Known before any content arrives, so a drop
+                                // mid-response still leaves something to
+                                // re-attach to.
+                                if (data.conversation_id) {
+                                    this.currentConvId = data.conversation_id;
+                                    this.streamingConvId = data.conversation_id;
+                                }
                             } else if (data.type === 'done') {
                                 this.currentConvId = data.conversation_id;
                                 window.location.hash = `chat=${data.conversation_id}`;
@@ -362,6 +379,7 @@ export function getChatActions() {
                                     this.messages[targetIdx].metrics = data.metrics;
                                 }
                                 this.liveStats = { tps: null, ttft: null, context: null };
+                                this.notifyResponseReady(data.conversation_id, targetIdx);
                             }
                             else if (data.type === 'error') {
                                 if (targetIdx !== undefined) {
@@ -545,6 +563,16 @@ export function getChatActions() {
         },
         
         stopGeneration() {
+            // Aborting the fetch only detaches this viewer now that generations
+            // outlive their request — without telling the server to stop, the
+            // response would keep being written (and keep costing tokens) after
+            // you pressed stop.
+            const convId = this.streamingConvId || this.currentConvId;
+            if (convId) {
+                fetch(`/api/chat/cancel/${encodeURIComponent(convId)}`, { method: 'POST' })
+                    .catch(() => {})
+                    .finally(() => this.refreshActiveGenerations());
+            }
             if (this.abortController) this.abortController.abort();
         },
 
@@ -562,8 +590,11 @@ export function getChatActions() {
             this.$nextTick(() => { this.autoResize(); document.getElementById('user-input')?.focus(); });
         },
 
-        async loadConversation(id) {
-            if (this.currentConvId === id) return;
+        async loadConversation(id, { resume = true } = {}) {
+            // `resume` is off when re-loading the conversation we're already
+            // streaming, so refreshing its saved copy can't attach a second
+            // reader to the same generation.
+            if (this.currentConvId === id && resume) return;
             this.messagesLoaded = false;
             try {
                 const r = await fetch(`/api/conversations/${id}`);
@@ -591,7 +622,12 @@ export function getChatActions() {
                         if (box) box.scrollTop = box.scrollHeight;
                     });
                 }));
-            } catch (e) { 
+
+                // If this conversation is still being written (started in
+                // another tab, or before a reload), pick the stream back up
+                // rather than showing a half-finished transcript.
+                if (resume) this.maybeResume(id);
+            } catch (e) {
                 console.error('Load failed:', e);
                 this.messagesLoaded = true;
             }

@@ -891,6 +891,26 @@
     .kokomi-diagram-modal-body { display: flex; align-items: center; justify-content: center; overflow: auto; }
     .kokomi-diagram-modal-body svg { max-width: 100%; height: auto; }
 
+    /* ── Conversation still being written ────────────────
+       A response now outlives the tab that started it, so a conversation can
+       be generating while you're looking at something else entirely. Its card
+       breathes an accent glow until the response lands. */
+    @keyframes kokomi-generating-glow {
+        0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+                               0 0 8px -2px color-mix(in srgb, var(--accent) 40%, transparent); }
+        50%      { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 75%, transparent),
+                               0 0 16px 0 color-mix(in srgb, var(--accent) 65%, transparent); }
+    }
+    .widget-card.is-generating {
+        border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+        animation: kokomi-generating-glow 1.9s ease-in-out infinite;
+    }
+    /* Respect a reduced-motion preference: keep the accent ring, drop the pulse. */
+    @media (prefers-reduced-motion: reduce) {
+        .widget-card.is-generating { animation: none;
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+    }
+
     /* ── Message rail (scrollbar replacement) ────────────
        A minimap of the questions asked: one tick per user message, length
        scaled to that message's size, positioned where it actually sits in the
@@ -1615,7 +1635,7 @@
                                             <template x-for="conv in (conversationsByFolder[folder.id] || []).filter((_, idx) => idx % 2 === 0)" :key="conv._id">
                                                 <div class="relative group" x-data="{ menuOpen: false }">
                                                     <!-- Card Widget -->
-                                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail, 'is-generating': isGenerating(conv._id) }" @click="loadConversation(conv._id)">
                                                         <template x-if="conv.thumbnail">
                                                             <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
                                                         </template>
@@ -1665,7 +1685,7 @@
                                             <template x-for="conv in (conversationsByFolder[folder.id] || []).filter((_, idx) => idx % 2 === 1)" :key="conv._id">
                                                 <div class="relative group" x-data="{ menuOpen: false }">
                                                     <!-- Card Widget -->
-                                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail, 'is-generating': isGenerating(conv._id) }" @click="loadConversation(conv._id)">
                                                         <template x-if="conv.thumbnail">
                                                             <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
                                                         </template>
@@ -1738,7 +1758,7 @@
                             <template x-for="conv in (conversationsByFolder['none'] || []).filter((_, idx) => idx % 2 === 0)" :key="conv._id">
                                 <div class="relative group" x-data="{ menuOpen: false }">
                                     <!-- Card Widget -->
-                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail, 'is-generating': isGenerating(conv._id) }" @click="loadConversation(conv._id)">
                                         <template x-if="conv.thumbnail">
                                             <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
                                         </template>
@@ -1784,7 +1804,7 @@
                             <template x-for="conv in (conversationsByFolder['none'] || []).filter((_, idx) => idx % 2 === 1)" :key="conv._id">
                                 <div class="relative group" x-data="{ menuOpen: false }">
                                     <!-- Card Widget -->
-                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail }" @click="loadConversation(conv._id)">
+                                    <div class="widget-card" :class="{ 'active': currentConvId === conv._id, 'widget-card--hero': conv.thumbnail, 'is-generating': isGenerating(conv._id) }" @click="loadConversation(conv._id)">
                                         <template x-if="conv.thumbnail">
                                             <img class="widget-hero-img" :src="imgProxy(conv.thumbnail)" @error="$el.src = getCharById(conv.character_id).avatar" />
                                         </template>
