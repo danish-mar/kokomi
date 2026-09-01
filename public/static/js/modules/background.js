@@ -24,17 +24,26 @@ export function getBackgroundActions() {
                 const d = await r.json();
                 const ids = (d.active || []).map(g => g.conversation_id);
 
-                // A conversation that was generating and no longer is has just
-                // finished somewhere we weren't watching — pull it in so the
-                // sidebar and transcript show the result.
+                // A conversation that was generating and is no longer listed has
+                // just finished. If we streamed it ourselves the transcript is
+                // already up to date — reloading it here would replace the
+                // messages and replay the load animation after every single
+                // message sent, which reads as the chat window refreshing.
+                // Only a response that landed somewhere we weren't watching
+                // needs pulling in.
+                const self = this._selfCompleted || (this._selfCompleted = new Set());
                 const finished = this.activeGenerations.filter(id => !ids.includes(id));
                 this.activeGenerations = ids;
-                if (finished.length) {
-                    this.fetchConversations();
-                    if (finished.includes(this.currentConvId) && !this.loading) {
+
+                const elsewhere = finished.filter(id => !self.has(id));
+                finished.forEach(id => self.delete(id));
+
+                if (finished.length) this.fetchConversations();
+                if (elsewhere.length) {
+                    if (elsewhere.includes(this.currentConvId) && !this.loading) {
                         this.loadConversation(this.currentConvId, { resume: false });
                     }
-                    finished.forEach(id => this.notifyResponseReady(id));
+                    elsewhere.forEach(id => this.notifyResponseReady(id));
                 }
             } catch (e) { /* offline or restarting; the next tick retries */ }
         },

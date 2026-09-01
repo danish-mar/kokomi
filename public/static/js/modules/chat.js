@@ -383,6 +383,13 @@ export function getChatActions() {
                                     this.messages[targetIdx].metrics = data.metrics;
                                 }
                                 this.liveStats = { tps: null, ttft: null, context: null };
+                                // We watched this one land, so the transcript is
+                                // already current. Recorded so the active-poll
+                                // doesn't mistake it for a response that
+                                // finished elsewhere and reload the conversation
+                                // out from under us.
+                                (this._selfCompleted || (this._selfCompleted = new Set()))
+                                    .add(data.conversation_id);
                                 this.notifyResponseReady(data.conversation_id, targetIdx);
                             }
                             else if (data.type === 'error') {

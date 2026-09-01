@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.7.1] - 2026-09-02
+
+### Fixed
+
+- **The chat window visibly reloaded after every message sent.** The poll that tracks in-flight generations treated *any* generation leaving the active list as one that had finished somewhere you weren't watching, and reloaded the conversation to pick up the result — including for the response you had just watched stream to completion in front of you. Reloading replaced the message list and replayed its load animation, which read as the whole chat refreshing on each turn. A response streamed to completion in this tab is now recognised as already up to date; only one that landed while you were away is pulled in.
+
 ## [v6.7.0] - 2026-09-02
 
 Everything since v6.0.4, released together. Background generation is the headline: a
