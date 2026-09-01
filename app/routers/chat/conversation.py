@@ -29,6 +29,13 @@ from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_t
 
 router = APIRouter(prefix="/api")
 
+# Debate mode backstop. A debate is meant to end when a character emits
+# [DEBATE_END] or the user stops the stream; this only bounds the pathological
+# case where two characters would happily argue forever, since every round
+# costs real tokens.
+MAX_DEBATE_ROUNDS = 8
+DEBATE_END_SENTINEL = "[DEBATE_END]"
+
 
 def find_artifact(history: list, artifact_id: str) -> Optional[dict]:
     """Locate an artifact by id anywhere in a conversation's history.
@@ -600,13 +607,41 @@ async def chat_stream(req: ChatRequest):
                         if mems:
                             memory_contexts[pid_res] = "\n\n[Long-term Memory Context]:\n" + "\n".join([f"- {m}" for m in mems])
 
-                for pid in pids:
+                # Debate mode: instead of each participant answering the user
+                # once, they keep taking turns among themselves. The roster is
+                # simply iterated repeatedly — the per-turn body below is
+                # unchanged, it just runs more than once per participant.
+                # MAX_DEBATE_ROUNDS is a backstop only: a debate normally ends
+                # when a character emits [DEBATE_END] or the user hits stop
+                # (which cancels this task via the generator).
+                debate_mode = bool(getattr(req, "debate", False)) and len(pids) > 1
+                debate_over = False
+
+                def _turn_sequence():
+                    if not debate_mode:
+                        for p in pids:
+                            yield p, 0, True
+                        return
+                    for round_no in range(MAX_DEBATE_ROUNDS):
+                        for p in pids:
+                            yield p, round_no, round_no == MAX_DEBATE_ROUNDS - 1
+
+                for pid, turn_no, is_final_turn in _turn_sequence():
+                    if debate_over:
+                        break
                     p_char = all_chars.get(pid)
                     if not p_char:
                         continue
 
                     char_name = p_char.get("name", pid)
                     p_persona = p_char.get("persona", "")
+
+                    # Each turn is its own chat bubble. The frontend keys
+                    # in-flight messages by character id, so without this a
+                    # character's second turn would append into the bubble from
+                    # their first instead of starting a new one.
+                    if debate_mode:
+                        await queue.put(f"data: {json.dumps({'type': 'turn_start', 'character_id': pid, 'turn': turn_no})}\n\n")
 
                     # Add pre-retrieved memory context
                     if pid in memory_contexts:
@@ -626,17 +661,41 @@ async def chat_stream(req: ChatRequest):
 
                     if len(pids) > 1:
                         other_names = [all_chars.get(x, {}).get("name", x) for x in pids if x != pid]
-                        p_persona += (
-                            f"\n\nGROUP CHAT: You are {char_name} in a group chat. "
-                            f"Other participants: {', '.join(other_names)} and the user."
-                            "\n\nSTRICT RULES:"
-                            f"\n- You are ONLY {char_name}. NEVER write dialogue or responses for "
-                            f"{', '.join(other_names)} or any other character."
-                            "\n- Do NOT prefix your response with your own name (e.g. no 'Kokomi:' at the start)."
-                            "\n- Respond naturally as yourself. Other characters will get their own turn."
-                            "\n- If the last message is not directed at you and you have nothing to add, "
-                            "respond with exactly: [SKIP]"
-                        )
+                        if debate_mode:
+                            # No [SKIP] here, deliberately: a debate where anyone
+                            # can pass dies on the second turn, and the group-chat
+                            # rule actively invites passing when not addressed.
+                            p_persona += (
+                                f"\n\nDEBATE: You are {char_name}, debating with "
+                                f"{', '.join(other_names)}. The user set the topic and is now watching — "
+                                "you are talking to the other participant(s), not to them."
+                                "\n\nSTRICT RULES:"
+                                f"\n- You are ONLY {char_name}. NEVER write dialogue for "
+                                f"{', '.join(other_names)} or any other character."
+                                "\n- Do NOT prefix your response with your own name."
+                                "\n- Engage with what was ACTUALLY just said: quote it, challenge it, concede "
+                                "a point if it's genuinely right. Hold your own position from your own "
+                                "perspective and values — do not simply agree to be agreeable."
+                                "\n- Keep each turn SHORT — a few sentences, one clear argument. This is a "
+                                "live back-and-forth, not an essay."
+                                "\n- You must respond every turn. Never reply with [SKIP]."
+                                "\n- When the debate has genuinely run its course — you've been persuaded, "
+                                "you've reached agreement, or it's going in circles — end your final message "
+                                "with [DEBATE_END] on its own line. Do NOT use it just to avoid arguing; "
+                                "only when there is honestly nothing further worth saying."
+                            )
+                        else:
+                            p_persona += (
+                                f"\n\nGROUP CHAT: You are {char_name} in a group chat. "
+                                f"Other participants: {', '.join(other_names)} and the user."
+                                "\n\nSTRICT RULES:"
+                                f"\n- You are ONLY {char_name}. NEVER write dialogue or responses for "
+                                f"{', '.join(other_names)} or any other character."
+                                "\n- Do NOT prefix your response with your own name (e.g. no 'Kokomi:' at the start)."
+                                "\n- Respond naturally as yourself. Other characters will get their own turn."
+                                "\n- If the last message is not directed at you and you have nothing to add, "
+                                "respond with exactly: [SKIP]"
+                            )
 
                     if prefs.get("inject_time"):
                         p_persona += f"\n\nCurrent System Date and Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -1011,7 +1070,10 @@ async def chat_stream(req: ChatRequest):
 
                         if chunk.content:
                             if ts_first is None: ts_first = time.time()
-                            if not f_content and "[SKIP]" in chunk.content.upper():
+                            # Debaters are told never to skip, and honouring a
+                            # stray [SKIP] there would silently drop a turn and
+                            # stall the exchange.
+                            if not debate_mode and not f_content and "[SKIP]" in chunk.content.upper():
                                 skipped = True
                                 break
                             f_content += chunk.content
@@ -1323,6 +1385,17 @@ async def chat_stream(req: ChatRequest):
                         while cleaned.startswith(prefix_pattern):
                             cleaned = cleaned[len(prefix_pattern):].strip()
 
+                    # A debater signals "we're done here" with a sentinel on its
+                    # own line. Strip it before saving/showing — it's a control
+                    # signal, not something the user should read — and let the
+                    # current turn finish so their closing point still lands.
+                    if debate_mode and DEBATE_END_SENTINEL.lower() in cleaned.lower():
+                        cleaned = re.sub(
+                            re.escape(DEBATE_END_SENTINEL), "", cleaned, flags=re.IGNORECASE
+                        ).strip()
+                        debate_over = True
+                        await queue.put(f"data: {json.dumps({'type': 'debate_end', 'character_id': pid})}\n\n")
+
                     history.append({
                         "role": "assistant",
                         "character_id": pid,
@@ -1373,7 +1446,12 @@ async def chat_stream(req: ChatRequest):
                         }))
 
                         # --- Long Term Memory Summarization (Background) ---
-                        if p_char.get("memory_enabled", True) and prefs.get("memory_enabled", True):
+                        # Skipped mid-debate: it would fire an LLM summarization
+                        # per character per round, and what's being summarized is
+                        # characters arguing with each other rather than anything
+                        # the user said. The closing turn still gets recorded.
+                        memory_due = not debate_mode or debate_over or is_final_turn
+                        if memory_due and p_char.get("memory_enabled", True) and prefs.get("memory_enabled", True):
                             async def background_memory_task(msgs, char_id, p_copy):
                                 facts = await summarize_conversation(msgs, p_copy)
                                 for item in facts:

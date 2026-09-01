@@ -136,7 +136,8 @@ export function getChatActions() {
                         use_web_search: this.useWebSearch,
                         attachments: attachments,
                         canvas_id: this.canvas.open ? this.canvas.id : null,
-                        model_tier: this.modelTier
+                        model_tier: this.modelTier,
+                        debate: this.debateMode
                     }),
                     signal: this.abortController.signal
                 });
@@ -174,7 +175,20 @@ export function getChatActions() {
                         try {
                             const data = JSON.parse(jsonStr);
                             const charId = data.character_id || this.activeCharId;
-                            
+
+                            // Debate: a character speaks on more than one turn,
+                            // but in-flight messages are keyed by character id —
+                            // so without releasing the key here, their second
+                            // turn would append into the bubble from their first.
+                            if (data.type === 'turn_start') {
+                                const prevIdx = charMsgMap[charId];
+                                if (prevIdx !== undefined && this.messages[prevIdx]) {
+                                    this.messages[prevIdx].streaming = false;
+                                }
+                                delete charMsgMap[charId];
+                                continue;
+                            }
+
                             let targetIdx = charMsgMap[charId];
                             if (targetIdx === undefined && (data.type === 'content' || data.type === 'reasoning' || data.type === 'tool_start')) {
                                 const char = this.characters.find(c => c.id === charId) || { name: charId, id: charId };

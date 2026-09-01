@@ -12,6 +12,9 @@ export function getInitialState() {
         input: '',
         attachments: [],
         showScrollToBottom: false,
+        // Debate mode: characters in a group chat argue among themselves for
+        // several turns without waiting for you between each one.
+        debateMode: false,
         // Message rail (scrollbar replacement) — see modules/rail.js
         railTicks: [],
         railActiveIdx: -1,

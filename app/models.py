@@ -18,6 +18,10 @@ class ChatRequest(BaseModel):
     # the three model presets configured in Settings instead of the default
     # per-character/provider model.
     model_tier: Optional[str] = "normal"
+    # Debate mode: the participants keep taking turns among themselves without
+    # waiting for the user between each one, until they reach a conclusion or
+    # the user stops the stream. Requires 2+ participants.
+    debate: bool = False
 
 
 

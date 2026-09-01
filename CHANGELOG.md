@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.3.0] - 2026-09-02
+
+### Added
+
+- **Debate mode**: with two or more characters in a room, a new pill beside the composer's Search toggle lets them argue among themselves. Instead of each character answering you once and stopping, they take turns responding to *each other* — you set the topic and then watch, interjecting whenever you like. Characters are told to engage with what was actually just said, hold their own position rather than agree to be agreeable, and keep turns short; the `[SKIP]` escape that normally lets a character pass is disabled, since a debate where anyone can opt out dies on the second turn. A debate ends when a character judges it finished (conceded, agreed, or going in circles), when you press stop, or after a hard round cap so two stubborn characters can't argue indefinitely on your token budget. Long-term memory summarization is skipped mid-debate and runs once at the end, rather than firing per character per round over characters arguing with each other.
+
 ## [v6.2.3] - 2026-09-02
 
 ### Fixed
