@@ -641,14 +641,16 @@ async def chat_stream(req: ChatRequest):
 
                 def _turn_sequence():
                     if not debate_mode:
-                        for p in pids:
-                            yield p, 0, True
+                        for i, p in enumerate(pids):
+                            yield p, 0, True, i
                         return
+                    idx = 0
                     for round_no in range(MAX_DEBATE_ROUNDS):
                         for p in pids:
-                            yield p, round_no, round_no == MAX_DEBATE_ROUNDS - 1
+                            yield p, round_no, round_no == MAX_DEBATE_ROUNDS - 1, idx
+                            idx += 1
 
-                for pid, turn_no, is_final_turn in _turn_sequence():
+                for pid, turn_no, is_final_turn, speaker_idx in _turn_sequence():
                     if debate_over:
                         break
                     p_char = all_chars.get(pid)
@@ -1034,8 +1036,17 @@ async def chat_stream(req: ChatRequest):
                             else:
                                 p_lc_msgs.append(HumanMessage(content=f"({sender} said): {m['content']}"))
 
-                    # Add current multimodal message
-                    p_lc_msgs.append(HumanMessage(content=human_content))
+                    # Add current multimodal message.
+                    #
+                    # In a debate only the OPENING speaker is answering the user
+                    # — everyone after is answering whoever spoke last, which is
+                    # already the final entry in the history above. Re-appending
+                    # the prompt on every turn puts it after the previous
+                    # speaker, so each character reads it as the user asking the
+                    # same thing again ("...now they say again...") instead of
+                    # as a rebuttal to reply to.
+                    if not (debate_mode and speaker_idx > 0):
+                        p_lc_msgs.append(HumanMessage(content=human_content))
 
 
                     char_model = resolve_character_model(p_char, provider) if tier == "normal" else None

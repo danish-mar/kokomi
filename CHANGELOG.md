@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.4.1] - 2026-09-02
+
+### Fixed
+
+- **Debaters were being re-asked the original prompt on every turn.** The user's message was appended to the end of the context for each turn, so after the opening statement every character saw the transcript followed by the original request again — and read it as the user repeating themselves rather than as a rebuttal to answer. It showed up in the replies as "…now they say again…". Only the opening speaker now answers the user; every turn after ends on the previous speaker's message, which is what they should be responding to. Ordinary group chat, where each character genuinely is answering the same user message, is unchanged.
+
 ## [v6.4.0] - 2026-09-02
 
 ### Added
