@@ -2,117 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v6.6.1] - 2026-09-02
+## [v6.7.0] - 2026-09-02
 
-### Fixed
-
-- **Switching conversation mid-response left the transcript empty until a refresh.** Leaving a conversation that was still generating never detached the stream reader, so it kept writing into message indices belonging to a transcript that had already been replaced — and its `loading` flag stayed set, which made the reconnect logic refuse to attach when you came back. Navigating away now detaches the reader (without stopping the generation, which is the point of it running in the background), and a superseded reader can no longer tear down the state of the one that replaced it.
-- **PDF generation failed outright on portrait images** — the reported "Render failed (500)". Only the image width was clamped, so a tall image scaled to the page width ended up taller than the page, and ReportLab refused to lay it out. Because layout only happens when the document is built, that error escaped the per-image error handling and failed the entire render. Images are now fitted to both dimensions.
-- **A download that isn't really an image also killed the whole document.** ReportLab defers decoding to build time, so an HTML error page or unsupported format saved as `.png` was accepted when added and only exploded at the end. Images are now decoded when added, so a bad one degrades to a placeholder, and a build failure retries without images rather than returning nothing.
-- Failed PDF renders now report the server's actual reason in the console instead of a bare `Render failed (500)`.
-
-## [v6.6.0] - 2026-09-02
+Everything since v6.0.4, released together. Background generation is the headline: a
+response no longer belongs to the tab that asked for it.
 
 ### Added
 
-- **Responses now survive you leaving.** Closing the tab, navigating away or losing connection used to abort generation outright — and because a conversation was only written to the database once the response finished, the entire exchange was lost, including your own message. Generation is now decoupled from the request that started it: it runs to completion regardless of who is watching, and your message is saved before generation begins rather than after.
-- **Reconnecting picks up exactly where you left off.** Every event is retained server-side while a response is being written, so reopening a conversation mid-generation replays what you missed and then carries on streaming live, instead of leaving you with a half-finished transcript or a blank wait.
-- **Conversations still being written glow in the sidebar** — a slow accent pulse on the card until the response lands, including for work started in another tab or before a reload. Respects `prefers-reduced-motion` (keeps the ring, drops the pulse).
-- **Notification when a reply finishes while you're on another tab**, with a short two-note chime. The chime is synthesized with WebAudio rather than loaded from an audio file, so it can't break the app's offline guarantee. Both the notification and the sound are toggles in Settings → General; the notification one asks for browser permission when you enable it.
+- **Responses survive you leaving.** Closing the tab, navigating away or losing connection used to abort generation outright — and because a conversation was only written to the database once the response finished, the whole exchange was lost, your own message included. Generation is now decoupled from the request that started it: it runs to completion regardless of who is watching, and your message is saved before generation begins rather than after.
+- **Reconnecting picks up exactly where you left off.** Every event is retained while a response is being written, so reopening a conversation mid-generation replays what you missed and then carries on streaming live, instead of leaving you with a half-finished transcript or a blank wait.
+- **Conversations still being written glow in the sidebar** — a slow accent pulse until the response lands, including for work started in another tab or before a reload. Respects `prefers-reduced-motion`.
+- **Notification when a reply finishes while you're on another tab**, with a short two-note chime synthesized via WebAudio rather than loaded from an audio file, so it can't break the app's offline guarantee. Both are toggles in Settings → General.
+- **Debate mode**: with two or more characters in a room, a pill beside the composer's Search toggle lets them argue among themselves — taking turns responding to *each other* while you watch, interjecting whenever you like. The `[SKIP]` escape that normally lets a character pass is disabled, since a debate where anyone can opt out dies on the second turn. It ends when a character judges it finished, when you press stop, or at a round cap so two stubborn characters can't argue indefinitely on your token budget.
+- **Skills** — reusable instruction packs in Anthropic's open Agent Skills format (`data/skills/<slug>/SKILL.md`), so skills written for Claude drop straight in. Only each skill's name and one-line summary sits in the system prompt; the body is fetched through a new `load_skill` tool when the model judges it relevant, so a dozen skills cost a dozen lines rather than a dozen documents, and none installed costs nothing at all. Manage them in Settings → Skills: write and edit in-app, toggle one off without deleting it, or import a `SKILL.md` from a GitHub URL.
+- **A message rail replaces the chat scrollbar** — a minimap of the conversation with one tick per message, sized by message length and evenly spaced so a short conversation reads as a legible cluster rather than a few marks scattered down an empty strip. Ticks swell toward your cursor or finger (and toward wherever you're reading as you scroll); hovering reveals the message with its author, dragging scrubs the transcript, and chevrons step one message at a time.
+- **Scroll-to-bottom button** that fades in once you're a screen away from the latest message.
+- **Triton devices can carry a description** — a free-text note ("home server, runs Docker + Qdrant") editable per device. Devices previously carried only a hostname and platform, so the AI had no idea what any given machine actually *was*; the description now appears in both the `triton_list_devices` tool output and the roster injected into the system prompt.
+- `app/docx_md.py` — one shared implementation of markdown → Word inline runs and tables for both exporters, following the same reasoning as `app/pdf_render.py`.
+- Regression tests for background generation, DOCX/PDF export fidelity, and the event-loop-blocking fix.
 
 ### Changed
 
-- **Stop now really stops.** Aborting the request no longer ends a generation (that is the point of the change above), so the stop button calls a new cancel endpoint that actually halts the work — otherwise stopping would merely have hidden a response that kept running and kept consuming tokens.
-
-## [v6.5.0] - 2026-09-02
+- **PDF artifacts are no longer a black box.** The card used to show only a title and page estimate, with the actual document existing nowhere in the UI until you clicked View. It now renders the markdown inline as a live preview, so you can read the document as it's being written and skim it afterwards.
+- **Stop now really stops.** Aborting the request no longer ends a generation, so the stop button calls a cancel endpoint that actually halts the work — otherwise stopping would merely have hidden a response that kept running and kept consuming tokens.
+- **Sidebar open/closed state persists** across reloads instead of always reopening.
 
 ### Fixed
 
-- **Tables and formatting were lost when exporting to Word.** Neither DOCX exporter handled markdown tables at all, so a table row fell through to the generic paragraph branch and landed in the document as literal `| Symptom | Cause | Fix |` text — divider row included. Both now emit a real Word table with a shaded header row, and cells keep their own inline emphasis.
-- **The canvas exporter dropped every bold, italic and inline-code span.** It stripped the markdown markers on the way out with a comment claiming the writers applied real styling, but the writers just wrote the stripped text — so emphasis silently disappeared rather than being converted. Emphasis now becomes real Word runs. The same handling was added to the workflow exporter, which previously managed `**bold**` only and quietly deleted the markers around anything else.
-- Markdown table support also added to the canvas PDF export, and tables now survive an export→re-import round trip as tables rather than flattening to text.
-
-### Added
-
-- `app/docx_md.py` — one shared implementation of markdown → Word inline runs and tables for both exporters, following the same reasoning as `app/pdf_render.py` (which exists so the workflow and chat PDF paths can't drift apart). Also covers `####` headings, blockquotes, horizontal rules and links, which the workflow exporter previously ignored.
-- `tests/test_docx_export.py` — asserts against the saved document rather than the code shape, since a table row falling through to a generic paragraph branch still looks fine in a diff and lost emphasis fails silently.
-
-## [v6.4.3] - 2026-09-02
-
-### Changed
-
-- **Scroll-to-bottom button now just fades out on click** instead of shrinking away — a plain opacity transition reads calmer than the scale-down it had.
-
-## [v6.4.2] - 2026-09-02
-
-### Fixed
-
-- **The scroll-to-bottom button sat inside the composer, over the input.** It was positioned with a fixed offset from the bottom of the page, which only lined up for a minimal composer — as soon as the composer grew (a knowledge-space bar, the toolbar row, a multi-line message) the button ended up on top of it. It's now docked to the composer's own box, so it clears it by a consistent gap at any height, and it's a small capsule rather than a circle. It also hides while a clarifying-question card is using the same slot.
-
-## [v6.4.1] - 2026-09-02
-
-### Fixed
-
-- **Debaters were being re-asked the original prompt on every turn.** The user's message was appended to the end of the context for each turn, so after the opening statement every character saw the transcript followed by the original request again — and read it as the user repeating themselves rather than as a rebuttal to answer. It showed up in the replies as "…now they say again…". Only the opening speaker now answers the user; every turn after ends on the previous speaker's message, which is what they should be responding to. Ordinary group chat, where each character genuinely is answering the same user message, is unchanged.
-
-## [v6.4.0] - 2026-09-02
-
-### Added
-
-- **Skills** — reusable instruction packs the model loads only when it needs them. A skill is a folder under `data/skills/<slug>/` holding a `SKILL.md`: YAML frontmatter with a name and description, then a markdown body. This is Anthropic's open Agent Skills format, so skills written for Claude — including the official open-source ones — drop straight in.
-
-  The point is progressive disclosure: only each skill's name and one-line summary sit in the system prompt, and the body is fetched via a new `load_skill` tool when the model judges it relevant. Two skills cost roughly 150 tokens per message rather than two whole documents, and a fresh install with no skills adds nothing to the prompt at all.
-
-  Manage them in Settings → Skills: write and edit in-app, toggle one off without deleting it (a disabled skill vanishes from the prompt entirely), or import a `SKILL.md` straight from a GitHub URL. The filesystem stays the source of truth, so skills authored elsewhere can just be dropped into `data/skills/`.
-
-## [v6.3.0] - 2026-09-02
-
-### Added
-
-- **Debate mode**: with two or more characters in a room, a new pill beside the composer's Search toggle lets them argue among themselves. Instead of each character answering you once and stopping, they take turns responding to *each other* — you set the topic and then watch, interjecting whenever you like. Characters are told to engage with what was actually just said, hold their own position rather than agree to be agreeable, and keep turns short; the `[SKIP]` escape that normally lets a character pass is disabled, since a debate where anyone can opt out dies on the second turn. A debate ends when a character judges it finished (conceded, agreed, or going in circles), when you press stop, or after a hard round cap so two stubborn characters can't argue indefinitely on your token budget. Long-term memory summarization is skipped mid-debate and runs once at the end, rather than firing per character per round over characters arguing with each other.
-
-## [v6.2.3] - 2026-09-02
-
-### Fixed
-
-- **Clicking the message rail jumped instantly instead of scrolling smoothly.** `onRailDown` fired an initial move event while already marked as dragging, so even a plain click was treated as a drag and took the instant-scrub path — the smooth-jump-on-release code was unreachable. A press now has to move a few pixels before it counts as a drag; anything short of that eases to the nearest tick on release, as intended.
-
-## [v6.2.2] - 2026-09-02
-
-### Changed
-
-- **Reworked the message rail to be legible at small message counts.** Ticks were previously positioned proportionally to scroll height, which scatters five or six marks thinly down a tall empty strip. They're now spaced evenly and centred as a group, giving a tight readable cluster in short conversations while still compressing into a conventional scrollbar once there are enough messages to fill the rail.
-- **Every message now gets a tick**, not just your questions, and the preview bubble names who wrote it — so the rail maps the whole conversation rather than only one side of it.
-- **Scrolling now drives the fisheye** instead of merely recolouring the active tick: the rail swells around wherever you're currently reading, and hands off to your pointer when you touch it.
-- **Added step chevrons** at each end of the rail to jump one message at a time.
-
-## [v6.2.1] - 2026-09-02
-
-### Fixed
-
-- **The live PDF preview stuttered while the document was being written.** Three compounding causes, all introduced with the preview in v6.1.0: the entire accumulated document was re-parsed as markdown on every streamed chunk (quadratic over the stream, so it got visibly worse the longer the document ran), and the auto-scroll that keeps the preview on its newest line read `scrollHeight` on every chunk, forcing a synchronous layout each time. Parsing is now cached per artifact and rate-limited while streaming, and the scroll is coalesced into an animation frame. On a fast 600-chunk stream this cuts markdown parses from 601 to 33; re-rendering an already-finished document now costs none at all, where previously every unrelated re-render re-parsed it from scratch.
-- **The message rail's preview bubble overlapped the header** when hovering a tick near the top of the transcript. It now sits at a fixed centre height on the right, so it can't collide with the header or composer and doesn't chase your finger up and down while you scrub.
-
-### Changed
-
-- **The message rail now has a fisheye.** Ticks swell toward your cursor or finger and taper off with distance (gaussian falloff, so there's no hard edge where the effect stops), letting the rail bend around wherever you are instead of only reacting one tick at a time.
-
-## [v6.2.0] - 2026-09-02
-
-### Changed
-
-- **The chat scrollbar is now a message rail** — a minimap of the questions you've asked instead of a generic scroll thumb. Each user message becomes a tick positioned where it actually sits in the transcript, with its length scaled to how long that message was, and the tick covering what you're currently reading stays highlighted. Hovering a tick reveals that message in a bubble; on touch, dragging down the rail scrolls the transcript while the bubble follows your finger, so you can skim back through a long conversation by feel rather than scrubbing blindly. A tap jumps to that message. The native scrollbar is hidden in favour of it.
-
-## [v6.1.0] - 2026-09-02
-
-### Added
-
-- **Scroll-to-bottom button**: a small floating button fades in once you've scrolled more than a screen's-worth away from the latest message, and smooth-scrolls you back down.
-- **Triton devices can carry a description** — a free-text note ("home server, runs Docker + Qdrant") editable per device in Settings → Triton. Devices previously only had a hostname and platform, so the AI had no idea what any given machine actually *was*; the description now appears both in the `triton_list_devices` tool output and in the device roster injected into the system prompt.
-
-### Changed
-
-- **PDF artifacts are no longer a black box.** The artifact card used to show only a title and page estimate — the actual document existed nowhere in the UI until you clicked View and waited for a round-trip through ReportLab. It now renders the markdown inline as a live formatted preview, using the same renderer as chat messages, so you can read the document as it's being written (auto-following the newest line while streaming) and skim it afterwards in a capped, fade-bottomed panel. View/Download still produce the real PDF.
+- **PDF generation failed outright on portrait images** — the "Render failed (500)". Only image width was clamped, so a tall image scaled to the page width ended up taller than the page and ReportLab refused to lay it out. Because layout happens only when the document is built, that error escaped the per-image error handling and failed the entire render. Images are now fitted to both dimensions, decoded when added rather than at build time (so a download that isn't really an image degrades to a placeholder instead of exploding at the end), and a build failure retries without images.
+- **Switching conversation mid-response left the transcript empty until a refresh.** Leaving a conversation that was still generating never detached the stream reader, so it kept writing into message indices belonging to a transcript that had already been replaced — and the `loading` flag it left set made the reconnect logic refuse to attach on return.
+- **Tables and formatting were lost when exporting to Word.** Neither DOCX exporter handled markdown tables, so rows landed in the document as literal `| a | b |` text, divider row included. The canvas exporter additionally stripped every bold, italic and inline-code marker without ever applying real styling, so emphasis silently disappeared. Both now emit real Word tables with shaded headers, and emphasis becomes real runs.
+- **The live PDF preview stuttered while the document was being written** — the whole accumulated document was re-parsed on every streamed chunk (quadratic over the stream) and the auto-scroll forced a synchronous layout each time. On a fast 600-chunk stream this cuts markdown parses from 601 to 33, and re-rendering a finished document now costs none.
+- **Debaters were re-asked the original prompt every turn**, so each character read it as the user repeating themselves rather than as a rebuttal to answer. Only the opening speaker answers the user now.
+- **The scroll-to-bottom button sat inside the composer**, having been positioned with a fixed offset that only cleared a minimal composer.
+- **The composer tier slider showed the wrong model** for a tier set to the Custom provider, still checking the old `local` provider name.
 
 ## [v6.0.4] - 2026-08-29
 
