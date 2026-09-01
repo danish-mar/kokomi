@@ -288,6 +288,17 @@ async def chat(req: ChatRequest):
         if triton_note:
             persona += triton_note
 
+        # Skills: catalogue in the prompt, bodies fetched on demand via load_skill.
+        from app.skills import skills_prompt_block
+        from app.tools.skill_tool import get_skill_tool
+        skills_note = await asyncio.to_thread(skills_prompt_block)
+        skill_tool = get_skill_tool()
+        if skill_tool:
+            tool_defs.append(skill_tool)
+            builtin_tools[skill_tool.name] = skill_tool
+        if skills_note:
+            persona += "\n\n" + skills_note
+
         persona += MEDIA_WIDGET_GUIDE
 
         # Re-initialize SystemMessage with updated persona (including MCP/RAG context)
@@ -550,6 +561,17 @@ async def chat_stream(req: ChatRequest):
                     tool_defs.append(t)
                     builtin_tools[t.name] = t
 
+                # Skills: only the catalogue (names + summaries) goes in the
+                # prompt; load_skill fetches a skill's actual instructions when
+                # the model decides it needs them.
+                from app.skills import skills_prompt_block
+                from app.tools.skill_tool import get_skill_tool
+                skills_note = await asyncio.to_thread(skills_prompt_block)
+                skill_tool = get_skill_tool()
+                if skill_tool:
+                    tool_defs.append(skill_tool)
+                    builtin_tools[skill_tool.name] = skill_tool
+
                 for err in mcp_errors:
                     await queue.put(f"data: {json.dumps({'type': 'warning', 'message': err})}\n\n")
 
@@ -753,6 +775,9 @@ async def chat_stream(req: ChatRequest):
 
                     if triton_note:
                         p_persona += triton_note
+
+                    if skills_note:
+                        p_persona += "\n\n" + skills_note
 
                     p_persona += MEDIA_WIDGET_GUIDE
 

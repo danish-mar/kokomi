@@ -31,6 +31,10 @@ function settingsApp() {
         charSelectedTools: [],
         allPoolTools: [],
         // ── Triton (remote client moorings) ──
+        skills: [],
+        skillDraft: null,
+        skillImportUrl: '',
+        skillImporting: false,
         tritonDevices: [],
         tritonPending: [],
         tritonCodes: {},          // conn_id -> typed 8-digit code
@@ -162,8 +166,72 @@ function settingsApp() {
             if (tabName === 'about') {
                 this.checkForUpdates();
             }
+            if (tabName === 'skills') {
+                this.loadSkills();
+            }
             if (tabName === 'triton') {
                 this.loadTriton();
+            }
+        },
+
+        // ── Skills ───────────────────────────────────────────────────────────
+        async loadSkills() {
+            try {
+                const r = await fetch('/api/skills');
+                const d = await r.json();
+                this.skills = d.skills || [];
+            } catch (e) { console.error('Skill load failed', e); }
+        },
+        newSkill() {
+            this.skillDraft = { slug: null, name: '', description: '', body: '', enabled: true };
+        },
+        editSkill(s) {
+            // Copied, not referenced — otherwise typing in the editor would
+            // mutate the list row live and a Cancel wouldn't restore anything.
+            this.skillDraft = { slug: s.slug, name: s.name, description: s.description, body: s.body, enabled: s.enabled };
+        },
+        async saveSkill() {
+            if (!this.skillDraft || !this.skillDraft.name.trim()) {
+                this.showToast('Give the skill a name first', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/skills', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.skillDraft),
+                });
+                if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Save failed');
+                this.showToast('Skill saved', 'success');
+                this.skillDraft = null;
+                await this.loadSkills();
+            } catch (e) { this.showToast(e.message || 'Failed to save skill', 'error'); }
+        },
+        async removeSkill(s) {
+            if (!confirm(`Delete the skill "${s.name}"? This removes it from disk.`)) return;
+            try {
+                await fetch('/api/skills/' + encodeURIComponent(s.slug), { method: 'DELETE' });
+                this.showToast('Deleted ' + s.name, 'success');
+                await this.loadSkills();
+            } catch (e) { this.showToast('Delete failed', 'error'); }
+        },
+        async importSkill() {
+            const url = (this.skillImportUrl || '').trim();
+            if (!url) { this.showToast('Paste a link to a SKILL.md first', 'error'); return; }
+            this.skillImporting = true;
+            try {
+                const r = await fetch('/api/skills/import-github', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.detail || 'Import failed');
+                this.showToast(`Imported "${d.skill.name}"`, 'success');
+                this.skillImportUrl = '';
+                await this.loadSkills();
+            } catch (e) {
+                this.showToast(e.message || 'Import failed', 'error');
+            } finally {
+                this.skillImporting = false;
             }
         },
 

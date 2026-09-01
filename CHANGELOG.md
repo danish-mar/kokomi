@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.4.0] - 2026-09-02
+
+### Added
+
+- **Skills** — reusable instruction packs the model loads only when it needs them. A skill is a folder under `data/skills/<slug>/` holding a `SKILL.md`: YAML frontmatter with a name and description, then a markdown body. This is Anthropic's open Agent Skills format, so skills written for Claude — including the official open-source ones — drop straight in.
+
+  The point is progressive disclosure: only each skill's name and one-line summary sit in the system prompt, and the body is fetched via a new `load_skill` tool when the model judges it relevant. Two skills cost roughly 150 tokens per message rather than two whole documents, and a fresh install with no skills adds nothing to the prompt at all.
+
+  Manage them in Settings → Skills: write and edit in-app, toggle one off without deleting it (a disabled skill vanishes from the prompt entirely), or import a `SKILL.md` straight from a GitHub URL. The filesystem stays the source of truth, so skills authored elsewhere can just be dropped into `data/skills/`.
+
 ## [v6.3.0] - 2026-09-02
 
 ### Added

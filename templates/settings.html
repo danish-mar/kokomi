@@ -93,6 +93,10 @@
                     <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-lavender));"><i class="fa-solid fa-circle-nodes" style="font-size:11px;color:#fff;"></i></span>
                     Triton
                 </button>
+                <button @click="selectTab('skills')" class="tahoe-nav-item" :class="tab === 'skills' ? 'active' : ''">
+                    <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-lavender), var(--swatch-indigo));"><i class="fa-solid fa-graduation-cap" style="font-size:11px;color:#fff;"></i></span>
+                    Skills
+                </button>
             </div>
 
             <div class="tahoe-sidebar-section">
@@ -1105,6 +1109,101 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- ═══ TAB: SKILLS ═══ -->
+            <div x-show="tab === 'skills'" x-transition class="tab-panel" x-init="$watch('tab', v => { if (v==='skills') loadSkills(); })">
+                <h2 class="section-title">Skills</h2>
+
+                <div class="glass-card" style="padding:16px 18px; margin-bottom:14px;">
+                    <div style="display:flex; align-items:flex-start; gap:12px; justify-content:space-between; flex-wrap:wrap;">
+                        <div style="display:flex; gap:12px; align-items:flex-start;">
+                            <div class="tri-chip"><i class="fa-solid fa-graduation-cap"></i></div>
+                            <div>
+                                <p style="font-weight:600; font-size:13.5px; margin:0 0 3px; color:var(--text-primary);">Instruction packs, loaded on demand</p>
+                                <p style="font-size:11px; color:var(--text-secondary); margin:0; max-width:520px;">
+                                    Only each skill's name and summary sits in the prompt; the full instructions are pulled in
+                                    when the model decides one is relevant. Uses Anthropic's Agent Skills format, so skills
+                                    written for Claude work here unchanged.
+                                </p>
+                            </div>
+                        </div>
+                        <button @click="newSkill()" class="btn-accent" style="white-space:nowrap;">
+                            <i class="fa-solid fa-plus" style="font-size:10px;"></i> New skill
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Import from GitHub -->
+                <div class="glass-card" style="padding:14px 18px; margin-bottom:14px;">
+                    <p style="font-size:11.5px; font-weight:600; color:var(--text-primary); margin:0 0 8px;">Import from GitHub</p>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <input type="text" x-model="skillImportUrl" @keydown.enter="importSkill()"
+                               placeholder="https://github.com/…/skills/pdf-filling/SKILL.md"
+                               class="apple-field" style="flex:1; min-width:240px; font-size:11.5px;">
+                        <button @click="importSkill()" class="btn-ghost" style="white-space:nowrap;">
+                            <i class="fa-solid fa-download" :class="skillImporting ? 'fa-spin fa-spinner' : ''" style="font-size:10px;"></i> Import
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Editor -->
+                <div x-show="skillDraft" x-transition class="glass-card" style="padding:16px 18px; margin-bottom:14px;">
+                    <template x-if="skillDraft">
+                        <div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                                <input type="text" x-model="skillDraft.name" placeholder="Skill name"
+                                       class="apple-field" style="flex:1; min-width:180px; font-size:12.5px; font-weight:600;">
+                                <button @click="skillDraft.enabled = !skillDraft.enabled"
+                                        class="apple-toggle" :class="skillDraft.enabled ? 'on' : 'off'"></button>
+                            </div>
+                            <input type="text" x-model="skillDraft.description"
+                                   placeholder="One line: when should the model reach for this? (this is what it sees in every prompt)"
+                                   class="apple-field" style="width:100%; font-size:11.5px; margin-bottom:10px;">
+                            <textarea x-model="skillDraft.body" rows="12"
+                                      placeholder="# Instructions&#10;&#10;The full skill body in markdown. Only loaded when the model calls load_skill."
+                                      class="apple-field" style="width:100%; font-family:var(--font-mono, monospace); font-size:11.5px; line-height:1.6; resize:vertical;"></textarea>
+                            <div style="display:flex; gap:8px; margin-top:10px; justify-content:flex-end;">
+                                <button @click="skillDraft = null" class="btn-ghost">Cancel</button>
+                                <button @click="saveSkill()" class="btn-accent">
+                                    <i class="fa-solid fa-check" style="font-size:10px;"></i> Save skill
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Installed -->
+                <div class="tri-section-head">
+                    <span>Installed</span>
+                    <span x-show="skills.length" class="tri-count" x-text="skills.length"></span>
+                </div>
+                <template x-if="skills.length === 0">
+                    <div class="glass-card" style="text-align:center; padding:22px;">
+                        <i class="fa-solid fa-graduation-cap" style="font-size:22px; color:var(--text-quaternary); margin-bottom:8px; display:block;"></i>
+                        <p style="font-size:12px; color:var(--text-secondary); margin:0;">No skills yet — nothing is added to your prompts.</p>
+                    </div>
+                </template>
+                <template x-for="s in skills" :key="s.slug">
+                    <div class="glass-card tri-row" style="padding:14px 18px; margin-bottom:10px;">
+                        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                            <div class="tri-chip" :class="s.enabled ? 'tri-chip--on' : ''"><i class="fa-solid fa-graduation-cap"></i></div>
+                            <div style="flex:1; min-width:170px;">
+                                <div style="font-weight:600; font-size:13.5px; color:var(--text-primary);" x-text="s.name"></div>
+                                <div style="font-size:11px; color:var(--text-quaternary);" x-text="s.description || 'No summary — the model won\'t know when to use this.'"></div>
+                            </div>
+                            <span class="tri-pill" :class="s.enabled ? 'tri-pill--on' : 'tri-pill--off'">
+                                <span class="tri-dot"></span><span x-text="s.enabled ? 'Active' : 'Off'"></span>
+                            </span>
+                            <button @click="editSkill(s)" class="btn-ghost" style="white-space:nowrap;">
+                                <i class="fa-solid fa-pen" style="font-size:10px;"></i> Edit
+                            </button>
+                            <button @click="removeSkill(s)" class="btn-ghost tri-danger" style="white-space:nowrap;">
+                                <i class="fa-solid fa-trash" style="font-size:10px;"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </template>
             </div>
 
             <!-- ═══ TAB: TRITON ═══ -->
