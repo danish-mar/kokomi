@@ -14,28 +14,30 @@ import { isCanvasArtifact } from './canvas.js';
  * streaming and the result reused in between; once finished, the cache also
  * spares every later re-render of that message from re-parsing the document.
  */
-// ── "Laying out the document" filmstrip ──────────────────────────────────
-// Must match the animation durations in the .kokomi-morph-* CSS.
-const KOKOMI_MORPH_PERIOD = 4.5;   // seconds for the highlight to cross all sheets
+// ── "Laying out the document" morph ──────────────────────────────────────
+// Must match the animation duration in the .kokomi-morph-* CSS.
+const KOKOMI_MORPH_PERIOD = 12;    // seconds for one pass through all four layouts
 const _pdfMorphStart = new Map();  // art id -> ms, so the phase survives re-renders
 
-// One entry per page sheet: 'fig' with a height, or a line width. Deliberately
-// varied — three identical sheets read as a loading bar, not as pages.
-const KOKOMI_MORPH_SHEETS = [
-    [{ fig: '44%' }, 88, 74, 92, 56],
-    [92, 80, 96, 70, 88, 58, 84],
-    [86, 72, { fig: '30%' }, 90, 62],
+// The four regions, in the order their keyframes are assigned. Copy regions
+// carry a few thick bars at uneven, prose-like widths; the first bar of each
+// is darker so the region reads as heading-then-body.
+const KOKOMI_MORPH_REGIONS = [
+    { fig: true },
+    { bars: [100, 88, 96, 64] },
+    { bars: [96, 84, 100, 72, 58] },
+    { fig: true },
 ];
 
 /**
- * Build the filmstrip's HTML.
+ * Build the morphing page's HTML.
  *
  * The PDF card is regenerated from scratch on every streamed chunk (x-html
  * replaces the subtree), and a brand-new element restarts its CSS animations
  * at 0% — which pinned the whole thing to its first frame for as long as the
- * model kept writing, i.e. exactly when it was supposed to be moving. So each
- * element gets a negative animation-delay derived from real elapsed time,
- * placing the fresh node at the same phase the one it replaced had reached.
+ * model kept writing, i.e. exactly when it was supposed to be moving. So the
+ * regions get a negative animation-delay derived from real elapsed time,
+ * placing the fresh nodes at the same phase the ones they replaced reached.
  */
 function _morphStrip(artId) {
     let started = _pdfMorphStart.get(artId);
@@ -44,27 +46,21 @@ function _morphStrip(artId) {
         _pdfMorphStart.set(artId, started);
     }
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    const phase = ((now - started) / 1000) % KOKOMI_MORPH_PERIOD;
-    const P = KOKOMI_MORPH_PERIOD;
-    // Normalised into [-P, 0) — a positive delay would make the element sit
-    // still and wait, which is right on the very first cycle and wrong on
-    // every one after it.
-    const delay = (offset) => (((((offset - phase) % P) + P) % P) - P).toFixed(3);
+    // Negative, in (-P, 0] — a positive delay would make the element sit still
+    // and wait, which is right on the very first cycle and wrong on every one
+    // after it.
+    const delay = -(((now - started) / 1000) % KOKOMI_MORPH_PERIOD);
+    const d = delay.toFixed(3);
 
-    const sheets = KOKOMI_MORPH_SHEETS.map((items, s) => {
-        const sheetOffset = (s * P) / KOKOMI_MORPH_SHEETS.length;
-        const parts = items.map((item, idx) => {
-            // Contents draw in just behind their sheet's highlight, in order.
-            const d = delay(sheetOffset + 0.05 + idx * 0.06);
-            return typeof item === 'object'
-                ? `<i class="kokomi-morph-fig" style="height:${item.fig};animation-delay:${d}s"></i>`
-                : `<i class="kokomi-morph-line" style="width:${item}%;animation-delay:${d}s"></i>`;
-        }).join('');
-        return `<div class="kokomi-morph-sheet" style="animation-delay:${delay(sheetOffset)}s">${parts}</div>`;
-    }).join('');
+    const regions = KOKOMI_MORPH_REGIONS.map(r => r.fig
+        ? `<div class="kokomi-morph-region kokomi-morph-fig" style="animation-delay:${d}s"></div>`
+        : `<div class="kokomi-morph-region kokomi-morph-copy" style="animation-delay:${d}s">`
+          + r.bars.map(w => `<b style="width:${w}%"></b>`).join('')
+          + `</div>`
+    ).join('');
 
     return `<div class="kokomi-morph">
-                <div class="kokomi-morph-strip">${sheets}</div>
+                <div class="kokomi-morph-page">${regions}</div>
                 <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
             </div>`;
 }

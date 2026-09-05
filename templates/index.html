@@ -1044,85 +1044,114 @@
     .kokomi-pdf-preview.is-streaming { max-height: 340px; overflow-y: auto; }
     .kokomi-pdf-preview.is-streaming::after { display: none; }
 
-    /* ── "Laying out the document" pages ────────────────
-       While a PDF is being written the card shows a filmstrip of page sheets
-       being composed: a highlight travels sheet to sheet, and each sheet's
-       figure panels and copy lines draw themselves in as it arrives. It's a
-       mood, not a preview — the eye button in the card header swaps to the
-       actual markdown coming off the model.
+    /* ── "Laying out the document" morph ────────────────
+       While a PDF is being written the card shows a single page whose regions
+       slide and resize through four layouts — hero image, two-column, sidebar,
+       split — the way a page gets composed. It's a mood, not a preview; the eye
+       button in the card header swaps to the actual markdown coming off the
+       model.
+
+       Figures are soft translucent panels rather than hard outlines, and copy
+       is a few thick bars with generous spacing rather than many fine rules —
+       at this size, closely-ruled lines read as a barcode instead of as text.
 
        Timing note: the card's HTML is rebuilt on every streamed chunk, which
        restarts CSS animations from 0% and froze the whole thing on its first
        frame. Every animated element is therefore given a NEGATIVE
        animation-delay computed from when the artifact started, so a freshly
-       built node resumes at the phase the old one was at. See _morphStrip().
-       KOKOMI_MORPH_PERIOD in chat.js must match the durations below. */
+       built node resumes at the phase the one it replaced had reached. See
+       _morphStrip(); KOKOMI_MORPH_PERIOD there must match the 12s below. */
     .kokomi-morph {
         position: relative; margin: 0 16px 14px; padding-top: 12px;
         border-top: 1px solid var(--border);
     }
-    .kokomi-morph-strip { display: flex; gap: 12px; align-items: stretch; }
-    .kokomi-morph-sheet {
-        flex: 1 1 0; min-width: 0; height: 152px; border-radius: 11px;
-        background: color-mix(in srgb, var(--accent) 3%, var(--bg-canvas));
-        padding: 13px; display: flex; flex-direction: column; gap: 7px;
-        animation: kokomi-sheet-active 4.5s ease-in-out infinite;
+    .kokomi-morph-page {
+        position: relative; height: 190px; border-radius: 16px; overflow: hidden;
+        padding: 34px 18px 18px;
+        background:
+            linear-gradient(160deg,
+                color-mix(in srgb, var(--accent) 5%, var(--bg-canvas)),
+                var(--bg-canvas) 70%);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, var(--border));
     }
-    /* The sheet currently being laid out lifts and picks up an accent rim;
-       the other two sit quiet. Staggering the same keyframes by a third of the
-       cycle each is what makes the highlight travel. */
-    @keyframes kokomi-sheet-active {
-        0%, 24% {
-            box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 65%, transparent),
-                        0 0 16px -3px color-mix(in srgb, var(--accent) 55%, transparent);
-            transform: translateY(-3px);
-        }
-        40%, 100% {
-            box-shadow: inset 0 0 0 1px var(--border);
-            transform: translateY(0);
-        }
-    }
-    /* Copy lines: drawn left-to-right as the sheet is composed. */
-    .kokomi-morph-line {
-        flex: none; height: 4px; border-radius: 2px;
-        background: color-mix(in srgb, var(--accent) 24%, transparent);
-        transform-origin: left center;
-        animation: kokomi-morph-draw 4.5s ease-out infinite;
-    }
-    /* Fades out at the tail rather than snapping back to nothing at the loop
-       boundary — an instant reset reads as a glitch, not as a redraw. */
-    @keyframes kokomi-morph-draw {
-        0%       { transform: scaleX(0); opacity: 0; }
-        16%, 86% { transform: scaleX(1); opacity: 1; }
-        100%     { transform: scaleX(1); opacity: 0; }
-    }
-    /* Figure panels: a soft filled block with a picture glyph, so a sheet with
-       an image in it reads differently from a sheet of pure text. */
-    .kokomi-morph-fig {
-        position: relative; flex: none; border-radius: 6px; overflow: hidden;
-        background: color-mix(in srgb, var(--accent) 13%, transparent);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
-        animation: kokomi-morph-place 4.5s ease-out infinite;
-    }
-    @keyframes kokomi-morph-place {
-        0%       { opacity: 0; transform: scale(0.93); }
-        16%, 86% { opacity: 1; transform: none; }
-        100%     { opacity: 0; transform: none; }
-    }
-    .kokomi-morph-fig::before {          /* sun */
-        content: ""; position: absolute; right: 20%; top: 18%;
-        width: 18%; aspect-ratio: 1; border-radius: 50%;
-        background: color-mix(in srgb, var(--accent) 42%, transparent);
-    }
-    .kokomi-morph-fig::after {           /* ridgeline */
-        content: ""; position: absolute; left: 7%; right: 7%; bottom: 0; height: 54%;
+    /* The page's running head — the one thing that doesn't move. */
+    .kokomi-morph-page::before {
+        content: ""; position: absolute; left: 18px; top: 16px; width: 30%; height: 6px;
+        border-radius: 3px;
         background: color-mix(in srgb, var(--accent) 34%, transparent);
-        clip-path: polygon(0% 100%, 34% 20%, 58% 66%, 74% 42%, 100% 100%);
     }
-    /* Three sheets is a filmstrip; two is enough to read as one on a phone. */
-    @media (max-width: 480px) {
-        .kokomi-morph-sheet:nth-child(3) { display: none; }
+    /* A slow sheen across the whole page, so the pauses between layouts still
+       feel like work in progress. */
+    .kokomi-morph-page::after {
+        content: ""; position: absolute; inset: 0; pointer-events: none;
+        background: linear-gradient(105deg,
+            transparent 38%,
+            color-mix(in srgb, var(--accent) 9%, transparent) 50%,
+            transparent 62%);
+        background-size: 250% 100%;
+        animation: shimmer 3.4s ease-in-out infinite;
     }
+    .kokomi-morph-region {
+        position: absolute; display: block;
+        animation-duration: 12s;
+        animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+        animation-iteration-count: infinite;
+    }
+    /* Figure: a soft filled panel with a faint inner rim and a diagonal
+       lift, so it reads as a placed image rather than an empty hole. */
+    .kokomi-morph-fig {
+        border-radius: 11px;
+        background: linear-gradient(145deg,
+            color-mix(in srgb, var(--accent) 17%, transparent),
+            color-mix(in srgb, var(--accent) 7%, transparent));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+    /* Copy: a handful of thick bars, top-aligned and clipped, so a region that
+       shrinks simply shows fewer lines instead of squashing them. */
+    .kokomi-morph-copy {
+        display: flex; flex-direction: column; gap: 10px; overflow: hidden;
+    }
+    .kokomi-morph-copy b {
+        flex: none; height: 7px; border-radius: 4px;
+        background: color-mix(in srgb, var(--accent) 19%, transparent);
+    }
+    .kokomi-morph-copy b:first-child {
+        background: color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    /* Four layouts, held then eased into the next. Stops: 0/18 = A, 25/43 = B,
+       50/68 = C, 75/93 = D, 100 = back to A. */
+    @keyframes kokomi-morph-1 {
+        0%, 18%  { left: 0;   top: 0;   width: 32%;  height: 36%; }
+        25%, 43% { left: 0;   top: 0;   width: 100%; height: 42%; }
+        50%, 68% { left: 0;   top: 0;   width: 62%;  height: 46%; }
+        75%, 93% { left: 0;   top: 0;   width: 46%;  height: 100%; }
+        100%     { left: 0;   top: 0;   width: 32%;  height: 36%; }
+    }
+    @keyframes kokomi-morph-2 {
+        0%, 18%  { left: 36%; top: 0;   width: 64%; height: 36%; }
+        25%, 43% { left: 0;   top: 48%; width: 62%; height: 24%; }
+        50%, 68% { left: 0;   top: 52%; width: 58%; height: 20%; }
+        75%, 93% { left: 52%; top: 0;   width: 48%; height: 22%; }
+        100%     { left: 36%; top: 0;   width: 64%; height: 36%; }
+    }
+    @keyframes kokomi-morph-3 {
+        0%, 18%  { left: 0;   top: 42%; width: 56%; height: 58%; }
+        25%, 43% { left: 0;   top: 76%; width: 62%; height: 24%; }
+        50%, 68% { left: 0;   top: 76%; width: 58%; height: 24%; }
+        75%, 93% { left: 52%; top: 28%; width: 48%; height: 22%; }
+        100%     { left: 0;   top: 42%; width: 56%; height: 58%; }
+    }
+    @keyframes kokomi-morph-4 {
+        0%, 18%  { left: 60%; top: 42%; width: 40%; height: 58%; }
+        25%, 43% { left: 66%; top: 48%; width: 34%; height: 52%; }
+        50%, 68% { left: 66%; top: 0;   width: 34%; height: 100%; }
+        75%, 93% { left: 52%; top: 56%; width: 48%; height: 44%; }
+        100%     { left: 60%; top: 42%; width: 40%; height: 58%; }
+    }
+    .kokomi-morph-region:nth-of-type(1) { animation-name: kokomi-morph-1; }
+    .kokomi-morph-region:nth-of-type(2) { animation-name: kokomi-morph-2; }
+    .kokomi-morph-region:nth-of-type(3) { animation-name: kokomi-morph-3; }
+    .kokomi-morph-region:nth-of-type(4) { animation-name: kokomi-morph-4; }
     .kokomi-morph-caption {
         margin-top: 10px; font-size: 11px; letter-spacing: 0.06em;
         color: var(--text-quaternary); text-align: center;
@@ -1132,12 +1161,16 @@
         0%, 100% { opacity: 0.45; }
         50%      { opacity: 0.9; }
     }
+    /* With animation off the keyframes no longer supply any geometry, so the
+       regions need layout A spelled out or they all collapse into one corner. */
     @media (prefers-reduced-motion: reduce) {
-        .kokomi-morph-sheet,
-        .kokomi-morph-line,
-        .kokomi-morph-fig,
+        .kokomi-morph-region,
+        .kokomi-morph-page::after,
         .kokomi-morph-caption { animation: none; }
-        .kokomi-morph-sheet { box-shadow: inset 0 0 0 1px var(--border); }
+        .kokomi-morph-region:nth-of-type(1) { left: 0;   top: 0;   width: 32%; height: 36%; }
+        .kokomi-morph-region:nth-of-type(2) { left: 36%; top: 0;   width: 64%; height: 36%; }
+        .kokomi-morph-region:nth-of-type(3) { left: 0;   top: 42%; width: 56%; height: 58%; }
+        .kokomi-morph-region:nth-of-type(4) { left: 60%; top: 42%; width: 40%; height: 58%; }
     }
 
     /* ── AI image gallery (justified rows) ───────────────
