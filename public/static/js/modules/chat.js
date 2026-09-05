@@ -14,6 +14,61 @@ import { isCanvasArtifact } from './canvas.js';
  * streaming and the result reused in between; once finished, the cache also
  * spares every later re-render of that message from re-parsing the document.
  */
+// ── "Laying out the document" filmstrip ──────────────────────────────────
+// Must match the animation durations in the .kokomi-morph-* CSS.
+const KOKOMI_MORPH_PERIOD = 4.5;   // seconds for the highlight to cross all sheets
+const _pdfMorphStart = new Map();  // art id -> ms, so the phase survives re-renders
+
+// One entry per page sheet: 'fig' with a height, or a line width. Deliberately
+// varied — three identical sheets read as a loading bar, not as pages.
+const KOKOMI_MORPH_SHEETS = [
+    [{ fig: '44%' }, 88, 74, 92, 56],
+    [92, 80, 96, 70, 88, 58, 84],
+    [86, 72, { fig: '30%' }, 90, 62],
+];
+
+/**
+ * Build the filmstrip's HTML.
+ *
+ * The PDF card is regenerated from scratch on every streamed chunk (x-html
+ * replaces the subtree), and a brand-new element restarts its CSS animations
+ * at 0% — which pinned the whole thing to its first frame for as long as the
+ * model kept writing, i.e. exactly when it was supposed to be moving. So each
+ * element gets a negative animation-delay derived from real elapsed time,
+ * placing the fresh node at the same phase the one it replaced had reached.
+ */
+function _morphStrip(artId) {
+    let started = _pdfMorphStart.get(artId);
+    if (started === undefined) {
+        started = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        _pdfMorphStart.set(artId, started);
+    }
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const phase = ((now - started) / 1000) % KOKOMI_MORPH_PERIOD;
+    const P = KOKOMI_MORPH_PERIOD;
+    // Normalised into [-P, 0) — a positive delay would make the element sit
+    // still and wait, which is right on the very first cycle and wrong on
+    // every one after it.
+    const delay = (offset) => (((((offset - phase) % P) + P) % P) - P).toFixed(3);
+
+    const sheets = KOKOMI_MORPH_SHEETS.map((items, s) => {
+        const sheetOffset = (s * P) / KOKOMI_MORPH_SHEETS.length;
+        const parts = items.map((item, idx) => {
+            // Contents draw in just behind their sheet's highlight, in order.
+            const d = delay(sheetOffset + 0.05 + idx * 0.06);
+            return typeof item === 'object'
+                ? `<i class="kokomi-morph-fig" style="height:${item.fig};animation-delay:${d}s"></i>`
+                : `<i class="kokomi-morph-line" style="width:${item}%;animation-delay:${d}s"></i>`;
+        }).join('');
+        return `<div class="kokomi-morph-sheet" style="animation-delay:${delay(sheetOffset)}s">${parts}</div>`;
+    }).join('');
+
+    return `<div class="kokomi-morph">
+                <div class="kokomi-morph-strip">${sheets}</div>
+                <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
+            </div>`;
+}
+
 const _pdfPreviewCache = new Map();
 const PDF_PREVIEW_THROTTLE_MS = 150;
 const PDF_PREVIEW_CACHE_MAX = 60;
@@ -342,6 +397,7 @@ export function getChatActions() {
                                         // Nothing left to animate, and the next
                                         // PDF shouldn't inherit this one's choice.
                                         if (window.KokomiPdf) window.KokomiPdf._view.delete(art.id);
+                                        _pdfMorphStart.delete(art.id);
                                         // Final update for modal
                                         if (this.artifactModal.show && this.artifactModal.id === data.id) {
                                             this.artifactModal.content = art.content;
@@ -1123,15 +1179,7 @@ export function getChatActions() {
                         </div>
                         <i class="fa-solid fa-spinner fa-spin text-[11px] text-4"></i>
                     </div>
-                    <div class="kokomi-morph">
-                        <div class="kokomi-morph-page">
-                            <i class="kokomi-morph-box"></i>
-                            <i class="kokomi-morph-text"></i>
-                            <i class="kokomi-morph-text"></i>
-                            <i class="kokomi-morph-box"></i>
-                        </div>
-                        <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
-                    </div>
+                    ${_morphStrip(art.id)}
                 </div>`;
             }
 
@@ -1167,15 +1215,7 @@ export function getChatActions() {
             void this.pdfViewTick; // registers the toggle as a render dependency
             const showMorph = art.streaming && window.KokomiPdf.viewMode(art.id) === 'morph';
             const body = showMorph
-                ? `<div class="kokomi-morph">
-                       <div class="kokomi-morph-page">
-                           <i class="kokomi-morph-box"></i>
-                           <i class="kokomi-morph-text"></i>
-                           <i class="kokomi-morph-text"></i>
-                           <i class="kokomi-morph-box"></i>
-                       </div>
-                       <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
-                   </div>`
+                ? _morphStrip(art.id)
                 : `<div class="kokomi-pdf-preview chat-prose ${art.streaming ? 'is-streaming' : ''}">${previewHtml}</div>`;
 
             return `
