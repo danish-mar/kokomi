@@ -19,13 +19,13 @@ import { isCanvasArtifact } from './canvas.js';
 const KOKOMI_MORPH_PERIOD = 12;    // seconds for one pass through all four layouts
 const _pdfMorphStart = new Map();  // art id -> ms, so the phase survives re-renders
 
-// The four regions, in the order their keyframes are assigned. Copy regions
-// carry a few thick bars at uneven, prose-like widths; the first bar of each
-// is darker so the region reads as heading-then-body.
+// The four regions, in the order their keyframes are assigned. A copy region's
+// first bar is its heading (taller and darker, always short); the rest are body
+// lines at uneven, prose-like widths.
 const KOKOMI_MORPH_REGIONS = [
     { fig: true },
-    { bars: [100, 88, 96, 64] },
-    { bars: [96, 84, 100, 72, 58] },
+    { bars: [46, 100, 88, 96, 64] },
+    { bars: [38, 96, 84, 100, 72, 58] },
     { fig: true },
 ];
 
@@ -49,8 +49,7 @@ function _morphStrip(artId) {
     // Negative, in (-P, 0] — a positive delay would make the element sit still
     // and wait, which is right on the very first cycle and wrong on every one
     // after it.
-    const delay = -(((now - started) / 1000) % KOKOMI_MORPH_PERIOD);
-    const d = delay.toFixed(3);
+    const d = (-(((now - started) / 1000) % KOKOMI_MORPH_PERIOD)).toFixed(3);
 
     const regions = KOKOMI_MORPH_REGIONS.map(r => r.fig
         ? `<div class="kokomi-morph-region kokomi-morph-fig" style="animation-delay:${d}s"></div>`
@@ -60,7 +59,9 @@ function _morphStrip(artId) {
     ).join('');
 
     return `<div class="kokomi-morph">
-                <div class="kokomi-morph-page">${regions}</div>
+                <div class="kokomi-morph-page">
+                    <div class="kokomi-morph-canvas">${regions}</div>
+                </div>
                 <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
             </div>`;
 }
