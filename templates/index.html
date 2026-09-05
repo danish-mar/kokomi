@@ -891,6 +891,36 @@
     .kokomi-diagram-modal-body { display: flex; align-items: center; justify-content: center; overflow: auto; }
     .kokomi-diagram-modal-body svg { max-width: 100%; height: auto; }
 
+    /* ── Waiting-for-first-token skeleton ────────────────
+       Reuses the shimmer keyframe defined for the PDF card. The bars don't just
+       appear at full width — each one writes itself out to the right, one after
+       the next, so the wait reads as text being laid down rather than three
+       placeholder blocks popping in. Widths are uneven the way real lines are,
+       but stay long enough to read as prose (no ragged confetti). */
+    @keyframes kokomi-skeleton-write {
+        from { transform: scaleX(0); opacity: 0.35; }
+        to   { transform: scaleX(1); opacity: 1; }
+    }
+    .kokomi-skeleton { display: flex; flex-direction: column; gap: 9px; padding: 3px 0 2px; }
+    .kokomi-skeleton span {
+        display: block; height: 9px; border-radius: 5px;
+        background: linear-gradient(90deg,
+            var(--bg-surface-hover),
+            color-mix(in srgb, var(--accent) 12%, var(--bg-surface-hover)),
+            var(--bg-surface-hover));
+        background-size: 200% 100%;
+        transform-origin: left center;
+        animation:
+            shimmer 1.5s ease-in-out infinite,
+            kokomi-skeleton-write 0.55s cubic-bezier(0.22, 0.68, 0.35, 1) both;
+    }
+    .kokomi-skeleton span:nth-child(2) { animation-delay: 0.12s, 0.20s; }
+    .kokomi-skeleton span:nth-child(3) { animation-delay: 0.24s, 0.40s; }
+    .kokomi-skeleton span:nth-child(4) { animation-delay: 0.36s, 0.60s; }
+    @media (prefers-reduced-motion: reduce) {
+        .kokomi-skeleton span { animation: none; opacity: 0.5; transform: none; }
+    }
+
     /* ── Conversation still being written ────────────────
        A response now outlives the tab that started it, so a conversation can
        be generating while you're looking at something else entirely. Its card
@@ -1013,6 +1043,100 @@
     }
     .kokomi-pdf-preview.is-streaming { max-height: 340px; overflow-y: auto; }
     .kokomi-pdf-preview.is-streaming::after { display: none; }
+
+    /* ── "Laying out the document" morph ─────────────────
+       While a PDF is being written, the default face of the card is a wireframe
+       page whose blocks slide and resize through four layouts, the way a page
+       gets composed. It's a mood, not a preview — the eye button in the header
+       swaps to the actual markdown coming off the model.
+
+       Each region is absolutely positioned in percentages of the page, and each
+       has its own keyframes holding a layout, then easing to the next. Stops:
+       0/18 = A, 25/43 = B, 50/68 = C, 75/93 = D, 100 = back to A. */
+    .kokomi-morph {
+        position: relative; margin: 0 16px 14px; padding-top: 12px;
+        border-top: 1px solid var(--border);
+    }
+    .kokomi-morph-page {
+        position: relative; height: 150px; border-radius: 14px;
+        background: color-mix(in srgb, var(--accent) 3%, var(--bg-canvas));
+        padding: 28px 18px 18px; overflow: hidden;
+    }
+    /* The page's own title bar — the one thing that doesn't move. */
+    .kokomi-morph-page::before {
+        content: ""; position: absolute; left: 18px; top: 15px; width: 32%; height: 5px;
+        border-radius: 3px;
+        background: color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+    .kokomi-morph-page > i {
+        position: absolute; display: block;
+        animation-duration: 10s; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+        animation-iteration-count: infinite;
+    }
+    /* Figure regions are soft filled panels rather than hard outlines — an
+       outline at this size fights the card's own borders. Copy regions are
+       ruled lines drawn in fixed px, so they stay text-sized as the block
+       resizes instead of stretching into stripes, and are masked off at the
+       right so each region ends in a soft ragged edge the way a paragraph does
+       (a flush block of full-width rules reads as a barcode). */
+    .kokomi-morph-box {
+        border-radius: 9px;
+        background: color-mix(in srgb, var(--accent) 10%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+    .kokomi-morph-text {
+        background: repeating-linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--accent) 24%, transparent) 0 2px,
+            transparent 2px 11px);
+        -webkit-mask-image: linear-gradient(to right, #000 0 78%, transparent 100%);
+        mask-image: linear-gradient(to right, #000 0 78%, transparent 100%);
+    }
+    @keyframes kokomi-morph-1 {
+        0%, 18%   { left: 0;   top: 0;   width: 30%; height: 34%; }
+        25%, 43%  { left: 0;   top: 0;   width: 100%; height: 38%; }
+        50%, 68%  { left: 0;   top: 0;   width: 62%; height: 44%; }
+        75%, 93%  { left: 0;   top: 0;   width: 46%; height: 100%; }
+        100%      { left: 0;   top: 0;   width: 30%; height: 34%; }
+    }
+    @keyframes kokomi-morph-2 {
+        0%, 18%   { left: 34%; top: 0;   width: 66%; height: 34%; }
+        25%, 43%  { left: 0;   top: 44%; width: 62%; height: 24%; }
+        50%, 68%  { left: 0;   top: 50%; width: 58%; height: 22%; }
+        75%, 93%  { left: 52%; top: 0;   width: 48%; height: 20%; }
+        100%      { left: 34%; top: 0;   width: 66%; height: 34%; }
+    }
+    @keyframes kokomi-morph-3 {
+        0%, 18%   { left: 0;   top: 40%; width: 56%; height: 60%; }
+        25%, 43%  { left: 0;   top: 72%; width: 62%; height: 28%; }
+        50%, 68%  { left: 0;   top: 76%; width: 58%; height: 24%; }
+        75%, 93%  { left: 52%; top: 24%; width: 48%; height: 20%; }
+        100%      { left: 0;   top: 40%; width: 56%; height: 60%; }
+    }
+    @keyframes kokomi-morph-4 {
+        0%, 18%   { left: 60%; top: 40%; width: 40%; height: 60%; }
+        25%, 43%  { left: 66%; top: 44%; width: 34%; height: 56%; }
+        50%, 68%  { left: 66%; top: 0;   width: 34%; height: 100%; }
+        75%, 93%  { left: 52%; top: 48%; width: 48%; height: 52%; }
+        100%      { left: 60%; top: 40%; width: 40%; height: 60%; }
+    }
+    .kokomi-morph-page > i:nth-child(1) { animation-name: kokomi-morph-1; }
+    .kokomi-morph-page > i:nth-child(2) { animation-name: kokomi-morph-2; }
+    .kokomi-morph-page > i:nth-child(3) { animation-name: kokomi-morph-3; }
+    .kokomi-morph-page > i:nth-child(4) { animation-name: kokomi-morph-4; }
+    .kokomi-morph-caption {
+        margin-top: 10px; font-size: 11px; letter-spacing: 0.06em;
+        color: var(--text-quaternary); text-align: center;
+        animation: kokomi-morph-breathe 2.6s ease-in-out infinite;
+    }
+    @keyframes kokomi-morph-breathe {
+        0%, 100% { opacity: 0.45; }
+        50%      { opacity: 0.9; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .kokomi-morph-page > i,
+        .kokomi-morph-caption { animation: none; }
+    }
 
     /* ── AI image gallery (justified rows) ───────────────
        Each image keeps its aspect ratio at a shared row height; flex-grow then
@@ -2583,6 +2707,18 @@
                                                              @click="openLightbox(galleryImages(msg), gi)"
                                                              @error="$el.style.display='none'" />
                                                     </template>
+                                                </div>
+                                            </template>
+
+                                            <!-- Waiting for the first token. An empty bubble with a
+                                                 static "Thinking…" reads as frozen; placeholder lines
+                                                 make the wait feel like something is on its way. -->
+                                            <template x-if="msg.role === 'assistant' && msg.streaming && !(msg.displayContent || msg.content || '').trim()">
+                                                <div class="kokomi-skeleton" aria-hidden="true">
+                                                    <span style="width:96%"></span>
+                                                    <span style="width:83%"></span>
+                                                    <span style="width:91%"></span>
+                                                    <span style="width:58%"></span>
                                                 </div>
                                             </template>
 

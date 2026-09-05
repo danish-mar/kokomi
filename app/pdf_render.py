@@ -13,7 +13,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak, Preformatted, Image as RLImage,
+    HRFlowable, PageBreak, Preformatted, Image as RLImage, KeepTogether,
 )
 
 
@@ -150,6 +150,55 @@ def render_markdown_to_pdf(markdown_content: str, dest, image_base_dir: str | No
 
     story = []
 
+    # ── Image layout ────────────────────────────────────────────────────
+    # Images used to get one treatment regardless of shape: scale to fit,
+    # drop it in, caption underneath. That wastes most of the page on a tall
+    # portrait and makes a square photo float in a sea of white. Instead each
+    # image is classified by its real aspect ratio (read off the decoded file,
+    # never assumed) and laid out accordingly.
+    CONTENT_W = letter[0] - 80          # page width minus both margins
+    MAX_IMG_H = letter[1] - 120         # leave room for margins/running space
+    s_caption = ParagraphStyle('S_Caption', parent=s_body, fontSize=9, leading=13,
+                               textColor=colors.HexColor('#6B7280'),
+                               fontName='Helvetica-Oblique', spaceBefore=4)
+
+    def _classify(iw, ih):
+        ratio = float(iw) / float(ih)
+        if ratio >= 1.4:
+            return "wide"
+        if ratio >= 0.85:
+            return "square"
+        return "tall"
+
+    def _fit(img, box_w, box_h):
+        """Scale in place to fit a box, never enlarging."""
+        scale = min(box_w / float(img.drawWidth), box_h / float(img.drawHeight), 1.0)
+        img.drawWidth *= scale
+        img.drawHeight *= scale
+        return img
+
+    def _side_by_side(img, caption, image_left):
+        """Image in one column, caption text in the other."""
+        text = _safe_paragraph(_md_inline(caption), s_body)
+        gutter = 12
+        text_w = CONTENT_W - img.drawWidth - gutter
+        row = [img, text] if image_left else [text, img]
+        widths = ([img.drawWidth + gutter, text_w] if image_left
+                  else [text_w, img.drawWidth + gutter])
+        t = Table([row], colWidths=widths)
+        t.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        return t
+
+    # Portrait images alternate sides so a run of them doesn't stack the page
+    # lopsidedly down one edge.
+    tall_image_left = True
+
     lines = markdown_content.split("\n")
     i = 0
     while i < len(lines):
@@ -256,19 +305,39 @@ def render_markdown_to_pdf(markdown_content: str, dest, image_base_dir: str | No
                         raise ValueError("image has no dimensions")
 
                     img = RLImage(local_img)
-                    # Fit BOTH dimensions. Clamping only the width lets a
-                    # portrait image scale to the page width and end up taller
-                    # than the page, which ReportLab refuses to lay out
+                    caption = img_match.group(1).strip()
+                    kind = _classify(iw, ih)
+
+                    # Every branch fits BOTH dimensions. Clamping only the width
+                    # lets a portrait image scale to the page width and end up
+                    # taller than the page, which ReportLab refuses to lay out
                     # ("too large on page") and which fails the entire render.
-                    max_w = letter[0] - 80
-                    max_h = letter[1] - 120        # leave room for the margins
-                    scale = min(max_w / float(img.drawWidth),
-                                max_h / float(img.drawHeight), 1.0)
-                    img.drawWidth *= scale
-                    img.drawHeight *= scale
-                    story.append(Spacer(1, 10))
-                    story.append(img)
-                    story.append(Spacer(1, 10))
+                    if kind == "wide" or not caption:
+                        # Full bleed across the text column, caption underneath.
+                        _fit(img, CONTENT_W, MAX_IMG_H)
+                        img.hAlign = 'CENTER'
+                        block = [Spacer(1, 10), img]
+                        if caption:
+                            block.append(_safe_paragraph(_md_inline(caption), s_caption))
+                        block.append(Spacer(1, 10))
+                    elif kind == "square":
+                        # Portrait-card shape: image left at ~40% of the column,
+                        # the caption reading down the right.
+                        _fit(img, CONTENT_W * 0.40, MAX_IMG_H * 0.5)
+                        block = [Spacer(1, 10), _side_by_side(img, caption, True), Spacer(1, 10)]
+                    else:
+                        # Tall: a narrower column still leaves usable room for
+                        # text beside it, and alternating sides keeps a run of
+                        # portraits from hugging one edge.
+                        _fit(img, CONTENT_W * 0.32, MAX_IMG_H * 0.62)
+                        block = [Spacer(1, 10),
+                                 _side_by_side(img, caption, tall_image_left),
+                                 Spacer(1, 10)]
+                        tall_image_left = not tall_image_left
+
+                    # Keep the image with its caption — a page break between the
+                    # two orphans the caption at the top of the next page.
+                    story.append(KeepTogether(block))
                 else:
                     story.append(Spacer(1, 10))
                     story.append(Paragraph(f"<i>[Image missing or unresolvable: {img_url}]</i>", s_quote))
@@ -375,7 +444,23 @@ def render_markdown_to_pdf(markdown_content: str, dest, image_base_dir: str | No
         if hasattr(dest, "seek"):
             dest.seek(0)
             dest.truncate()
-        fallback = [f for f in story if not isinstance(f, RLImage)]
+        # Images are now wrapped in KeepTogether (and, for side-by-side
+        # layouts, a Table), so an isinstance check on the top-level flowable
+        # alone would keep every one of them and fail the retry the same way.
+        def _has_image(flowable):
+            if isinstance(flowable, RLImage):
+                return True
+            for attr in ("_content", "_cellvalues"):
+                nested = getattr(flowable, attr, None)
+                if not nested:
+                    continue
+                for item in nested:
+                    items = item if isinstance(item, (list, tuple)) else [item]
+                    if any(_has_image(x) for x in items):
+                        return True
+            return False
+
+        fallback = [f for f in story if not _has_image(f)]
         placeholder = Paragraph(
             "<i>[Some images could not be rendered and were omitted.]</i>", s_quote
         )

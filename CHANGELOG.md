@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.7.2] - 2026-09-06
+
+### Added
+
+- **PDF images are laid out by their shape.** Every image used to get the same treatment — scale to fit, drop it in, caption underneath — which wasted most of a page on a tall portrait and left a square photo floating in white. Each image is now classified by the aspect ratio read off the decoded file (never assumed, so a mislabelled or broken download can't pick the wrong template) and laid out to match: wide images run the full text column with the caption beneath; square and tall ones sit beside their caption in a two-column layout, with consecutive tall images alternating sides so a run of portraits doesn't hug one edge. Each image is kept with its caption across page breaks.
+- **A "laying out the document" animation while a PDF is written.** The card's default face is now a wireframe page whose figure and copy regions slide and resize through four layouts, rather than a bare shimmer bar. An eye button in the card header swaps between the animation and the markdown as it actually lands, and the choice survives the card being re-rendered on every chunk.
+
+### Fixed
+
+- **The wrong model was shown on a message while it was being written.** The badge on a new streaming bubble fell back to the global `model_name` preference, which ignores both the character's per-provider override and the selected tier — so a response would be labelled with the default model until the first chunk corrected it, then flip to the real one. It now shows nothing until the server says which model is answering, and tool-call events carry the model too, so a response that starts with a memory search is labelled correctly from the first frame.
+- **Settings changes never reached an already-open chat tab.** Settings is a separate page, so a model switched there left the chat tab labelling and describing the model it had loaded with. Preferences are re-read whenever the tab regains focus.
+
+### Changed
+
+- **The waiting-for-a-reply skeleton writes itself out** instead of three placeholder bars appearing at once — each line stretches to the right in turn, at uneven but prose-like widths. Respects `prefers-reduced-motion`.
+
 ## [v6.7.1] - 2026-09-02
 
 ### Fixed

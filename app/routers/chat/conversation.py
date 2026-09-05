@@ -1275,7 +1275,7 @@ async def chat_stream(req: ChatRequest):
                                 tid = tc["id"]
                                 ticon = tool_icons.get(tname, "fa-wrench")
                                 ui_status = targs.get("ui_status_text") if isinstance(targs, dict) else None
-                                await queue.put(f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n")
+                                await queue.put(f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'icon': ticon, 'description': ui_status, 'character_id': pid, 'model': p_active_model})}\n\n")
                                 sess = tool_sessions.get(tname)
                                 bt = builtin_tools.get(tname)
                                 if is_debug:

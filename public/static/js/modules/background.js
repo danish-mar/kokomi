@@ -54,9 +54,18 @@ export function getBackgroundActions() {
             this._activeTimer = setInterval(() => this.refreshActiveGenerations(), ACTIVE_POLL_MS);
             // Coming back to the tab should feel instant rather than waiting
             // out the poll interval.
-            window.addEventListener('focus', () => this.refreshActiveGenerations());
+            // Returning to the tab should feel instant rather than waiting out
+            // the poll interval — and is also the moment to re-read prefs,
+            // since Settings is a separate page: changing the model there
+            // otherwise never reaches an already-open chat tab, which keeps
+            // showing and labelling the model it loaded with.
+            const onReturn = () => {
+                this.refreshActiveGenerations();
+                this.fetchPrefs();
+            };
+            window.addEventListener('focus', onReturn);
             document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) this.refreshActiveGenerations();
+                if (!document.hidden) onReturn();
             });
         },
 

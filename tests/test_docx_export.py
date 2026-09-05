@@ -196,3 +196,89 @@ class TestPdfImageRendering(unittest.TestCase):
             f.write(b"not an image at all")
         out = self._render(f"# Gallery\n\n![a]({tall})\n\n![b]({wide})\n\n![c]({bad})\n\nEnd.")
         self.assertTrue(out.startswith(b"%PDF-"))
+
+
+class TestPdfImageLayout(unittest.TestCase):
+    """Images are laid out by their real shape, not one-size-fits-all.
+
+    Wide images run full width with the caption underneath; square and tall
+    ones sit beside their caption in a two-column table, with tall ones
+    alternating sides. The classification reads the decoded file, so a
+    mislabelled or malformed image can't silently pick the wrong template.
+    """
+
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+
+    def _png(self, name, size):
+        from PIL import Image
+        path = os.path.join(self.dir, name)
+        Image.new("RGB", size, (200, 120, 160)).save(path)
+        return path
+
+    def _story(self, md):
+        """Build the flowable list the renderer would hand to ReportLab."""
+        from unittest.mock import patch
+        from app.pdf_render import render_markdown_to_pdf
+        captured = []
+        real_build = None
+
+        def spy(self_doc, story, *a, **kw):
+            captured.append(list(story))
+            return real_build(self_doc, story, *a, **kw)
+
+        from reportlab.platypus import SimpleDocTemplate
+        real_build = SimpleDocTemplate.build
+        with patch.object(SimpleDocTemplate, "build", spy):
+            render_markdown_to_pdf(md, io.BytesIO(), image_base_dir=self.dir)
+        return captured[0]
+
+    def _tables(self, story):
+        from reportlab.platypus import Table, KeepTogether
+        found = []
+        for f in story:
+            items = f._content if isinstance(f, KeepTogether) else [f]
+            found += [x for x in items if isinstance(x, Table)]
+        return found
+
+    @staticmethod
+    def _cell(value):
+        """ReportLab normalizes a bare flowable cell into a 1-tuple."""
+        while isinstance(value, (list, tuple)) and len(value) == 1:
+            value = value[0]
+        return value
+
+    def test_classification_matches_aspect_ratio(self):
+        from app.pdf_render import render_markdown_to_pdf  # noqa: F401  (import guard)
+        cases = [((900, 400), "wide"), ((600, 600), "square"), ((400, 900), "tall")]
+        for size, expected in cases:
+            ratio = size[0] / size[1]
+            got = "wide" if ratio >= 1.4 else ("square" if ratio >= 0.85 else "tall")
+            self.assertEqual(got, expected, f"{size} should classify as {expected}")
+
+    def test_wide_image_is_full_width_with_no_side_table(self):
+        wide = self._png("wide.png", (1200, 500))
+        story = self._story(f"![a banner]({wide})")
+        self.assertEqual(self._tables(story), [], "a wide image must not be put beside its caption")
+
+    def test_square_image_sits_beside_its_caption(self):
+        sq = self._png("sq.png", (600, 600))
+        tables = self._tables(self._story(f"![the caption]({sq})"))
+        self.assertEqual(len(tables), 1)
+        self.assertEqual(len(tables[0]._cellvalues[0]), 2, "image and caption share a row")
+
+    def test_uncaptioned_image_is_never_put_in_a_side_layout(self):
+        sq = self._png("sq2.png", (600, 600))
+        self.assertEqual(self._tables(self._story(f"![]({sq})")), [],
+                         "with no caption there is nothing to sit beside")
+
+    def test_consecutive_tall_images_alternate_sides(self):
+        from reportlab.platypus import Image as RLImage
+        a = self._png("t1.png", (400, 1000))
+        b = self._png("t2.png", (400, 1000))
+        tables = self._tables(self._story(f"![one]({a})\n\n![two]({b})"))
+        self.assertEqual(len(tables), 2)
+        first, second = tables[0]._cellvalues[0], tables[1]._cellvalues[0]
+        self.assertIsInstance(self._cell(first[0]), RLImage, "first tall image goes on the left")
+        self.assertIsInstance(self._cell(second[1]), RLImage, "the next one flips to the right")

@@ -122,6 +122,11 @@ export function getInitialState() {
         liveStats: { tps: null, ttft: null, context: null },
         showTourPrompt: false,
         messagesLoaded: true,
+        // Bumped when a PDF card's eye button flips between the layout
+        // animation and the live markdown. renderPdfCard reads it purely so
+        // Alpine re-renders the card immediately, instead of leaving the toggle
+        // to wait for the next streamed chunk.
+        pdfViewTick: 0,
 
         // Quick prompts 
         quickPrompts: [

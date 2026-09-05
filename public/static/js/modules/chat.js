@@ -213,9 +213,20 @@ export function getChatActions() {
                                     content: '',
                                     thinking: '',
                                     displayContent: '',
-                                    model: data.model || this.prefs.model_name,
+                                    // Deliberately NOT falling back to
+                                    // prefs.model_name: that's the global
+                                    // default, which ignores the character's
+                                    // per-provider override and the tier, so
+                                    // guessing here flashed the wrong model
+                                    // badge until the first chunk corrected it.
+                                    // Every content/reasoning event carries the
+                                    // real one; the badge just stays hidden
+                                    // (x-if="msg.model") until it arrives.
+                                    model: data.model || null,
                                     timestamp: new Date().toISOString(),
                                     streaming: true,
+                                    // Reveal cap for the typewriter effect; null once finished.
+                                    revealChars: 0,
                                     debug_logs: []
                                 });
                                 targetIdx = this.messages.length - 1;
@@ -240,10 +251,12 @@ export function getChatActions() {
                                 if (data.model) this.messages[targetIdx].model = data.model;
                                 this.messages[targetIdx].content += data.delta;
                                 this.parseStreamingThinking(this.messages[targetIdx]);
+                                this.ensureRevealLoop();
                             } else if (data.type === 'reasoning' && data.delta && targetIdx !== undefined) {
                                 if (data.model) this.messages[targetIdx].model = data.model;
                                 this.messages[targetIdx].thinking += data.delta;
                             } else if (data.type === 'tool_start') {
+                                if (data.model && targetIdx !== undefined) this.messages[targetIdx].model = data.model;
                                 if (data.name !== 'open_url' && data.name !== 'redirect_url') {
                                     const charName = this.getCharById(charId).name;
                                     this.loadingStatus = `${charName}: ${data.description || ('Running ' + data.name)}...`;
@@ -326,6 +339,9 @@ export function getChatActions() {
                                     if (art) {
                                         art.streaming = false;
                                         if (data.content) art.content = data.content;
+                                        // Nothing left to animate, and the next
+                                        // PDF shouldn't inherit this one's choice.
+                                        if (window.KokomiPdf) window.KokomiPdf._view.delete(art.id);
                                         // Final update for modal
                                         if (this.artifactModal.show && this.artifactModal.id === data.id) {
                                             this.artifactModal.content = art.content;
@@ -415,6 +431,7 @@ export function getChatActions() {
                     this.showToast(`Connection error: ${e.message}`, 'error');
                 }
             } finally {
+                this.flushReveal();
                 if (this._streamSeq !== seq) {
                     // A newer reader owns loading/abortController/messages now;
                     // resetting them here would strand it (loading stuck false
@@ -447,6 +464,63 @@ export function getChatActions() {
                 this.$nextTick(() => this.scrollToBottom());
                 if (this.prefs.debug_mode) console.timeEnd('ChatRequest_Stream_Total');
             }
+        },
+
+        /** Cut at `n` chars without slicing through something that renders
+         *  badly half-written — an artifact placeholder, or an unclosed code
+         *  fence, both of which would flicker as garbage for a frame. */
+        _sliceForReveal(text, n) {
+            let out = text.slice(0, n);
+            // Any unclosed "[[" — matching on the full "[[ARTIFACT:" would miss
+            // a marker cut mid-word, leaking "[[ARTIFA" into the output.
+            const openMarker = out.lastIndexOf('[[');
+            if (openMarker !== -1 && out.indexOf(']]', openMarker) === -1) {
+                out = out.slice(0, openMarker);
+            }
+            // An odd number of fences means we're inside a code block; close it
+            // so marked doesn't swallow the rest of the message as code.
+            if ((out.match(/```/g) || []).length % 2 === 1) out += '\n```';
+            return out;
+        },
+
+        /** Ease every streaming message's reveal cap toward its real length.
+         *
+         *  Rate scales with the backlog so a large burst catches up quickly
+         *  instead of trickling out for seconds, and the tick is time-gated
+         *  rather than per-frame: re-rendering markdown at 60fps is the same
+         *  quadratic trap the PDF preview fell into. */
+        _tickReveal() {
+            const now = performance.now();
+            if (now - (this._lastReveal || 0) < 40) {        // ~24fps
+                this._revealRaf = requestAnimationFrame(() => this._tickReveal());
+                return;
+            }
+            this._lastReveal = now;
+
+            let active = false;
+            for (const m of this.messages) {
+                if (!m.streaming || typeof m.revealChars !== 'number') continue;
+                const target = ((m.displayContent !== undefined ? m.displayContent : m.content) || '').length;
+                if (m.revealChars >= target) continue;
+                const backlog = target - m.revealChars;
+                m.revealChars += Math.max(3, Math.ceil(backlog / 6));
+                active = true;
+            }
+
+            this._revealRaf = (active || this.messages.some(m => m.streaming))
+                ? requestAnimationFrame(() => this._tickReveal())
+                : null;
+        },
+
+        ensureRevealLoop() {
+            if (!this._revealRaf) this._revealRaf = requestAnimationFrame(() => this._tickReveal());
+        },
+
+        /** Show everything: the message is finished, so nothing should remain
+         *  hidden behind the reveal cap. */
+        flushReveal() {
+            if (this._revealRaf) { cancelAnimationFrame(this._revealRaf); this._revealRaf = null; }
+            this.messages.forEach(m => { if (m.revealChars !== undefined) m.revealChars = null; });
         },
 
         parseStreamingThinking(msg) {
@@ -594,6 +668,9 @@ export function getChatActions() {
          *  attach while it's set — leaving it true is what made a
          *  switched-away-from conversation come back empty until a refresh. */
         detachStream() {
+            // Otherwise a message we stop reading stays truncated at whatever
+            // the reveal cap happened to be.
+            this.flushReveal();
             this._streamSeq = (this._streamSeq || 0) + 1;
             if (this.abortController) {
                 try { this.abortController.abort(); } catch (e) {}
@@ -646,7 +723,14 @@ export function getChatActions() {
             // would block reattaching when we come back.
             if (this.loading && this.streamingConvId !== id) this.detachStream();
 
-            this.messagesLoaded = false;
+            // Only blank the transcript when actually moving to a DIFFERENT
+            // conversation. Refreshing the one already on screen (to pick up a
+            // response that finished elsewhere) used to clear messagesLoaded
+            // too, which hides the message list and replays its 400ms mount
+            // animation — the whole chat visibly blanking out and coming back.
+            // Swapping the content in place is both correct and invisible.
+            const sameConversation = this.currentConvId === id;
+            if (!sameConversation) this.messagesLoaded = false;
             try {
                 const r = await fetch(`/api/conversations/${id}`);
                 if (!r.ok) throw new Error(r.status);
@@ -667,12 +751,17 @@ export function getChatActions() {
                 // Double-nextTick + rAF ensures Alpine has finished rendering the x-for
                 // list AND the browser has completed layout before we read scrollHeight.
                 this.messagesLoaded = true;
-                this.$nextTick(() => this.$nextTick(() => {
-                    requestAnimationFrame(() => {
-                        const box = this.$refs.chatBox;
-                        if (box) box.scrollTop = box.scrollHeight;
-                    });
-                }));
+                // Jumping to the bottom is right when opening a conversation,
+                // but yanks you out of position when this is just an in-place
+                // refresh of the one you're already reading.
+                if (!sameConversation) {
+                    this.$nextTick(() => this.$nextTick(() => {
+                        requestAnimationFrame(() => {
+                            const box = this.$refs.chatBox;
+                            if (box) box.scrollTop = box.scrollHeight;
+                        });
+                    }));
+                }
 
                 // If this conversation is still being written (started in
                 // another tab, or before a reload), pick the stream back up
@@ -688,6 +777,17 @@ export function getChatActions() {
             if (!msg) return '';
             let rawContent = (msg.role === 'assistant' && msg.displayContent !== undefined) ? msg.displayContent : msg.content;
             if (!rawContent) return '';
+
+            // Typewriter reveal. Providers deliver text in uneven bursts —
+            // sometimes a whole paragraph at once — which reads as jumpy. The
+            // full text is kept in the message; this only limits how much of
+            // it is shown, with a ticker easing the cap forward (see
+            // _tickReveal). Cleared when the stream ends so nothing is ever
+            // withheld from a finished message.
+            if (msg.streaming && typeof msg.revealChars === 'number'
+                && msg.revealChars < rawContent.length) {
+                rawContent = this._sliceForReveal(rawContent, msg.revealChars);
+            }
 
             // When images are shown in the gallery, strip any markdown image tags the
             // model also pasted so they don't double-render as ugly full-width images.
@@ -1023,7 +1123,15 @@ export function getChatActions() {
                         </div>
                         <i class="fa-solid fa-spinner fa-spin text-[11px] text-4"></i>
                     </div>
-                    <div class="kokomi-pdf-shimmer"></div>
+                    <div class="kokomi-morph">
+                        <div class="kokomi-morph-page">
+                            <i class="kokomi-morph-box"></i>
+                            <i class="kokomi-morph-text"></i>
+                            <i class="kokomi-morph-text"></i>
+                            <i class="kokomi-morph-box"></i>
+                        </div>
+                        <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
+                    </div>
                 </div>`;
             }
 
@@ -1053,6 +1161,23 @@ export function getChatActions() {
             }
             const previewHtml = cached.html;
 
+            // While it's still being written the card shows the layout morph by
+            // default and the raw markdown on request; once finished there's
+            // nothing left to animate, so it's always the document.
+            void this.pdfViewTick; // registers the toggle as a render dependency
+            const showMorph = art.streaming && window.KokomiPdf.viewMode(art.id) === 'morph';
+            const body = showMorph
+                ? `<div class="kokomi-morph">
+                       <div class="kokomi-morph-page">
+                           <i class="kokomi-morph-box"></i>
+                           <i class="kokomi-morph-text"></i>
+                           <i class="kokomi-morph-text"></i>
+                           <i class="kokomi-morph-box"></i>
+                       </div>
+                       <p class="kokomi-morph-caption">Laying out the document&hellip;</p>
+                   </div>`
+                : `<div class="kokomi-pdf-preview chat-prose ${art.streaming ? 'is-streaming' : ''}">${previewHtml}</div>`;
+
             return `
                 <div class="kokomi-pdf mt-4 mb-2" data-pdf-id="${art.id}" data-pdf-content="${window.KokomiCharts.escapeAttr(content)}" data-pdf-title="${this.escapeHtml(title)}">
                     <div class="artifact-header">
@@ -1064,6 +1189,13 @@ export function getChatActions() {
                                     ? 'Writing<span class="mx-1">&bull;</span><span class="animate-pulse text-accent normal-case tracking-normal">generating&hellip;</span>'
                                     : `PDF &middot; ~${estPages} page${estPages === 1 ? '' : 's'}`}</p>
                             </div>
+                        </div>
+                        <div class="kokomi-chart-actions" ${art.streaming ? '' : 'style="display:none"'}>
+                            <button class="kokomi-chart-btn"
+                                    title="${showMorph ? 'Show what\'s being written' : 'Show the layout animation'}"
+                                    onclick="window.KokomiPdf.toggleView('${art.id}')">
+                                <i class="fa-solid ${showMorph ? 'fa-eye' : 'fa-eye-slash'}"></i>
+                            </button>
                         </div>
                         <div class="kokomi-chart-actions" ${art.streaming ? 'style="display:none"' : ''}>
                             <button class="kokomi-chart-btn" title="View PDF"
@@ -1080,7 +1212,7 @@ export function getChatActions() {
                             </button>
                         </div>
                     </div>
-                    <div class="kokomi-pdf-preview chat-prose ${art.streaming ? 'is-streaming' : ''}">${previewHtml}</div>
+                    ${body}
                 </div>`;
         },
 
@@ -1632,6 +1764,26 @@ if (document.readyState === 'loading') {
  */
 const KokomiPdf = {
     _cache: new Map(), // art id -> blob URL
+
+    // Which face a still-writing card is showing: the layout morph, or the
+    // markdown as it lands. Kept here rather than on the message because the
+    // card's HTML is regenerated from scratch on every chunk (x-html) — the
+    // choice has to survive those re-renders, and it isn't worth persisting.
+    _view: new Map(), // art id -> 'morph' | 'text'
+
+    viewMode(id) { return this._view.get(id) || 'morph'; },
+
+    toggleView(id) {
+        const next = this.viewMode(id) === 'morph' ? 'text' : 'morph';
+        this._view.set(id, next);
+        // A chunk-driven re-render would pick this up on its own, but only when
+        // the next token arrives — which can be a noticeable wait mid-tool-call.
+        // Rebuild the card's body now so the button feels immediate.
+        try {
+            const app = window.Alpine && window.Alpine.$data(document.getElementById('app'));
+            if (app) app.pdfViewTick++;
+        } catch (e) { /* the next chunk re-renders it anyway */ }
+    },
 
     _card(id) { return document.querySelector(`.kokomi-pdf[data-pdf-id="${id}"]`); },
 
