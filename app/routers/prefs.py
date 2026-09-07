@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
 
+from typing import Optional
 import httpx
 from fastapi import APIRouter, UploadFile, File
 
@@ -182,6 +183,45 @@ async def list_custom_provider_models(req: CustomModelsRequest):
     except Exception as e:
         print(f"Error fetching custom provider models: {e}")
         return []
+
+
+@router.get("/models/image_gen")
+async def list_image_gen_models(base_url: Optional[str] = None, api_key: Optional[str] = None):
+    """List image generation models from the configured endpoint or default curated list."""
+    curated = [
+        {"id": "dall-e-3", "name": "DALL-E 3 (OpenAI)", "provider": "image_gen"},
+        {"id": "dall-e-2", "name": "DALL-E 2 (OpenAI)", "provider": "image_gen"},
+        {"id": "fal-ai/flux/schnell", "name": "FLUX.1 Schnell (FAL.ai)", "provider": "image_gen"},
+        {"id": "fal-ai/flux/dev", "name": "FLUX.1 Dev (FAL.ai)", "provider": "image_gen"},
+        {"id": "black-forest-labs/FLUX.1-schnell", "name": "FLUX.1 Schnell (Together AI)", "provider": "image_gen"},
+        {"id": "stabilityai/stable-diffusion-xl-base-1.0", "name": "SDXL Base 1.0", "provider": "image_gen"},
+    ]
+    all_models = list(curated)
+    curated_ids = {m["id"] for m in curated}
+
+    from app.storage import load_prefs
+    prefs = load_prefs()
+    target_base_url = (base_url or prefs.get("image_gen_base_url") or "https://api.openai.com/v1").rstrip("/")
+    target_api_key = (api_key or prefs.get("image_gen_api_key") or prefs.get("custom_api_key") or "").strip()
+
+    if target_base_url:
+        headers = {}
+        if target_api_key:
+            headers["Authorization"] = f"Bearer {target_api_key}"
+        else:
+            headers["Authorization"] = "Bearer dummy"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{target_base_url}/models", headers=headers)
+                if resp.status_code == 200:
+                    for m in resp.json().get("data", []):
+                        m_id = m.get("id")
+                        if m_id and m_id not in curated_ids:
+                            all_models.append({"id": m_id, "name": m_id, "provider": "image_gen"})
+        except Exception as e:
+            print(f"Error fetching image gen models from {target_base_url}: {e}")
+
+    return all_models
 
 
 @router.post("/prefs/avatar")

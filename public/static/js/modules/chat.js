@@ -85,6 +85,55 @@ export function getChatActions() {
 
             this.pendingQuestion = null;
             const currentAttachments = [...this.attachments];
+
+            // Direct /image command interceptor
+            if (text.startsWith('/image ')) {
+                const prompt = text.replace('/image ', '').trim();
+                if (prompt) {
+                    this.messages.push({
+                        id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                        role: 'user', 
+                        content: text,
+                        attachments: currentAttachments
+                    });
+                    this.input = '';
+                    this.attachments = [];
+                    this.loading = true;
+                    this.loadingStatus = 'Generating image...';
+                    if (this.$refs.textarea) this.$refs.textarea.style.height = 'auto';
+                    this.$nextTick(() => this.scrollToBottom());
+
+                    try {
+                        const r = await fetch('/api/images/generations', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: prompt, size: '1024x1024' })
+                        });
+                        if (!r.ok) {
+                            const err = await r.json().catch(() => ({}));
+                            throw new Error(err.detail || 'Image generation failed');
+                        }
+                        const data = await r.json();
+                        this.messages.push({
+                            id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                            role: 'assistant',
+                            content: `Here is your generated image for **${prompt}**:\n\n![${prompt}](${data.url})`
+                        });
+                    } catch (e) {
+                        this.messages.push({
+                            id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                            role: 'assistant',
+                            content: `❌ Image generation failed: ${e.message}`
+                        });
+                    } finally {
+                        this.loading = false;
+                        this.loadingStatus = '';
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                    return;
+                }
+            }
+
             this.messages.push({
                 id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                 role: 'user', 
@@ -783,11 +832,33 @@ export function getChatActions() {
             // animation — the whole chat visibly blanking out and coming back.
             // Swapping the content in place is both correct and invisible.
             const sameConversation = this.currentConvId === id;
-            if (!sameConversation) this.messagesLoaded = false;
+            
+            // Conversation LRU cache for instant switching
+            if (!this._convCache) this._convCache = new Map();
+            const cachedDoc = this._convCache.get(id);
+
+            if (cachedDoc && !sameConversation) {
+                this.currentConvId = id;
+                window.location.hash = `chat=${id}`;
+                this.messages = (cachedDoc.messages || []).map(m => ({
+                    ...m,
+                    id: m.id || ('msg-' + Math.random().toString(36).substr(2, 9))
+                }));
+                this.isAnonymous = false;
+                this.groupParticipants = cachedDoc.participants || [cachedDoc.character_id || 'kokomi'];
+                if (cachedDoc.character_id) this.activeCharId = cachedDoc.character_id;
+                else if (this.groupParticipants.length > 0) this.activeCharId = this.groupParticipants[0];
+                this.messagesLoaded = true;
+                this.$nextTick(() => this.scrollToBottom());
+            } else if (!sameConversation) {
+                this.messagesLoaded = false;
+            }
+
             try {
                 const r = await fetch(`/api/conversations/${id}`);
                 if (!r.ok) throw new Error(r.status);
                 const doc = await r.json();
+                this._convCache.set(id, doc);
                 this.currentConvId = id;
                 window.location.hash = `chat=${id}`;
                 this.messages = (doc.messages || []).map(m => ({

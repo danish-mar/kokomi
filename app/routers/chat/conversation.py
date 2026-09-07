@@ -26,7 +26,7 @@ from app.memory import save_memory, search_memories, summarize_conversation
 from app.tools.memory_tool import get_memory_tool
 from app import generation_registry as gen_registry
 
-from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_tool, _ensure_pool
+from ._helpers import open_url, _get_tavily_tool, _get_scrape_tool, _get_image_tool, _get_generate_image_tool, _ensure_pool
 
 router = APIRouter(prefix="/api")
 
@@ -278,6 +278,16 @@ async def chat(req: ChatRequest):
                 "merely to show, embed, preview, or display media inline — for images, "
                 "video files and tables just write the markdown (see widget guidance) so it "
                 "renders inside the chat."
+            )
+
+        gen_img_tool = _get_generate_image_tool(prefs)
+        if gen_img_tool:
+            tool_defs.append(gen_img_tool)
+            builtin_tools[gen_img_tool.name] = gen_img_tool
+            persona += (
+                "\n\nYou have access to an image generation tool called 'generate_image'. "
+                "USE it when the user explicitly asks you to generate, draw, create, or render an image, artwork, illustration, or picture. "
+                "When the tool returns the image markdown, include it directly in your response."
             )
 
         # Triton: reach the user's paired computers (read-only file access)

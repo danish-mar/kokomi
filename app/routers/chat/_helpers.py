@@ -240,7 +240,46 @@ def _get_image_tool(prefs: dict):
         return None
 
 
+def _get_generate_image_tool(prefs: dict):
+    """Build generate_image tool if image generation is enabled."""
+    if not prefs.get("image_gen_enabled", True):
+        return None
+
+    import asyncio
+    import json
+    from app.routers.images import generate_image_internal
+
+    @tool("generate_image")
+    def generate_image_tool(prompt: str) -> str:
+        """Generate a new image based on a descriptive text prompt. Use this when the user asks to draw, generate, or create an image, illustration, or artwork."""
+        try:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Running inside existing loop
+                import nest_asyncio
+                nest_asyncio.apply()
+                res = loop.run_until_complete(generate_image_internal(prompt=prompt))
+            else:
+                res = asyncio.run(generate_image_internal(prompt=prompt))
+
+            return json.dumps({
+                "status": "success",
+                "url": res["url"],
+                "prompt": res["prompt"],
+                "markdown": f"![{prompt}]({res['url']})"
+            })
+        except Exception as e:
+            return json.dumps({"status": "error", "error": str(e)})
+
+    return generate_image_tool
+
+
 async def _ensure_pool():
     """Lazily initialize the MCP pool if it's stale or not ready."""
     if pool_is_stale():
         await init_pool()
+

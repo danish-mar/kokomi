@@ -1,6 +1,4 @@
-/**
- * API Actions and Data Fetching
- */
+import { fetchWithCache, invalidateCache } from './cache.js';
 
 export function getApiActions() {
     const parseDate = (v) => {
@@ -13,14 +11,12 @@ export function getApiActions() {
     return {
         async fetchSpaces() {
             try {
-                const r = await fetch('/api/spaces');
-                if (r.ok) this.spaces = await r.json();
+                this.spaces = await fetchWithCache('/api/spaces');
             } catch(e) { console.error(e); }
         },
         async fetchCharacters() {
             try {
-                const r = await fetch('/api/characters');
-                if (r.ok) this.characters = await r.json();
+                this.characters = await fetchWithCache('/api/characters');
             } catch (e) { console.warn('Characters unavailable', e); }
         },
         async fetchConversations() {
@@ -41,14 +37,12 @@ export function getApiActions() {
         },
         async fetchPrefs() {
             try {
-                const r = await fetch('/api/prefs');
-                if (r.ok) this.prefs = await r.json();
+                this.prefs = await fetchWithCache('/api/prefs');
             } catch (e) { console.warn('Prefs unavailable', e); }
         },
         async fetchFolders() {
             try {
-                const r = await fetch('/api/folders');
-                if (r.ok) this.folders = await r.json();
+                this.folders = await fetchWithCache('/api/folders');
             } catch (e) { console.warn('Could not load folders', e); }
         },
         async saveProject() {
@@ -62,6 +56,7 @@ export function getApiActions() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, icon })
                 });
+                invalidateCache('/api/folders');
                 this.projectModal.show = false;
                 await this.fetchFolders();
             } catch (e) { console.error('Save project failed', e); }
@@ -70,6 +65,7 @@ export function getApiActions() {
             if (!confirm('Delete this project and unarchive chats?')) return;
             try {
                 await fetch(`/api/folders/${fid}`, { method: 'DELETE' });
+                invalidateCache('/api/folders');
                 await this.fetchFolders();
                 await this.fetchConversations();
             } catch (e) { console.error('Delete project failed', e); }
@@ -123,6 +119,7 @@ export function getApiActions() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.prefs)
                 });
+                invalidateCache('/api/prefs');
             } catch (e) {
                 console.error('Failed to update preferences', e);
             }

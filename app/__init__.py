@@ -184,7 +184,9 @@ async def health_check():
 import os
 os.makedirs("data/uploads", exist_ok=True)
 os.makedirs("data/avatars", exist_ok=True)
+os.makedirs("data/generated", exist_ok=True)
 
+app.mount("/static/generated", StaticFiles(directory="data/generated"), name="generated")
 app.mount("/static", StaticFiles(directory="public/static"), name="static")
 app.mount("/images", StaticFiles(directory="public/images"), name="images")
 app.mount("/avatars", StaticFiles(directory="data/avatars"), name="avatars")
@@ -192,7 +194,7 @@ app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 # Register all routers
-from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton, canvas  # noqa: E402
+from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton, canvas, images  # noqa: E402
 # Aliased: a bare `skills` here would bind app.skills to the ROUTER module,
 # shadowing app/skills.py (the actual skill loader) on the package.
 from app.routers import skills as skills_router  # noqa: E402
@@ -213,4 +215,5 @@ app.include_router(workflows.router)
 app.include_router(insights.router)
 app.include_router(triton.router)
 app.include_router(canvas.router)
+app.include_router(images.router)
 app.include_router(skills_router.router)

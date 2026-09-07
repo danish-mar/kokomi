@@ -10,7 +10,7 @@ import uuid
 from app.config import QDRANT_URL, JSON_DIR, SPACES_DIR
 
 # Initialize Qdrant Client (pointing to the configured Qdrant instance)
-qdrant = QdrantClient(url=QDRANT_URL)
+qdrant = QdrantClient(url=QDRANT_URL, check_compatibility=False, timeout=2.0)
 
 # Global cache for embedding clients to avoid re-initialization latency
 _EMBEDDING_MODEL_CACHE = {}

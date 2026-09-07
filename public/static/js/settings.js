@@ -11,6 +11,7 @@ function settingsApp() {
         mcpServers: [],
         installedApps: [],
         models: [],
+        imageGenModels: [],
         toasts: [],
         diagnosticsLogs: [],
         diagnosticsRunning: false,
@@ -89,7 +90,12 @@ function settingsApp() {
             title_custom_base_url: 'http://localhost:8080/v1',
             title_custom_api_key: '',
             title_custom_model: 'local-model',
-            title_active_custom_provider_id: null
+            title_active_custom_provider_id: null,
+            image_gen_provider: 'openai',
+            image_gen_base_url: 'https://api.openai.com/v1',
+            image_gen_api_key: '',
+            image_gen_model: 'dall-e-3',
+            image_gen_enabled: true
         },
 
         /* ═══ Custom provider presets (add/edit modal + selector state) ═══ */
@@ -104,6 +110,7 @@ function settingsApp() {
             // Composer model tiers (brain-icon slider) — same "Custom" slot pattern.
             fast:  { id: 'fast_active_custom_provider_id', url: 'fast_custom_base_url', key: 'fast_custom_api_key', model: 'fast_custom_model' },
             smart: { id: 'smart_active_custom_provider_id', url: 'smart_custom_base_url', key: 'smart_custom_api_key', model: 'smart_custom_model' },
+            image_gen: { id: 'image_gen_active_provider_id', url: 'image_gen_base_url', key: 'image_gen_api_key', model: 'image_gen_model' },
         },
 
         cropModal: false,
@@ -1184,7 +1191,15 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         },
 
         async fetchModels() {
-            try { const r = await fetch('/api/models'); this.models = await r.json(); } catch(e) { console.error(e); }
+            try { 
+                const baseUrl = encodeURIComponent(this.prefs.image_gen_base_url || '');
+                const apiKey = encodeURIComponent(this.prefs.image_gen_api_key || '');
+                const imageGenUrl = `/api/models/image_gen?base_url=${baseUrl}&api_key=${apiKey}`;
+                
+                const [r1, r2] = await Promise.all([fetch('/api/models'), fetch(imageGenUrl)]); 
+                if (r1.ok) this.models = await r1.json();
+                if (r2.ok) this.imageGenModels = await r2.json();
+            } catch(e) { console.error(e); }
         },
 
         getMCPName(id) {

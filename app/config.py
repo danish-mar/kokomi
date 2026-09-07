@@ -42,10 +42,12 @@ FOLDERS_FILE = os.path.join(JSON_DIR, "folders.json")
 SPACES_FILE = os.path.join(JSON_DIR, "spaces.json")
 AVATARS_DIR = os.path.join(DATA_DIR, "avatars")
 SPACES_DIR = os.path.join(DATA_DIR, "spaces")
+GENERATED_DIR = os.path.join(DATA_DIR, "generated")
 INSIGHTS_FILE = os.path.join(JSON_DIR, "insights.jsonl")
 
 os.makedirs(AVATARS_DIR, exist_ok=True)
 os.makedirs(SPACES_DIR, exist_ok=True)
+os.makedirs(GENERATED_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ── Default preferences ──────────────────────────────────────────────
@@ -138,6 +140,11 @@ DEFAULT_PREFS: dict = {
     "groq_api_key": os.getenv("GROQ_API_KEY", ""),
     "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
     "nvidia_api_key": os.getenv("NVIDIA_API_KEY", ""),
-    "max_tool_rounds": 8
+    "max_tool_rounds": 8,
+    "image_gen_provider": "openai",
+    "image_gen_base_url": "https://api.openai.com/v1",
+    "image_gen_api_key": os.getenv("OPENAI_API_KEY", ""),
+    "image_gen_model": "dall-e-3",
+    "image_gen_enabled": True
 }
 

@@ -131,7 +131,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: var(--shadow-md);
-    overflow: hidden;
+    overflow: visible;
     margin-bottom: 16px;
 }
 

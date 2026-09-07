@@ -73,6 +73,10 @@
                     <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-obsidian), var(--swatch-indigo));"><i class="fa-solid fa-cubes" style="font-size:11px;color:#fff;"></i></span>
                     Apps
                 </button>
+                <button @click="selectTab('image_gen')" class="tahoe-nav-item" :class="tab === 'image_gen' ? 'active' : ''">
+                    <span class="nav-icon" style="background: linear-gradient(135deg, #ec4899, #8b5cf6);"><i class="fa-solid fa-wand-magic-sparkles" style="font-size:11px;color:#fff;"></i></span>
+                    Image Generation
+                </button>
                 <button @click="selectTab('integrations')" class="tahoe-nav-item" :class="tab === 'integrations' ? 'active' : ''">
                     <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-lavender), var(--swatch-midnight));"><i class="fa-solid fa-puzzle-piece" style="font-size:11px;color:#fff;"></i></span>
                     Integrations
@@ -498,6 +502,59 @@
                 <div x-show="prefSaving" x-transition style="display:flex; justify-content:center; margin-top:12px;">
                     <div class="saved-toast">
                         <i class="fa-solid fa-circle-notch fa-spin"></i> Saved to Cloud
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ TAB: IMAGE GENERATION ═══ -->
+            <div x-show="tab === 'image_gen'" x-transition class="tab-panel">
+                <h2 class="section-title">Image Generation</h2>
+                <p class="section-subtitle">Configure OpenAI-compatible text-to-image endpoints and model selection.</p>
+
+                <div class="glass-card">
+                    <div class="card-row">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #ec4899, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white;">
+                                    <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 16px;"></i>
+                                </div>
+                                <div>
+                                    <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Image Generation Status</h3>
+                                    <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--text-tertiary);">Enable or disable autonomous image generation tools &amp; <code>/image</code> command.</p>
+                                </div>
+                            </div>
+                            <button @click="prefs.image_gen_enabled = !prefs.image_gen_enabled; savePrefs()"
+                                class="apple-toggle" :class="prefs.image_gen_enabled ? 'on' : 'off'">
+                                <div class="toggle-knob"></div>
+                            </button>
+                        </div>
+
+                        <div x-show="prefs.image_gen_enabled" x-transition style="display: flex; flex-direction: column; gap: 16px; border-top: 1px solid var(--border); padding-top: 16px;">
+                            <div>
+                                <label class="apple-label" style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px;">Provider Preset</label>
+                                {{ m.custom_provider_selector('image_gen', 'prefs.image_gen_active_provider_id') }}
+                                <p style="font-size: 10px; color: var(--text-quaternary); margin-top: 5px;">Pick from your saved provider presets or enter custom credentials manually below.</p>
+                            </div>
+
+                            <div>
+                                <label class="apple-label" style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px;">Provider API Base URL</label>
+                                <input type="text" x-model="prefs.image_gen_base_url" @blur="savePrefs(); fetchModels()"
+                                    placeholder="https://api.openai.com/v1" class="apple-field" style="font-family: 'SF Mono', monospace; font-size: 12px;">
+                                <p style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px;">Must support <code>POST /images/generations</code> OpenAI spec (e.g. OpenAI, FAL.ai, Together AI, FLUX/SD WebUI).</p>
+                            </div>
+
+                            <div>
+                                <label class="apple-label" style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px;">API Key</label>
+                                <input type="password" x-model="prefs.image_gen_api_key" @blur="savePrefs(); fetchModels()"
+                                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" class="apple-field" style="font-family: 'SF Mono', monospace; font-size: 12px;">
+                            </div>
+
+                            <div>
+                                <label class="apple-label" style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px;">Image Model</label>
+                                {{ m.model_dropdown("prefs.image_gen_model", "imageGenModels", placeholder="Search image models…") }}
+                                <p style="font-size: 10px; color: var(--text-quaternary); margin-top: 5px;">Select from curated/fetched image generation models or type a custom model ID.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
