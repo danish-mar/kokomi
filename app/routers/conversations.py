@@ -76,12 +76,28 @@ def get_last_message_preview(c):
 
 
 def get_conversation_thumbnail(c):
-    """First image URL from the most recent `search_images` result in the chat,
-    used as the sidebar card thumbnail. None if the chat has no images."""
+    """First image URL from the conversation used as the sidebar card thumbnail.
+
+    Checks (in order):
+    1. `generate_image` tool results embedded as markdown in message content.
+    2. `search_images` tool call results (gallery images).
+    Returns None if no image is found.
+    """
     import json as _json
+    import re as _re
+
+    # Regex to match markdown images: ![alt](url) — matches both relative (/api/img?url=...) and absolute URLs
+    _MD_IMG = _re.compile(r'!\[[^\]]*\]\(([^)]+)\)')
+
     for m in reversed(c.get("messages", [])):
         if m.get("role") != "assistant":
             continue
+        # 1. Scan content for markdown images (generated images live here)
+        content = m.get("content") or ""
+        match = _MD_IMG.search(content)
+        if match:
+            return match.group(1)
+        # 2. search_images tool results
         for tc in reversed(m.get("tool_calls") or []):
             if tc.get("name") != "search_images" or not tc.get("result"):
                 continue

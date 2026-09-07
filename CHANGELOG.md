@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v6.7.3] - 2026-09-08
+
+### Added
+
+- **Image Generation composer controls**: A new wand-magic pill button in the composer toolbar next to Artifacts. Hovering opens an Apple HIG floating popover menu with aspect ratio presets (`1:1` square, `16:9` landscape, `9:16` portrait, `4:3` standard with custom geometric icons) and image generation count selection (`1`, `2`, `3`, `4`).
+- **Parallel multi-image generation**: Requesting up to 4 images generates them concurrently via `asyncio.gather` with staggered API launches (`0.12s` delay) to ensure rate-limit safety and provider reliability. Multi-image requests include unique seed variations per image.
+- **Responsive multi-image grid layout**: Generated multi-image outputs render in a clean CSS grid container (`.kokomi-img-grid.img-grid-N`) with `repeat(2, 1fr)` layout for 2, 3, or 4 images, ensuring images never stack vertically or break message prose flow.
+- **Multi-card shimmer skeleton loading state**: While `generate_image` runs in the background, a grid of shimmer skeleton cards (`.kokomi-imggen-shimmer-grid`) displays the exact number of requested images.
+- **Fullscreen image lightbox gallery navigation**: Clicking an image opens an interactive fullscreen gallery with frosted-glass previous (`<`) and next (`>`) navigation buttons, image counter badge (`X / N`), and keyboard arrow key support (`ArrowLeft`, `ArrowRight`, `Escape`).
+- **Image Gen settings persistence**: Composer `imageGenMode`, `imageGenAspect`, and `imageGenCount` settings are persisted in `localStorage` and automatically restored across page reloads.
+
+### Fixed
+
+- **Image filename collisions**: Saved images previously used a deterministic MD5 hash of the prompt string, causing concurrent multi-image generations to overwrite each other's local files. Replaced with unique timestamp and UUID filename generation (`gen_<time>_<uuid>.png`).
+- **Streaming image flicker**: Streaming tokens re-evaluating `renderMarkdown` previously caused DOM image elements to reset to `opacity: 0` before hydration. Updated `isLoaded` and `onImgLoad` in `widgets.js` to track both relative and absolute proxy URLs, ensuring pre-loaded image HTML strings carry `class="is-loaded"` directly during streaming.
+- **Fullscreen lightbox prompt text**: Hidden prompt/alt text from the fullscreen lightbox overlay, displaying only clean image dimension metadata.
+- **Settings page theme icon**: Replaced hardcoded pink-purple gradient on the Image Generation nav icon and card header badge in `settings.html` with theme swatch variables (`var(--swatch-indigo)`, `var(--swatch-lavender)`) to match active theme styling.
+
 ## [v6.7.2] - 2026-09-06
 
 ### Added

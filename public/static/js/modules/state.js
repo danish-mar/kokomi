@@ -48,6 +48,26 @@ export function getInitialState() {
             'fa-solid fa-music', 'fa-solid fa-palette', 'fa-solid fa-microchip'
         ],
         prefs: { dynamic_suggestions: true, artifacts: true, debug_mode: false },
+        imageGenMode: localStorage.getItem('imageGenMode') === 'true',
+        imageGenAspect: localStorage.getItem('imageGenAspect') || '1:1',
+        imageGenCount: parseInt(localStorage.getItem('imageGenCount'), 10) || 1,
+        imageGenMenuOpen: false,
+        setImageGenMode(val) {
+            this.imageGenMode = val;
+            localStorage.setItem('imageGenMode', val ? 'true' : 'false');
+        },
+        setImageGenAspect(val) {
+            this.imageGenAspect = val;
+            this.imageGenMode = true;
+            localStorage.setItem('imageGenAspect', val);
+            localStorage.setItem('imageGenMode', 'true');
+        },
+        setImageGenCount(val) {
+            this.imageGenCount = val;
+            this.imageGenMode = true;
+            localStorage.setItem('imageGenCount', val);
+            localStorage.setItem('imageGenMode', 'true');
+        },
         artifactModal: {
             show: false, id: null, title: '', type: '', icon: '',
             content: '', renderedContent: '', output: '', executing: false,

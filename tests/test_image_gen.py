@@ -41,3 +41,28 @@ class TestImageGeneration(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["revised_prompt"], "A cute white kitten")
             self.assertTrue(result["url"].startswith("/static/generated/"))
 
+    def test_save_image_gen_prefs(self):
+        saved_prefs = {}
+        def mock_save(p):
+            saved_prefs.update(p)
+
+        with patch("app.routers.prefs.load_prefs", side_effect=lambda: {"setup_completed": False, **saved_prefs}), \
+             patch("app.routers.prefs.save_prefs", side_effect=mock_save), \
+             patch("app.storage.load_prefs", return_value={"setup_completed": False}):
+            payload = {
+                "setup_completed": False,
+                "image_gen_enabled": True,
+                "image_gen_provider": "custom",
+                "image_gen_base_url": "http://localhost:8009/v1",
+                "image_gen_api_key": "test-key-imagen",
+                "image_gen_model": "imagen-3",
+                "image_gen_active_provider_id": "cp-imagen-123"
+            }
+            res = client.post("/api/prefs", json=payload)
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(data.get("image_gen_active_provider_id"), "cp-imagen-123")
+            self.assertEqual(data.get("image_gen_base_url"), "http://localhost:8009/v1")
+            self.assertEqual(data.get("image_gen_api_key"), "test-key-imagen")
+            self.assertEqual(data.get("image_gen_model"), "imagen-3")
+

@@ -71,8 +71,10 @@ async def generate_image_internal(prompt: str, size: str = "1024x1024") -> dict:
     revised_prompt = item.get("revised_prompt")
     
     # Save image locally to GENERATED_DIR
+    import uuid
+    import time
     os.makedirs(GENERATED_DIR, exist_ok=True)
-    filename = f"{hashlib.md5(prompt.encode('utf-8')).hexdigest()[:12]}_{int(hashlib.sha256(prompt.encode('utf-8')).hexdigest()[:8], 16)}.png"
+    filename = f"gen_{int(time.time())}_{uuid.uuid4().hex[:10]}.png"
     filepath = os.path.join(GENERATED_DIR, filename)
     local_url = f"/static/generated/{filename}"
 

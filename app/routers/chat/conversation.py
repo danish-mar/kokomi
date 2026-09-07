@@ -285,9 +285,11 @@ async def chat(req: ChatRequest):
             tool_defs.append(gen_img_tool)
             builtin_tools[gen_img_tool.name] = gen_img_tool
             persona += (
-                "\n\nYou have access to an image generation tool called 'generate_image'. "
+                "\n\nYou have access to an image generation tool called 'generate_image(prompt: str, count: int = 1, aspect_ratio: str = '1:1')'. "
                 "USE it when the user explicitly asks you to generate, draw, create, or render an image, artwork, illustration, or picture. "
-                "When the tool returns the image markdown, include it directly in your response."
+                "CRITICAL: If the request specifies creating multiple images (e.g. '[Image Generation Request: Please use generate_image to create N image(s)...]' or 'create N images'), "
+                "you MUST pass `count=N` (1 to 4) and `aspect_ratio` in your call to generate_image! Do NOT call generate_image with count=1 when multiple images were requested. "
+                "When the tool returns the image markdown, include ALL generated image markdown links directly in your response."
             )
 
         # Triton: reach the user's paired computers (read-only file access)
@@ -371,13 +373,16 @@ async def chat(req: ChatRequest):
                             res_txt = f"Error: '{tool_name}' not found"
                     except Exception as e:
                         res_txt = f"Error: {e}"
-                    tool_calls_log.append({
-                        "name": tool_name,
-                        "args": tool_args,
-                        "result": res_txt,
-                        "icon": tool_icons.get(tool_name, "fa-wrench"),
-                        "description": ui_status_text
-                    })
+                    # generate_image results are not persisted — the image URL
+                    # lives in the model's follow-up content (as markdown).
+                    if tool_name != "generate_image":
+                        tool_calls_log.append({
+                            "name": tool_name,
+                            "args": tool_args,
+                            "result": res_txt,
+                            "icon": tool_icons.get(tool_name, "fa-wrench"),
+                            "description": ui_status_text
+                        })
                     lc_msgs.append(ToolMessage(content=res_txt, tool_call_id=tool_call_id))
 
                 response = await llm_with_tools.ainvoke(lc_msgs)
@@ -591,6 +596,11 @@ async def chat_stream(req: ChatRequest):
                     tool_defs.append(image_tool)
                     builtin_tools[image_tool.name] = image_tool
 
+                gen_img_tool = _get_generate_image_tool(prefs)
+                if gen_img_tool:
+                    tool_defs.append(gen_img_tool)
+                    builtin_tools[gen_img_tool.name] = gen_img_tool
+
                 if prefs.get("browser_redirect_enabled", True):
                     tool_defs.append(open_url)
                     builtin_tools[open_url.name] = open_url
@@ -797,6 +807,15 @@ async def chat_stream(req: ChatRequest):
                             "'Aurangabad'), then write your reply referencing the photos naturally. Skip it only "
                             "for abstract topics (code, math, feelings, definitions) where a photo wouldn't help. "
                             "Never paste raw image URLs or markdown image tags in your message."
+                        )
+
+                    if "generate_image" in builtin_tools:
+                        p_persona += (
+                            "\n\nYou have access to an image generation tool called 'generate_image(prompt: str, count: int = 1, aspect_ratio: str = '1:1')'. "
+                            "USE it when the user explicitly asks you to generate, draw, create, or render an image, artwork, illustration, or picture. "
+                            "CRITICAL: If the request specifies creating multiple images (e.g. '[Image Generation Request: Please use generate_image to create N image(s)...]' or 'create N images'), "
+                            "you MUST pass `count=N` (1 to 4) and `aspect_ratio` in your call to generate_image! Do NOT call generate_image with count=1 when multiple images were requested. "
+                            "When the tool returns the image markdown, include ALL generated image markdown links directly in your response."
                         )
 
                     if prefs.get("browser_redirect_enabled", True) and "open_url" in builtin_tools:
@@ -1285,7 +1304,7 @@ async def chat_stream(req: ChatRequest):
                                 tid = tc["id"]
                                 ticon = tool_icons.get(tname, "fa-wrench")
                                 ui_status = targs.get("ui_status_text") if isinstance(targs, dict) else None
-                                await queue.put(f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'icon': ticon, 'description': ui_status, 'character_id': pid, 'model': p_active_model})}\n\n")
+                                await queue.put(f"data: {json.dumps({'type': 'tool_start', 'name': tname, 'args': targs, 'icon': ticon, 'description': ui_status, 'character_id': pid, 'model': p_active_model})}\n\n")
                                 sess = tool_sessions.get(tname)
                                 bt = builtin_tools.get(tname)
                                 if is_debug:
@@ -1327,7 +1346,10 @@ async def chat_stream(req: ChatRequest):
 
                                 await queue.put(f"data: {json.dumps({'type': 'tool_end', 'name': tname, 'result': txt, 'args': targs, 'icon': ticon, 'description': ui_status, 'character_id': pid})}\n\n")
                                 p_lc_msgs.append(ToolMessage(content=txt, name=tname, tool_call_id=tid))
-                                char_tool_calls_log.append({"name": tname, "args": targs, "result": txt, "icon": ticon, "description": ui_status})
+                                # generate_image results are not persisted — the image URL
+                                # lives in the model's follow-up content (as markdown).
+                                if tname != "generate_image":
+                                    char_tool_calls_log.append({"name": tname, "args": targs, "result": txt, "icon": ticon, "description": ui_status})
 
                             fcl = ""
                             inner_chunks = []

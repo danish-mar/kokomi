@@ -144,3 +144,12 @@ class PrefsUpdate(BaseModel):
     admin_password: Optional[str] = "admin"
     tour_completed: bool = False
     custom_themes: Optional[list] = []
+
+    # Image generation settings
+    image_gen_provider: Optional[str] = "openai"
+    image_gen_base_url: Optional[str] = "https://api.openai.com/v1"
+    image_gen_api_key: Optional[str] = ""
+    image_gen_model: Optional[str] = "dall-e-3"
+    image_gen_enabled: bool = True
+    image_gen_active_provider_id: Optional[str] = None
+

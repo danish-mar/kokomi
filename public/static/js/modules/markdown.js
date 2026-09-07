@@ -3,7 +3,7 @@
  * Includes KaTeX math rendering for LaTeX expressions
  */
 
-import { renderImage, renderTable, renderCodeWidget, setupWidgets } from './widgets.js';
+import { renderImage, renderTable, renderCodeWidget, setupWidgets } from './widgets.js?v=14';
 
 // ── Math Token Store ─────────────────────────────────────────────────────────
 // We extract math before marked runs (to prevent it from mangling LaTeX),

@@ -232,6 +232,10 @@ export function getChatActions() {
             // supersedes an earlier one, and the superseded reader must not
             // clobber the newer reader's state when its abort finally lands.
             const seq = (this._streamSeq = (this._streamSeq || 0) + 1);
+            const sendMsg = (this.imageGenMode && msg)
+                ? msg + `\n\n[Image Generation Request: Please use generate_image to create ${this.imageGenCount || 1} image(s) with aspect ratio ${this.imageGenAspect || '1:1'}.]`
+                : msg;
+
             try {
                 const response = attachConvId
                     ? await fetch(`/api/chat/attach/${encodeURIComponent(attachConvId)}`, {
@@ -241,7 +245,7 @@ export function getChatActions() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            message: msg,
+                            message: sendMsg,
                             character_id: this.activeCharId,
                             conversation_id: this.currentConvId,
                             participants: this.groupParticipants,
@@ -362,13 +366,26 @@ export function getChatActions() {
                                     const charName = this.getCharById(charId).name;
                                     this.loadingStatus = `${charName}: ${data.description || ('Running ' + data.name)}...`;
                                     if (targetIdx !== undefined) {
-                                        if (!this.messages[targetIdx].tool_calls) this.messages[targetIdx].tool_calls = [];
-                                        this.messages[targetIdx].tool_calls.push({ 
-                                            name: data.name, 
-                                            icon: data.icon || 'fa-wrench', 
-                                            description: data.description,
-                                            result: "Executing..." 
-                                         });
+                                        // generate_image gets a dedicated shimmer, not a generic tool pill
+                                        if (data.name === 'generate_image') {
+                                            this.messages[targetIdx].imgGenerating = true;
+                                            let cnt = 1;
+                                            if (data.args && data.args.count) {
+                                                cnt = parseInt(data.args.count, 10) || 1;
+                                            } else if (this.imageGenCount) {
+                                                cnt = parseInt(this.imageGenCount, 10) || 1;
+                                            }
+                                            this.messages[targetIdx].imgGenCount = cnt;
+                                            this.loadingStatus = `${charName}: Generating ${cnt > 1 ? cnt + ' images' : 'image'}...`;
+                                        } else {
+                                            if (!this.messages[targetIdx].tool_calls) this.messages[targetIdx].tool_calls = [];
+                                            this.messages[targetIdx].tool_calls.push({ 
+                                                name: data.name, 
+                                                icon: data.icon || 'fa-wrench', 
+                                                description: data.description,
+                                                result: "Executing..." 
+                                             });
+                                        }
                                     }
                                 }
                             } else if (data.type === 'artifact_open') {
@@ -475,6 +492,9 @@ export function getChatActions() {
                                         window.open(data.args.url, '_blank');
                                         this.showToast(`Opened ${data.args.url}`, 'info');
                                     }
+                                } else if (data.name === 'generate_image') {
+                                    // Clear the shimmer; the model's follow-up content has the image
+                                    if (targetIdx !== undefined) this.messages[targetIdx].imgGenerating = false;
                                 } else if (targetIdx !== undefined && this.messages[targetIdx].tool_calls) {
                                     const tcs = this.messages[targetIdx].tool_calls;
                                     if (tcs.length > 0) {
@@ -1049,6 +1069,30 @@ export function getChatActions() {
                 }
             }
             this._galleryCache[key] = { sig, images };
+            return images;
+        },
+
+        // Extract AI-generated images (from generate_image tool) from message content
+        // markdown. These are never stored in tool_calls — they live in the model's
+        // follow-up content as ![prompt](url). Works live (streaming) and on reload.
+        generatedImages(msg) {
+            if (!msg || !msg.content) return [];
+            const MD_IMG = /!\[([^\]]*)\]\(([^)]+)\)/g;
+            const images = [];
+            const seen = new Set();
+            let m;
+            while ((m = MD_IMG.exec(msg.content)) !== null) {
+                const url = m[2];
+                if (!url || seen.has(url)) continue;
+                seen.add(url);
+                images.push({ url, alt: m[1] || '' });
+            }
+            if (images.length && this.currentConvId) {
+                const conv = this.conversations.find(c => c._id === this.currentConvId);
+                if (conv && !conv.thumbnail) {
+                    conv.thumbnail = images[0].url;
+                }
+            }
             return images;
         },
 

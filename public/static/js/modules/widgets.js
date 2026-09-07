@@ -51,13 +51,29 @@ export function renderImage(token) {
 
     const src = proxy(href);
     const cap = title || text;
-    return `<figure class="kokomi-img-fig" data-kokomi-img>
-        <img class="kokomi-img" loading="lazy" src="${escapeAttr(src)}"
-             data-full="${escapeAttr(src)}" alt="${escapeAttr(text)}"
-             onload="window.KokomiWidgets&&window.KokomiWidgets.onImgLoad(this)"
-             onerror="this.closest('figure')?.classList.add('kokomi-img--err')">
-        <figcaption class="kokomi-img-cap">
-            <span class="kokomi-img-text">${escapeHtml(cap)}</span>
+    const isAlreadyLoaded = (window.KokomiWidgets && window.KokomiWidgets.isLoaded) ? window.KokomiWidgets.isLoaded(src) : false;
+    const loadedClass = isAlreadyLoaded ? ' is-loaded' : '';
+
+    return `<figure class="kokomi-img-fig${loadedClass}" data-kokomi-img>
+        <div class="kokomi-img-wrapper">
+            <img class="kokomi-img${loadedClass}" loading="lazy" src="${escapeAttr(src)}"
+                 data-full="${escapeAttr(src)}" alt="${escapeAttr(text)}"
+                 onload="this.classList.add('is-loaded');window.KokomiWidgets&&window.KokomiWidgets.onImgLoad(this)"
+                 onerror="this.closest('figure')?.classList.add('kokomi-img--err')">
+            <div class="kokomi-img-overlay-actions">
+                ${cap ? `<button type="button" class="kokomi-img-action-btn" title="View & Copy Prompt" onclick="event.stopPropagation();window.KokomiWidgets&&window.KokomiWidgets.togglePrompt(this)"><i class="fa-solid fa-terminal"></i></button>` : ''}
+                <button type="button" class="kokomi-img-action-btn" title="Download Image" onclick="event.stopPropagation();window.KokomiWidgets&&window.KokomiWidgets.downloadImg('${escapeAttr(src)}', '${escapeAttr(cap || 'image')}')"><i class="fa-solid fa-download"></i></button>
+            </div>
+        </div>
+        ${cap ? `
+        <div class="kokomi-img-prompt-panel">
+            <div class="kokomi-img-prompt-header">
+                <span><i class="fa-solid fa-wand-magic-sparkles"></i> Prompt</span>
+                <button type="button" class="kokomi-prompt-copy-btn" onclick="event.stopPropagation();window.KokomiWidgets&&window.KokomiWidgets.copyPromptText(this, '${escapeAttr(cap)}')"><i class="fa-solid fa-copy"></i> Copy</button>
+            </div>
+            <div class="kokomi-img-prompt-body">${escapeHtml(cap)}</div>
+        </div>` : ''}
+        <figcaption class="kokomi-img-cap" style="display:none">
             <span class="kokomi-img-dims"></span>
         </figcaption>
     </figure>`;
@@ -249,14 +265,111 @@ export function renderCodeWidget(lang, code) {
 }
 
 // ── Manager: hydration + lightbox + action dispatch ──────────────────────────
+const loadedUrls = new Set();
+
 const KokomiWidgets = {
     _lightbox: null,
+    loadedUrls,
+
+    isLoaded(url) {
+        if (!url) return false;
+        if (loadedUrls.has(url)) return true;
+        const pUrl = proxy(url);
+        if (loadedUrls.has(pUrl)) return true;
+        try {
+            const abs = new URL(pUrl, window.location.origin).href;
+            if (loadedUrls.has(abs)) return true;
+            const absRaw = new URL(url, window.location.origin).href;
+            if (loadedUrls.has(absRaw)) return true;
+        } catch { /* noop */ }
+        return false;
+    },
 
     onImgLoad(img) {
         try {
-            const dims = img.closest('figure')?.querySelector('.kokomi-img-dims');
+            img.classList.add('is-loaded');
+            const fig = img.closest('figure');
+            if (fig) fig.classList.add('is-loaded');
+            if (img.src) {
+                loadedUrls.add(img.src);
+                try {
+                    const u = new URL(img.src);
+                    loadedUrls.add(u.pathname + u.search);
+                } catch { /* noop */ }
+            }
+            const full = img.getAttribute('data-full');
+            if (full) {
+                loadedUrls.add(full);
+                try {
+                    const u = new URL(full, window.location.origin);
+                    loadedUrls.add(u.pathname + u.search);
+                } catch { /* noop */ }
+            }
+            const dims = fig?.querySelector('.kokomi-img-dims');
             if (dims && img.naturalWidth) dims.textContent = `${img.naturalWidth}×${img.naturalHeight}`;
         } catch { /* noop */ }
+    },
+
+    downloadImg(src, filename) {
+        try {
+            const a = document.createElement('a');
+            a.href = src;
+            a.download = (filename || 'generated_image').replace(/[^a-z0-9_-]/gi, '_').slice(0, 36) + '.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch {
+            window.open(src, '_blank');
+        }
+    },
+
+    togglePrompt(btn) {
+        const fig = btn.closest('figure');
+        if (fig) fig.classList.toggle('is-prompt-open');
+    },
+
+    copyPromptText(btn, text) {
+        navigator.clipboard?.writeText(text).then(() => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerHTML = orig;
+                btn.classList.remove('copied');
+            }, 1500);
+        }).catch(() => { /* clipboard error */ });
+    },
+
+    hydrateImages(root = document) {
+        root.querySelectorAll('.kokomi-img').forEach(img => {
+            if (img.complete && img.naturalWidth) {
+                this.onImgLoad(img);
+            }
+        });
+
+        // Detect multiple images within a prose container and group into a grid wrapper (max 4)
+        root.querySelectorAll('.chat-prose').forEach(prose => {
+            const figs = Array.from(prose.querySelectorAll('.kokomi-img-fig'));
+            if (figs.length > 1) {
+                const unwrapped = figs.filter(f => !f.closest('.kokomi-img-grid'));
+                if (unwrapped.length > 1) {
+                    const grid = document.createElement('div');
+                    const cnt = Math.min(4, unwrapped.length);
+                    grid.className = `kokomi-img-grid img-grid-${cnt}`;
+
+                    const firstParent = unwrapped[0].closest('p') || unwrapped[0];
+                    firstParent.parentNode.insertBefore(grid, firstParent);
+
+                    unwrapped.slice(0, 4).forEach(fig => {
+                        const p = fig.closest('p');
+                        grid.appendChild(fig);
+                        if (p && p.children.length === 0 && !p.textContent.trim()) {
+                            p.remove();
+                        }
+                    });
+                }
+            }
+        });
     },
 
     // Sort + filter wiring for tables (idempotent; re-run safe via data-hydrated).
@@ -309,6 +422,7 @@ const KokomiWidgets = {
 
     hydrate(root = document) {
         this.hydrateTables(root);
+        this.hydrateImages(root);
     },
 
     // ── Lightbox ─────────────────────────────────────────────────────────────
@@ -319,27 +433,79 @@ const KokomiWidgets = {
         el.innerHTML = `
             <button class="kokomi-lb-close" title="Close"><i class="fa-solid fa-xmark"></i></button>
             <a class="kokomi-lb-open" target="_blank" title="Open original"><i class="fa-solid fa-up-right-from-square"></i></a>
+            <button class="kokomi-lb-nav kokomi-lb-prev" title="Previous Image"><i class="fa-solid fa-chevron-left"></i></button>
+            <button class="kokomi-lb-nav kokomi-lb-next" title="Next Image"><i class="fa-solid fa-chevron-right"></i></button>
             <img class="kokomi-lb-img" alt="">
-            <div class="kokomi-lb-meta"></div>`;
+            <div class="kokomi-lb-footer">
+                <span class="kokomi-lb-meta"></span>
+                <span class="kokomi-lb-count"></span>
+            </div>`;
         el.addEventListener('click', (e) => {
-            if (e.target === el || e.target.closest('.kokomi-lb-close')) this.closeLightbox();
+            if (e.target === el || e.target.closest('.kokomi-lb-close')) {
+                this.closeLightbox();
+            } else if (e.target.closest('.kokomi-lb-prev')) {
+                this.navLightbox(-1);
+            } else if (e.target.closest('.kokomi-lb-next')) {
+                this.navLightbox(1);
+            }
         });
         document.body.appendChild(el);
         this._lightbox = el;
         return el;
     },
 
-    openLightbox(src, full, alt = '') {
+    openLightbox(targetImg) {
+        if (!targetImg) return;
         const lb = this._ensureLightbox();
+
+        // Find surrounding gallery items in same prose container or grid
+        const container = targetImg.closest('.kokomi-img-grid') || targetImg.closest('.chat-prose') || document.body;
+        const gallery = Array.from(container.querySelectorAll('.kokomi-img'));
+        this._gallery = gallery.length ? gallery : [targetImg];
+        this._galleryIdx = Math.max(0, this._gallery.indexOf(targetImg));
+
+        this._updateLightboxItem();
+        lb.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    },
+
+    navLightbox(dir) {
+        if (!this._gallery || !this._gallery.length) return;
+        this._galleryIdx = (this._galleryIdx + dir + this._gallery.length) % this._gallery.length;
+        this._updateLightboxItem();
+    },
+
+    _updateLightboxItem() {
+        if (!this._lightbox || !this._gallery || !this._gallery.length) return;
+        const targetImg = this._gallery[this._galleryIdx];
+        const src = targetImg.currentSrc || targetImg.src;
+        const full = targetImg.getAttribute('data-full') || src;
+
+        const lb = this._lightbox;
         const img = lb.querySelector('.kokomi-lb-img');
         const meta = lb.querySelector('.kokomi-lb-meta');
         const open = lb.querySelector('.kokomi-lb-open');
-        img.src = full || src;
-        open.href = full || src;
+        const prev = lb.querySelector('.kokomi-lb-prev');
+        const next = lb.querySelector('.kokomi-lb-next');
+        const count = lb.querySelector('.kokomi-lb-count');
+
+        img.src = full;
+        open.href = full;
         meta.textContent = '';
-        img.onload = () => { if (img.naturalWidth) meta.textContent = `${img.naturalWidth}×${img.naturalHeight}${alt ? ' · ' + alt : ''}`; };
-        lb.classList.add('open');
-        document.body.style.overflow = 'hidden';
+        img.onload = () => { if (img.naturalWidth) meta.textContent = `${img.naturalWidth}×${img.naturalHeight}`; };
+
+        const total = this._gallery.length;
+        if (total > 1) {
+            prev.style.display = 'flex';
+            next.style.display = 'flex';
+            count.style.display = 'inline-block';
+            count.textContent = `${this._galleryIdx + 1} / ${total}`;
+        } else {
+            prev.style.display = 'none';
+            next.style.display = 'none';
+            count.style.display = 'none';
+            count.textContent = '';
+        }
     },
 
     closeLightbox() {
@@ -405,10 +571,13 @@ const KokomiWidgets = {
             const img = e.target.closest('.kokomi-img, .kokomi-tbl td img, .chat-prose td img');
             if (!img) return;
             e.preventDefault();
-            this.openLightbox(img.currentSrc || img.src, img.getAttribute('data-full') || img.src, img.alt);
+            this.openLightbox(img);
         });
         document.addEventListener('keydown', (e) => {
+            if (!this._lightbox || !this._lightbox.classList.contains('open')) return;
             if (e.key === 'Escape') this.closeLightbox();
+            else if (e.key === 'ArrowLeft' || e.key === '<') this.navLightbox(-1);
+            else if (e.key === 'ArrowRight' || e.key === '>') this.navLightbox(1);
         });
 
         this.hydrate();

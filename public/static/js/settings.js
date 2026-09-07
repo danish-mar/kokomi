@@ -95,7 +95,8 @@ function settingsApp() {
             image_gen_base_url: 'https://api.openai.com/v1',
             image_gen_api_key: '',
             image_gen_model: 'dall-e-3',
-            image_gen_enabled: true
+            image_gen_enabled: true,
+            image_gen_active_provider_id: null
         },
 
         /* ═══ Custom provider presets (add/edit modal + selector state) ═══ */
@@ -706,7 +707,8 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
 
         /* ═══ Init ═══ */
         async init() {
-            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchPrefs(), this.fetchModels(), this.fetchInstalledApps(), this.fetchPoolTools()]);
+            await this.fetchPrefs();
+            await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchModels(), this.fetchInstalledApps(), this.fetchPoolTools()]);
 
             // Re-populate each slot's custom model catalog from whichever preset is
             // currently active for it (the dropdown would otherwise start empty until
@@ -722,6 +724,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
             this.$watch('prefs.custom_model', v => this._syncPresetModel('active_custom_provider_id', v));
             this.$watch('prefs.title_custom_model', v => this._syncPresetModel('title_active_custom_provider_id', v));
             this.$watch('prefs.atlas_custom_model', v => this._syncPresetModel('atlas_active_custom_provider_id', v));
+            this.$watch('prefs.image_gen_model', v => this._syncPresetModel('image_gen_active_provider_id', v));
 
             // Handle resize for mobile detection
             window.addEventListener('resize', () => {

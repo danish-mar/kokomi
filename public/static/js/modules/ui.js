@@ -32,7 +32,7 @@ export function getUiActions() {
         },
         detailTools(msg) {
             return (msg.tool_calls || []).filter(
-                t => t.name !== 'search_images' && !AMBIENT_TOOLS.includes(t.name)
+                t => t.name !== 'search_images' && t.name !== 'generate_image' && !AMBIENT_TOOLS.includes(t.name)
             );
         },
         toolIcon(tc) {

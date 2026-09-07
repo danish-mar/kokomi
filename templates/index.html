@@ -921,6 +921,99 @@
         .kokomi-skeleton span { animation: none; opacity: 0.5; transform: none; }
     }
 
+    /* ── Image generation shimmer ─────────────────────────
+       Shown while the generate_image tool is executing. A frosted 16:9
+       card with a wandering light strip and pulsing icon, distinct from
+       the plain text skeleton. */
+    @keyframes imgShimmerWave {
+        0%   { background-position: -200% 0; }
+        100% { background-position:  200% 0; }
+    }
+    @keyframes imgShimmerPulse {
+        0%, 100% { opacity: 0.4; transform: scale(0.96); }
+        50%       { opacity: 0.85; transform: scale(1); }
+    }
+    .kokomi-imggen-shimmer-grid {
+        display: grid;
+        gap: 12px;
+        width: 100%;
+        max-width: 640px;
+        margin: 16px auto;
+    }
+    .kokomi-imggen-shimmer-grid.img-grid-1 {
+        grid-template-columns: 1fr;
+        max-width: 420px;
+    }
+    .kokomi-imggen-shimmer-grid.img-grid-2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .kokomi-imggen-shimmer-grid.img-grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .kokomi-imggen-shimmer-grid.img-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .kokomi-imggen-shimmer {
+        position: relative; overflow: hidden;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border-radius: 16px;
+        margin: 0 auto;
+        background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+        border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+        box-shadow: 0 4px 20px color-mix(in srgb, var(--accent) 12%, transparent);
+        display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;
+    }
+    .kokomi-imggen-shimmer::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: linear-gradient(105deg,
+            transparent 0%,
+            color-mix(in srgb, var(--accent) 10%, transparent) 40%,
+            color-mix(in srgb, var(--accent) 22%, transparent) 50%,
+            color-mix(in srgb, var(--accent) 10%, transparent) 60%,
+            transparent 100%);
+        background-size: 200% 100%;
+        animation: imgShimmerWave 2s ease-in-out infinite;
+    }
+    .kokomi-imggen-shimmer-icon {
+        position: relative; z-index: 1;
+        font-size: 28px;
+        color: color-mix(in srgb, var(--accent) 60%, transparent);
+        animation: imgShimmerPulse 2s ease-in-out infinite;
+    }
+    .kokomi-imggen-shimmer-label {
+        position: relative; z-index: 1;
+        font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+        color: color-mix(in srgb, var(--accent) 55%, transparent);
+        animation: imgShimmerPulse 2s ease-in-out infinite 0.3s;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .kokomi-imggen-shimmer::before { animation: none; }
+        .kokomi-imggen-shimmer-icon, .kokomi-imggen-shimmer-label { animation: none; opacity: 0.6; }
+    }
+
+    /* ── Image pill ────────────────────────────────────────
+       Compact chip shown next to artifact pills for AI-generated images. */
+    .kokomi-img-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 4px 10px 4px 8px; border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+        border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+        color: var(--text-secondary); cursor: pointer;
+        font-size: 11px; font-weight: 600;
+        transition: all 0.18s ease; text-decoration: none;
+        box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 8%, transparent);
+    }
+    .kokomi-img-pill:hover {
+        background: color-mix(in srgb, var(--accent) 20%, var(--bg-elevated));
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+    .kokomi-img-pill > i { color: var(--accent); font-size: 10px; }
+
     /* ── Conversation still being written ────────────────
        A response now outlives the tab that started it, so a conversation can
        be generating while you're looking at something else entirely. Its card
@@ -1225,12 +1318,38 @@
 
     /* ══ Message widgets (images, video, tables, action chips) ══════════════ */
 
-    /* Image figure */
-    .kokomi-img-fig { margin: 12px 0; max-width: 480px; }
+    /* Image figure & Smooth entrance */
+    @keyframes kokomiImgEntrance {
+        0% {
+            opacity: 0;
+            transform: scale(0.96) translateY(6px);
+            filter: blur(8px);
+        }
+        100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            filter: blur(0);
+        }
+    }
+    .kokomi-img-fig {
+        margin: 16px auto; max-width: 480px; text-align: center;
+        animation: kokomiImgEntrance 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        will-change: opacity, transform, filter;
+    }
+    .kokomi-img-fig.is-loaded {
+        animation: none;
+    }
     .kokomi-img {
-        display: block; max-width: 100%; max-height: 360px; width: auto; border-radius: 14px;
+        display: block; margin: 0 auto; max-width: 100%; max-height: 360px; width: auto; border-radius: 14px;
         border: 1px solid var(--border); background: var(--bg-surface-hover); cursor: zoom-in;
-        transition: opacity .18s ease, transform .18s ease;
+        opacity: 0; filter: blur(10px); transform: scale(0.98);
+        transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                    filter 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: opacity, transform, filter;
+    }
+    .kokomi-img.is-loaded {
+        opacity: 1; filter: blur(0); transform: scale(1);
     }
     .kokomi-img:hover { opacity: 0.92; transform: translateY(-1px); }
     .kokomi-img--err .kokomi-img { display: none; }
@@ -1239,16 +1358,155 @@
         display: block; padding: 18px; text-align: center; font-size: 12px; color: var(--text-quaternary);
         border: 1px dashed var(--border); border-radius: 14px;
     }
-    .kokomi-img-cap {
-        display: flex; align-items: center; gap: 8px; margin-top: 6px;
-        font-size: 11px; color: var(--text-quaternary); line-height: 1.4;
+    /* Image wrapper & Hover overlay action buttons */
+    .kokomi-img-wrapper {
+        position: relative;
+        display: inline-block;
+        max-width: 100%;
+        border-radius: 14px;
+        overflow: hidden;
     }
-    .kokomi-img-text { flex: 1; min-width: 0; }
+    .kokomi-img-overlay-actions {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.22s ease, transform 0.22s ease;
+        pointer-events: none;
+    }
+    .kokomi-img-wrapper:hover .kokomi-img-overlay-actions {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+    .kokomi-img-action-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--bg-surface, #0F0E47) 82%, black);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+        color: var(--text-primary, #fff);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        transition: all 0.18s ease;
+    }
+    .kokomi-img-action-btn:hover {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+        transform: scale(1.08);
+        box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+    .kokomi-img-action-btn:active {
+        transform: scale(0.95);
+    }
+
+    /* Expandable Prompt Card Panel */
+    .kokomi-img-prompt-panel {
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        margin: 0 auto;
+        max-width: 480px;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+        border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+        transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                    opacity 0.3s ease,
+                    margin-top 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        text-align: left;
+    }
+    .kokomi-img-fig.is-prompt-open .kokomi-img-prompt-panel {
+        max-height: 240px;
+        opacity: 1;
+        margin-top: 10px;
+    }
+    .kokomi-img-prompt-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-bottom: 1px solid color-mix(in srgb, var(--accent) 15%, var(--border));
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .kokomi-prompt-copy-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--accent) 15%, transparent);
+        color: var(--text-primary);
+        font-size: 10px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .kokomi-prompt-copy-btn:hover {
+        background: var(--accent);
+        color: #fff;
+    }
+    .kokomi-prompt-copy-btn.copied {
+        background: #10B981;
+        color: #fff;
+    }
+    .kokomi-img-prompt-body {
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--text-secondary);
+        max-height: 160px;
+        overflow-y: auto;
+        word-break: break-word;
+    }
     .kokomi-img-dims {
         flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 600;
         padding: 1px 7px; border-radius: 6px; background: var(--accent-subtle); color: var(--text-tertiary);
     }
     .kokomi-img-dims:empty { display: none; }
+
+    /* Multi-Image Grid Layout (Fits max 4 images) */
+    .kokomi-img-grid {
+        display: grid;
+        gap: 12px;
+        width: 100%;
+        max-width: 640px;
+        margin: 16px auto;
+    }
+    .kokomi-img-grid.img-grid-2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .kokomi-img-grid.img-grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .kokomi-img-grid.img-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .kokomi-img-grid .kokomi-img-fig {
+        margin: 0 !important;
+        width: 100%;
+    }
+    .kokomi-img-grid .kokomi-img {
+        max-height: 260px;
+        object-fit: cover;
+        width: 100%;
+    }
 
     /* Inline video */
     .kokomi-video-fig { margin: 12px 0; max-width: 560px; }
@@ -1358,13 +1616,32 @@
     }
     .kokomi-lb-close { right: 18px; }
     .kokomi-lb-open { right: 72px; font-size: 15px; }
-    .kokomi-lb-close:hover, .kokomi-lb-open:hover { background: rgba(255,255,255,0.2); }
-    .kokomi-lb-meta {
-        position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
-        transform: translateX(-50%); color: rgba(255,255,255,0.85); font-size: 12.5px; font-weight: 600;
-        background: rgba(0,0,0,0.45); padding: 5px 12px; border-radius: 999px; backdrop-filter: blur(8px);
+    .kokomi-lb-close:hover, .kokomi-lb-open:hover { background: rgba(255,255,255,0.22); }
+
+    .kokomi-lb-nav {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        width: 48px; height: 48px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        color: #fff; font-size: 18px; border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.12); backdrop-filter: blur(12px);
+        transition: all 0.2s ease; z-index: 10;
     }
-    .kokomi-lb-meta:empty { display: none; }
+    .kokomi-lb-prev { left: 24px; }
+    .kokomi-lb-next { right: 24px; }
+    .kokomi-lb-nav:hover { background: rgba(255,255,255,0.28); transform: translateY(-50%) scale(1.08); }
+    .kokomi-lb-nav:active { transform: translateY(-50%) scale(0.95); }
+
+    .kokomi-lb-footer {
+        position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
+        transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+        z-index: 10;
+    }
+    .kokomi-lb-meta, .kokomi-lb-count {
+        color: rgba(255,255,255,0.9); font-size: 12.5px; font-weight: 600; font-family: monospace;
+        background: rgba(0,0,0,0.55); padding: 5px 14px; border-radius: 999px; backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.12);
+    }
+    .kokomi-lb-meta:empty, .kokomi-lb-count:empty { display: none; }
 
     .meta-tooltip {
         position: absolute;
@@ -2750,7 +3027,7 @@
                                             <!-- Waiting for the first token. An empty bubble with a
                                                  static "Thinking…" reads as frozen; placeholder lines
                                                  make the wait feel like something is on its way. -->
-                                            <template x-if="msg.role === 'assistant' && msg.streaming && !(msg.displayContent || msg.content || '').trim()">
+                                            <template x-if="msg.role === 'assistant' && msg.streaming && !msg.imgGenerating && !(msg.displayContent || msg.content || '').trim()">
                                                 <div class="kokomi-skeleton" aria-hidden="true">
                                                     <span style="width:96%"></span>
                                                     <span style="width:83%"></span>
@@ -2760,6 +3037,25 @@
                                             </template>
 
                                             <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg, msg.streaming)"></div>
+
+                                            <!-- Image generation shimmer: shown while generate_image tool runs -->
+                                            <div x-show="msg.imgGenerating"
+                                                 x-transition:enter="transition ease-out duration-300"
+                                                 x-transition:enter-start="opacity-0 scale-95 -translate-y-1"
+                                                 x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                                 x-transition:leave="transition ease-in duration-250"
+                                                 x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                                 x-transition:leave-end="opacity-0 scale-95 -translate-y-1"
+                                                 class="kokomi-imggen-shimmer-grid my-3"
+                                                 :class="'img-grid-' + (msg.imgGenCount || imageGenCount || 1)"
+                                                 aria-hidden="true">
+                                                <template x-for="i in Array.from({length: msg.imgGenCount || imageGenCount || 1})" :key="i">
+                                                    <div class="kokomi-imggen-shimmer">
+                                                        <i class="fa-solid fa-wand-magic-sparkles kokomi-imggen-shimmer-icon"></i>
+                                                        <span class="kokomi-imggen-shimmer-label">Generating image&hellip;</span>
+                                                    </div>
+                                                </template>
+                                            </div>
 
                                             <template x-if="msg.artifacts && msg.artifacts.length">
                                                 <div class="mt-4 space-y-3">
@@ -2773,6 +3069,8 @@
                                                     </template>
                                                 </div>
                                             </template>
+
+
                                             
                                             <!-- Telemetry Footer -->
                                             <template x-if="prefs.debug_mode && msg.metrics">
@@ -3018,7 +3316,7 @@
                     <rect class="kokomi-runner-rect" x="0" y="0" width="100%" height="100%"
                           rx="22" ry="22" pathLength="100"></rect>
                 </svg>
-                <div class="material-elevated border border-themed rounded-squircle-lg overflow-hidden t-apple flex flex-col"
+                <div class="material-elevated border border-themed rounded-squircle-lg t-apple flex flex-col"
                     style="position: relative; z-index: 1; transition: border-color 0.2s, box-shadow 0.2s;">
 
                     <!-- Space Selector (Top Bar) -->
@@ -3117,6 +3415,97 @@
                                     x-transition:enter-end="opacity-100 max-w-[70px]"
                                     class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Artifacts</span>
                             </button>
+
+                            <!-- Image Generation toggle pill button with hover options menu -->
+                            <div class="relative inline-block"
+                                 @mouseenter="imageGenMenuOpen = true"
+                                 @mouseleave="imageGenMenuOpen = false">
+                                <button type="button" @click="setImageGenMode(!imageGenMode)" title="Toggle Image Generation Mode"
+                                    class="flex items-center gap-1.5 t-apple rounded-full border transition-all duration-300 overflow-hidden"
+                                    :class="imageGenMode
+                                        ? 'bg-accent-sub border-accent-c text-accent-c px-2.5 py-1'
+                                        : 'border-transparent text-4 hover:text-3 hover:border-themed hover:bg-black/5 dark:hover:bg-white/5 px-1.5 py-1'">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-[11px] shrink-0"></i>
+                                    <span x-show="imageGenMode"
+                                        x-transition:enter="transition ease-out duration-200"
+                                        x-transition:enter-start="opacity-0 max-w-0"
+                                        x-transition:enter-end="opacity-100 max-w-[80px]"
+                                        x-transition:leave="transition ease-in duration-150"
+                                        x-transition:leave-start="opacity-100 max-w-[80px]"
+                                        x-transition:leave-end="opacity-0 max-w-0"
+                                        class="text-[11px] font-semibold whitespace-nowrap overflow-hidden">Image Gen</span>
+                                </button>
+
+                                <!-- Options Flyout Menu on Hover -->
+                                <div x-show="imageGenMenuOpen" x-cloak
+                                     x-transition:enter="transition ease-out duration-200"
+                                     x-transition:enter-start="opacity-0 scale-95 translate-y-1"
+                                     x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                     x-transition:leave="transition ease-in duration-150"
+                                     x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                     x-transition:leave-end="opacity-0 scale-95 translate-y-1"
+                                     class="absolute bottom-full left-0 mb-2 p-3 w-56 material-elevated border border-themed rounded-[16px] shadow-2xl z-50 space-y-3">
+                                    
+                                    <!-- Aspect Ratio Options (Icons Only) -->
+                                    <div>
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <span class="text-[10px] font-bold text-4 uppercase tracking-wider">Aspect Ratio</span>
+                                            <span class="text-[10px] font-mono text-accent" x-text="imageGenAspect"></span>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl">
+                                            <!-- 1:1 Square -->
+                                            <button type="button" @click="setImageGenAspect('1:1')"
+                                                class="flex-1 flex items-center justify-center py-2 rounded-lg transition-all"
+                                                :class="imageGenAspect === '1:1' ? 'bg-accent text-white shadow-sm' : 'text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5'"
+                                                title="1:1 Square">
+                                                <i class="fa-solid fa-square text-[13px]"></i>
+                                            </button>
+
+                                            <!-- 16:9 Landscape -->
+                                            <button type="button" @click="setImageGenAspect('16:9')"
+                                                class="flex-1 flex items-center justify-center py-2 rounded-lg transition-all"
+                                                :class="imageGenAspect === '16:9' ? 'bg-accent text-white shadow-sm' : 'text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5'"
+                                                title="16:9 Landscape">
+                                                <span class="w-4 h-2.5 border-2 border-current rounded-[2px] block"></span>
+                                            </button>
+
+                                            <!-- 9:16 Portrait -->
+                                            <button type="button" @click="setImageGenAspect('9:16')"
+                                                class="flex-1 flex items-center justify-center py-2 rounded-lg transition-all"
+                                                :class="imageGenAspect === '9:16' ? 'bg-accent text-white shadow-sm' : 'text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5'"
+                                                title="9:16 Portrait">
+                                                <span class="w-2.5 h-4 border-2 border-current rounded-[2px] block"></span>
+                                            </button>
+
+                                            <!-- 4:3 Standard -->
+                                            <button type="button" @click="setImageGenAspect('4:3')"
+                                                class="flex-1 flex items-center justify-center py-2 rounded-lg transition-all"
+                                                :class="imageGenAspect === '4:3' ? 'bg-accent text-white shadow-sm' : 'text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5'"
+                                                title="4:3 Standard">
+                                                <span class="w-3.5 h-2.5 border-2 border-current rounded-[2px] block"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Image Count Options -->
+                                    <div>
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <span class="text-[10px] font-bold text-4 uppercase tracking-wider">Number of Images</span>
+                                            <span class="text-[10px] font-mono text-accent" x-text="imageGenCount"></span>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl">
+                                            <template x-for="n in [1, 2, 3, 4]" :key="n">
+                                                <button type="button" @click="setImageGenCount(n)"
+                                                    class="flex-1 py-1 rounded-lg text-center text-[11px] font-semibold transition-all"
+                                                    :class="imageGenCount === n ? 'bg-accent text-white shadow-sm' : 'text-3 hover:text-1 hover:bg-black/5 dark:hover:bg-white/5'"
+                                                    x-text="n">
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
 
                             <!-- Debug toggle pill button -->
                             <button @click="prefs.debug_mode = !prefs.debug_mode; updatePreferences()" title="Toggle Debug Mode"

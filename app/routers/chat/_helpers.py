@@ -250,27 +250,62 @@ def _get_generate_image_tool(prefs: dict):
     from app.routers.images import generate_image_internal
 
     @tool("generate_image")
-    def generate_image_tool(prompt: str) -> str:
-        """Generate a new image based on a descriptive text prompt. Use this when the user asks to draw, generate, or create an image, illustration, or artwork."""
+    def generate_image_tool(prompt: str, count: int = 1, aspect_ratio: str = "1:1") -> str:
+        """Generate one or more new images (up to 4) based on a descriptive text prompt.
+
+        Args:
+            prompt: Detailed description of the image(s) to generate.
+            count: Number of images to generate (1 to 4). If 2, 3, or 4 images are requested, you MUST pass count=2, 3, or 4.
+            aspect_ratio: Aspect ratio for the image, e.g. '1:1', '16:9', '9:16', '4:3'.
+        """
         try:
+            cnt = max(1, min(4, int(count)))
+            size_map = {
+                "1:1": "1024x1024",
+                "16:9": "1792x1024",
+                "9:16": "1024x1792",
+                "4:3": "1024x768"
+            }
+            sz = size_map.get(str(aspect_ratio), "1024x1024")
+
+            async def _gen_all():
+                if cnt == 1:
+                    r = await generate_image_internal(prompt=prompt, size=sz)
+                    return [r]
+                import random
+                async def _gen_one(i):
+                    if i > 0:
+                        await asyncio.sleep(0.12 * i)
+                    v_prompt = f"{prompt} (variation {i+1}, seed {random.randint(10000, 99999)})"
+                    return await generate_image_internal(prompt=v_prompt, size=sz)
+
+                tasks = [_gen_one(i) for i in range(cnt)]
+                return await asyncio.gather(*tasks, return_exceptions=True)
+
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = None
 
             if loop and loop.is_running():
-                # Running inside existing loop
                 import nest_asyncio
                 nest_asyncio.apply()
-                res = loop.run_until_complete(generate_image_internal(prompt=prompt))
+                results = loop.run_until_complete(_gen_all())
             else:
-                res = asyncio.run(generate_image_internal(prompt=prompt))
+                results = asyncio.run(_gen_all())
 
+            successful = [r for r in results if isinstance(r, dict) and "url" in r]
+            if not successful:
+                first_err = next((str(r) for r in results if isinstance(r, Exception)), "Generation failed")
+                return json.dumps({"status": "error", "error": first_err})
+
+            md_list = [f"![{prompt}]({r['url']})" for r in successful]
             return json.dumps({
                 "status": "success",
-                "url": res["url"],
-                "prompt": res["prompt"],
-                "markdown": f"![{prompt}]({res['url']})"
+                "count": len(successful),
+                "urls": [r["url"] for r in successful],
+                "prompt": prompt,
+                "markdown": "\n\n".join(md_list)
             })
         except Exception as e:
             return json.dumps({"status": "error", "error": str(e)})

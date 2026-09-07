@@ -145,6 +145,7 @@ DEFAULT_PREFS: dict = {
     "image_gen_base_url": "https://api.openai.com/v1",
     "image_gen_api_key": os.getenv("OPENAI_API_KEY", ""),
     "image_gen_model": "dall-e-3",
-    "image_gen_enabled": True
+    "image_gen_enabled": True,
+    "image_gen_active_provider_id": None
 }
 
