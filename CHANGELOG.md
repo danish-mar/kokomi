@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v7.7.7] - 2026-10-26
+
+### Added
+
+- **PostgreSQL Database Backend**: Replaced local SQLite file storage with an enterprise asynchronous PostgreSQL database using SQLAlchemy `create_async_engine` and `asyncpg`. Includes a Dockerized `kokomi-database` service with healthchecks and persistence volumes.
+- **SQLite to PostgreSQL Migration Tool**: Provided `scripts/migrate_sqlite_to_postgres.py` for automated schema migration and batch transfer of legacy SQLite tables, conversations, messages, workflows, and settings to Postgres.
+- **Multi-User Authentication & Role Management**: Introduced user roles (`admin` and standard `user`), password hashing, secure session management, and user-scoped data isolation for conversations, personas, and preferences.
+- **Admin Users Console**: Dedicated `/api/admin/users` management endpoints and frontend interface allowing administrators to manage user accounts, assign roles, and handle user lifecycles.
+- **Shared API Keys System**: Multi-provider API key sharing enabling users to securely share credentials (Groq, Google, Nvidia, OpenAI, Tavily, custom providers) with other specific users or system-wide without exposing secrets.
+- **macOS Glassmorphic Login Experience**: Redesigned `/auth/login` interface featuring tactile Apple-inspired inputs, macOS snap-in focus rings, and ambient theme-aware organic gradient blobs with smooth entrance and reverse exit animations.
+
+### Changed
+
+- **Simplified API Key Settings UI**: Integrated key sharing controls directly into provider settings cards with clean toggle switches and provenance indicators (`Personal`, `Shared by @user`, `System Default`), removing redundant modals.
+- **Asynchronous Storage Architecture**: Transitioned all persistent storage operations (`load_chars_async`, `save_chars_async`, `load_mcp_async`, etc.) across application routers to async SQLAlchemy sessions.
+
+### Fixed
+
+- **Login Password Field Icon**: Swapped invalid `fa-regular fa-lock` for `fa-solid fa-lock`, restoring the password lock glyph from Font Awesome Free.
+- **Settings Tab Switching**: Resolved unclosed HTML markup causing settings navigation tabs to freeze or fail to switch.
+- **Chat Error Recovery**: Enhanced streaming error handling with SSE error propagation, automatic cleanup of dangling empty conversation rows, and retryable error cards in the chat view.
+
 ## [v6.7.7] - 2026-09-08
 
 ### Added
