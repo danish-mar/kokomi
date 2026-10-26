@@ -23,14 +23,13 @@ import uuid
 from langchain_core.tools import tool
 
 from app.triton import manager
-from app.storage import list_triton_devices
+from app.storage import list_triton_devices_async
 
 UPLOADS_DIR = os.path.join("data", "uploads")
 
 
-def _resolve_device(device: str):
+def _resolve_device(device: str, devices: list):
     """Map a model-supplied name/id to a paired device_id, or (None, error)."""
-    devices = list_triton_devices()
     if not devices:
         return None, "No computers are paired with Triton yet."
     q = (device or "").strip().lower()
@@ -45,9 +44,9 @@ def _resolve_device(device: str):
     return None, f"No paired computer matches '{device}'. Available: {names}."
 
 
-def get_triton_tools():
+async def get_triton_tools():
     """Return (tools, prompt_note). Empty when no machines are paired."""
-    devices = list_triton_devices()
+    devices = await list_triton_devices_async()
     if not devices:
         return [], ""
 
@@ -65,7 +64,7 @@ def get_triton_tools():
     async def triton_list_devices() -> str:
         """List the user's paired computers (Triton moorings), whether each is online right
         now, and the user-written description of what that machine actually is/does."""
-        devs = list_triton_devices()
+        devs = await list_triton_devices_async()
         on = manager.online_ids()
         if not devs:
             return "No computers are paired with Triton."
@@ -84,7 +83,7 @@ def get_triton_tools():
         path: directory to list, e.g. '~/Downloads'. Must be within a folder the
         client allows; a permission error means that folder isn't shared.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "list_dir", {"path": path})
@@ -110,7 +109,7 @@ def get_triton_tools():
         device: the computer's name or id.  path: full path to the file.
         Returns a markdown download link to include in your reply.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "read_file", {"path": path}, timeout=60)
@@ -146,7 +145,7 @@ def get_triton_tools():
         cwd: optional working directory (must be within a shared folder). Defaults to the
         machine's first allowed folder.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         cargs = {"command": command}
@@ -181,7 +180,7 @@ def get_triton_tools():
         device: the computer's name or id.  path: full destination path.
         content: the text to write.  append: append instead of overwrite.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "write_file",
@@ -198,7 +197,7 @@ def get_triton_tools():
         (e.g. 'pull up my calendar on electro'). Requires the client to be started with
         --allow-gui. device: the computer's name or id.  url: the http(s) address to open.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "open_url", {"url": url}, timeout=30)
@@ -212,7 +211,7 @@ def get_triton_tools():
         attach it to the chat as an image. Requires the client to be started with --allow-gui.
         device: the computer's name or id. Returns markdown to embed the image in your reply.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "screenshot", {}, timeout=45)
@@ -235,7 +234,7 @@ def get_triton_tools():
         """Read the clipboard contents of one of the user's paired computers. Requires the
         client to be started with --allow-gui. device: the computer's name or id.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "clipboard_read", {}, timeout=30)
@@ -252,7 +251,7 @@ def get_triton_tools():
         client to be started with --allow-gui. device: the computer's name or id.
         text: the text to place on the clipboard.
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "clipboard_write", {"text": text}, timeout=30)
@@ -269,7 +268,7 @@ def get_triton_tools():
         filter: optional substring to match against the process name/command.
         limit: max processes to return (default 40).
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "process_list",
@@ -294,7 +293,7 @@ def get_triton_tools():
         filter: optional substring to match against the unit name/description.
         limit: max services to return (default 60).
         """
-        device_id, err = _resolve_device(device)
+        device_id, err = _resolve_device(device, devices)
         if err:
             return err
         res = await manager.dispatch(device_id, "service_list",

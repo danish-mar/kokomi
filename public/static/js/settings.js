@@ -51,10 +51,29 @@ function settingsApp() {
         tritonEntries: [],
         tritonBrowseBusy: false,
         tritonBrowseError: '',
+        // ── Multi-User & Roles ──
+        currentUser: (typeof window !== 'undefined' && window.__CURRENT_USER__) ? window.__CURRENT_USER__ : null,
+        usersList: [],
+        userModalOpen: false,
+        userEditModalOpen: false,
+        userForm: { username: '', password: '', role: 'Standard user', display_name: '', avatar: '' },
+        userEditForm: { id: '', username: '', role: 'Standard user', display_name: '', password: '', avatar: '' },
+        userBusy: false,
+        // ── Inter-User Shared API Keys ──
+        sharedKeys: { my_keys: [], shared_with_me: [] },
+        showKey: { groq: false, google: false, nvidia: false, tavily: false, openai: false },
         prefs: {
             model_name: '',
             user_persona: '',
             llm_provider: 'groq',
+            groq_api_key: '',
+            google_api_key: '',
+            nvidia_api_key: '',
+            groq_key_source: null,
+            google_key_source: null,
+            nvidia_key_source: null,
+            tavily_key_source: null,
+            image_gen_key_source: null,
             dynamic_suggestions: true,
             streaming_mode: true,
             inject_time: true,
@@ -116,6 +135,7 @@ function settingsApp() {
 
         cropModal: false,
         cropper: null,
+        cropTarget: 'prefs',
 
         memoryModal: false,
         inspectingChar: null,
@@ -407,6 +427,7 @@ function settingsApp() {
         initProfileCrop(e) {
             const file = e.target.files[0];
             if (!file) return;
+            this.cropTarget = 'profile';
             const reader = new FileReader();
             reader.onload = (ev) => {
                 this.$refs.cropImg.src = ev.target.result;
@@ -708,6 +729,8 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         /* ═══ Init ═══ */
         async init() {
             await this.fetchPrefs();
+            await this.fetchCurrentUser();
+            await this.fetchSharedKeys();
             await Promise.all([this.fetchChars(), this.fetchMCP(), this.fetchModels(), this.fetchInstalledApps(), this.fetchPoolTools()]);
 
             // Re-populate each slot's custom model catalog from whichever preset is
@@ -741,7 +764,11 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                     if (this.isMobile) this.mobileView = 'detail';
                 } else if (hash) {
                     const clean = hash.replace('#', '');
-                    const validTabs = ['general', 'appearance', 'characters', 'memory', 'mcp', 'integrations', 'atlas', 'computer', 'telemetry', 'about'];
+                    const validTabs = [
+                        'general', 'appearance', 'characters', 'memory',
+                        'mcp', 'image_gen', 'integrations', 'atlas', 'computer',
+                        'triton', 'skills', 'telemetry', 'about', 'users'
+                    ];
                     if (validTabs.includes(clean)) {
                         this.tab = clean;
                         if (this.isMobile) this.mobileView = 'detail';
@@ -775,6 +802,7 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         initCrop(e) {
             const file = e.target.files[0];
             if (!file) return;
+            this.cropTarget = 'prefs';
             const reader = new FileReader();
             reader.onload = (ev) => {
                 this.$refs.cropImg.src = ev.target.result;
@@ -794,17 +822,51 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
         },
 
         cancelCrop() {
+            const target = this.cropTarget;
             this.cropModal = false;
-            if (this.cropper) this.cropper.destroy();
-            // Clear both avatar inputs
+            if (this.cropper) {
+                this.cropper.destroy();
+                this.cropper = null;
+            }
+            // Clear inputs
             if (this.$refs.userAvatarInput) this.$refs.userAvatarInput.value = '';
             if (this.$refs.profileAvatarInput) this.$refs.profileAvatarInput.value = '';
+            if (this.$refs.createUserAvatarInput) this.$refs.createUserAvatarInput.value = '';
+            if (this.$refs.editUserAvatarInput) this.$refs.editUserAvatarInput.value = '';
+
+            // Restore modal that triggered crop
+            if (target === 'userForm') {
+                this.userModalOpen = true;
+            } else if (target === 'userEditForm') {
+                this.userEditModalOpen = true;
+            } else if (target === 'profile') {
+                this.profileModalOpen = true;
+            }
+            this.cropTarget = 'prefs';
         },
 
         async finishCrop() {
             if (!this.cropper) return;
-            this.prefSaving = true;
             const canvas = this.cropper.getCroppedCanvas({ width: 256, height: 256 });
+            
+            if (this.cropTarget === 'userForm') {
+                this.userForm.avatar = canvas.toDataURL('image/png');
+                this.cancelCrop();
+                this.userModalOpen = true;
+                this.showToast('Profile photo cropped!', 'success');
+                return;
+            }
+
+            if (this.cropTarget === 'userEditForm') {
+                this.userEditForm.avatar = canvas.toDataURL('image/png');
+                this.cancelCrop();
+                this.userEditModalOpen = true;
+                this.showToast('Profile photo cropped!', 'success');
+                return;
+            }
+
+            // Default: prefs / profile photo upload
+            this.prefSaving = true;
             canvas.toBlob(async (blob) => {
                 const fd = new FormData();
                 fd.append('avatar', blob, 'avatar.png');
@@ -812,13 +874,17 @@ Ensure all HEX codes are valid 6-character hex strings (starting with #) and hav
                     const r = await fetch('/api/prefs/avatar', { method: 'POST', body: fd });
                     const res = await r.json();
                     if (res.avatar) {
-                        this.prefs.user_avatar = res.avatar + '?t=' + Date.now();
+                        const av = res.avatar + '?t=' + Date.now();
+                        this.prefs.user_avatar = av;
+                        if (this.currentUser) this.currentUser.avatar = av;
                         this.showToast('Profile photo updated!', 'success');
                     }
                 } catch(e) { console.error(e); }
                 finally {
                     this.prefSaving = false;
+                    const reopenProfile = (this.cropTarget === 'profile');
                     this.cancelCrop();
+                    if (reopenProfile) this.profileModalOpen = true;
                 }
             }, 'image/png');
         },
@@ -1505,6 +1571,326 @@ Return ONLY the raw JSON. No markdown. No explanation.`
                 console.error("Failed to uninstall app:", e);
                 this.showToast('Failed to uninstall app', 'error');
             }
+        },
+
+        // ─── Multi-User Administration ───
+        async fetchCurrentUser() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.authenticated && data.user) {
+                        this.currentUser = data.user;
+                        if (this.currentUser.role === 'Endministrator') {
+                            await this.fetchUsers();
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch current user profile:', err);
+            }
+        },
+
+        async fetchUsers() {
+            try {
+                const res = await fetch('/api/admin/users');
+                if (res.ok) {
+                    const data = await res.json();
+                    this.usersList = data.users || [];
+                }
+            } catch (err) {
+                console.error('Failed to fetch users:', err);
+            }
+        },
+
+        getUserAvatarGradient(username) {
+            if (!username) return 'background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight))';
+            const gradients = [
+                'background: linear-gradient(135deg, #4f46e5, #312e81)',
+                'background: linear-gradient(135deg, #7c3aed, #4c1d95)',
+                'background: linear-gradient(135deg, #db2777, #831843)',
+                'background: linear-gradient(135deg, #2563eb, #1e3a8a)',
+                'background: linear-gradient(135deg, #059669, #064e3b)',
+                'background: linear-gradient(135deg, #d97706, #78350f)',
+                'background: linear-gradient(135deg, #0d9488, #134e4a)',
+                'background: linear-gradient(135deg, #0284c7, #164e63)',
+            ];
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = username.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const idx = Math.abs(hash) % gradients.length;
+            return gradients[idx];
+        },
+
+        openUserModal() {
+            this.userForm = { username: '', password: '', role: 'Standard user', display_name: '', avatar: '' };
+            this.userModalOpen = true;
+        },
+
+        openEditUserModal(u) {
+            this.userEditForm = {
+                id: u.id,
+                username: u.username,
+                role: u.role,
+                display_name: u.display_name,
+                avatar: u.avatar || '',
+                password: '',
+            };
+            this.userEditModalOpen = true;
+        },
+
+        initUserAvatarCrop(event, isEdit = false) {
+            const file = event.target.files[0];
+            if (!file) return;
+            this.cropTarget = isEdit ? 'userEditForm' : 'userForm';
+            if (isEdit) {
+                this.userEditModalOpen = false;
+            } else {
+                this.userModalOpen = false;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.$refs.cropImg.src = e.target.result;
+                this.cropModal = true;
+                this.$nextTick(() => {
+                    if (this.cropper) this.cropper.destroy();
+                    this.cropper = new Cropper(this.$refs.cropImg, {
+                        aspectRatio: 1,
+                        viewMode: 1,
+                        autoCropArea: 1,
+                        dragMode: 'move',
+                        background: false
+                    });
+                });
+            };
+            reader.readAsDataURL(file);
+        },
+
+        handleUserAvatarUpload(event, isEdit = false) {
+            this.initUserAvatarCrop(event, isEdit);
+        },
+
+        removeUserAvatar(isEdit = false) {
+            if (isEdit) {
+                this.userEditForm.avatar = '';
+            } else {
+                this.userForm.avatar = '';
+            }
+        },
+
+        async createUser() {
+            if (!this.userForm.username || !this.userForm.password) {
+                this.showToast('Username and password are required', 'error');
+                return;
+            }
+            this.userBusy = true;
+            try {
+                const res = await fetch('/api/admin/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.userForm),
+                });
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    this.showToast(`User @${data.user.username} created!`, 'success');
+                    this.userModalOpen = false;
+                    await this.fetchUsers();
+                    await this.fetchSharedKeys();
+                } else {
+                    this.showToast(data.detail || 'Failed to create user', 'error');
+                }
+            } catch (err) {
+                this.showToast('Error creating user', 'error');
+            } finally {
+                this.userBusy = false;
+            }
+        },
+
+        async updateUser() {
+            this.userBusy = true;
+            try {
+                const payload = {
+                    role: this.userEditForm.role,
+                    display_name: this.userEditForm.display_name,
+                    avatar: this.userEditForm.avatar || '',
+                };
+                if (this.userEditForm.password && this.userEditForm.password.trim()) {
+                    payload.password = this.userEditForm.password.trim();
+                }
+                const res = await fetch(`/api/admin/users/${this.userEditForm.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    this.showToast(`User @${data.user.username} updated!`, 'success');
+                    this.userEditModalOpen = false;
+                    await this.fetchUsers();
+                } else {
+                    this.showToast(data.detail || 'Failed to update user', 'error');
+                }
+            } catch (err) {
+                this.showToast('Error updating user', 'error');
+            } finally {
+                this.userBusy = false;
+            }
+        },
+
+        async deleteUser(u) {
+            if (this.currentUser && this.currentUser.username === u.username) {
+                this.showToast('You cannot delete your own account', 'error');
+                return;
+            }
+            if (!confirm(`Are you sure you want to permanently delete user @${u.username}?`)) return;
+            try {
+                const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    this.showToast(`User @${u.username} deleted`, 'success');
+                    await this.fetchUsers();
+                    await this.fetchSharedKeys();
+                } else {
+                    this.showToast(data.detail || 'Failed to delete user', 'error');
+                }
+            } catch (err) {
+                this.showToast('Error deleting user', 'error');
+            }
+        },
+
+        // ─── Inline API Key Sharing ───
+        async fetchSharedKeys() {
+            try {
+                const res = await fetch('/api/shared-keys');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.ok) {
+                        this.sharedKeys = {
+                            my_keys: data.my_keys || [],
+                            shared_with_me: data.shared_with_me || [],
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch shared keys:', err);
+            }
+        },
+
+        getKeySourceInfo(provider) {
+            if (!provider) return { type: 'system', badge: 'System Default (.env)', owner: null };
+            const p = provider.toLowerCase();
+            const sourceKey = (p === 'openai' ? 'image_gen_key_source' : p + '_key_source');
+            const apiKeyField = (p === 'openai' ? 'image_gen_api_key' : p + '_api_key');
+            const source = this.prefs[sourceKey];
+            const val = this.prefs[apiKeyField];
+
+            if (source && String(source).startsWith('shared:')) {
+                const parts = String(source).split(':');
+                const owner = parts[1] || 'user';
+                return {
+                    type: 'shared',
+                    badge: `Shared by @${owner}`,
+                    owner: owner
+                };
+            }
+            if (val && String(val).trim()) {
+                return {
+                    type: 'personal',
+                    badge: 'Personal',
+                    owner: null
+                };
+            }
+            return {
+                type: 'system',
+                badge: 'System Default (.env)',
+                owner: null
+            };
+        },
+
+        isMyKeyShared(provider) {
+            if (!this.sharedKeys || !this.sharedKeys.my_keys) return false;
+            return this.sharedKeys.my_keys.some(k => k.provider.toLowerCase() === provider.toLowerCase());
+        },
+
+        getSharedKeysFor(provider) {
+            if (!this.sharedKeys || !this.sharedKeys.shared_with_me) return [];
+            return this.sharedKeys.shared_with_me.filter(k => k.provider.toLowerCase() === provider.toLowerCase());
+        },
+
+        async toggleShareKey(provider) {
+            const p = provider.toLowerCase();
+            const isShared = this.isMyKeyShared(p);
+            const apiKeyField = (p === 'openai' ? 'image_gen_api_key' : p + '_api_key');
+            const keyVal = (this.prefs[apiKeyField] || '').trim();
+
+            if (!isShared) {
+                if (!keyVal) {
+                    this.showToast(`Enter your ${provider.toUpperCase()} key first before sharing`, 'warning');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/shared-keys', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            key_name: `${this.currentUser?.username || 'user'}_${p}`,
+                            provider: p,
+                            api_key: keyVal,
+                            shared_with: ['*']
+                        })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.ok) {
+                        this.showToast(`${provider.toUpperCase()} key is now shared!`, 'success');
+                        await this.fetchSharedKeys();
+                    } else {
+                        this.showToast(data.detail || 'Failed to share key', 'error');
+                    }
+                } catch (e) {
+                    this.showToast('Error sharing key', 'error');
+                }
+            } else {
+                const myKey = this.sharedKeys.my_keys.find(k => k.provider.toLowerCase() === p);
+                if (myKey) {
+                    try {
+                        const res = await fetch(`/api/shared-keys/${myKey.id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            this.showToast(`${provider.toUpperCase()} key unshared`, 'info');
+                            await this.fetchSharedKeys();
+                        }
+                    } catch (e) {
+                        this.showToast('Error unsharing key', 'error');
+                    }
+                }
+            }
+        },
+
+        async activateSharedKey(keyId) {
+            try {
+                const res = await fetch(`/api/shared-keys/${keyId}/use`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.ok) {
+                    this.showToast(data.message || 'Activated shared key!', 'success');
+                    await this.fetchPrefs();
+                    if (this.fetchModels) await this.fetchModels();
+                } else {
+                    this.showToast(data.detail || 'Failed to activate shared key', 'error');
+                }
+            } catch (err) {
+                this.showToast('Error activating shared key', 'error');
+            }
+        },
+
+        async clearSharedKey(provider) {
+            const p = provider.toLowerCase();
+            const sourceKey = (p === 'openai' ? 'image_gen_key_source' : p + '_key_source');
+            const apiKeyField = (p === 'openai' ? 'image_gen_api_key' : p + '_api_key');
+            this.prefs[sourceKey] = null;
+            this.prefs[apiKeyField] = '';
+            await this.savePrefs();
+            if (this.fetchModels) await this.fetchModels();
+            this.showToast(`Switched back to personal / default ${provider.toUpperCase()} key`, 'info');
         },
     };
 }

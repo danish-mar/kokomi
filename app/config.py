@@ -27,6 +27,7 @@ AUTH_PASSWORD: str = os.getenv("AUTH_PASSWORD", "admin")  # Default password
 JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-me")
 JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # Default 24 hours
+REMEMBER_ME_DAYS: int = int(os.getenv("REMEMBER_ME_DAYS", "30")) # Default 30 days for Remember Me
 
 
 # ── Data paths ───────────────────────────────────────────────────────
@@ -140,6 +141,11 @@ DEFAULT_PREFS: dict = {
     "groq_api_key": os.getenv("GROQ_API_KEY", ""),
     "google_api_key": os.getenv("GOOGLE_API_KEY", ""),
     "nvidia_api_key": os.getenv("NVIDIA_API_KEY", ""),
+    "groq_key_source": None,
+    "google_key_source": None,
+    "nvidia_key_source": None,
+    "tavily_key_source": None,
+    "image_gen_key_source": None,
     "max_tool_rounds": 8,
     "image_gen_provider": "openai",
     "image_gen_base_url": "https://api.openai.com/v1",

@@ -531,11 +531,50 @@ export function getChatActions() {
                                 this.notifyResponseReady(data.conversation_id, targetIdx);
                             }
                             else if (data.type === 'error') {
-                                if (targetIdx !== undefined) {
-                                    this.messages[targetIdx].content += `\n\n**Error:** ${data.message}`;
+                                const errorCharId = data.character_id || this.activeCharId;
+                                let targetIdx = charMsgMap[errorCharId];
+                                const char = this.characters.find(c => c.id === errorCharId) || { name: errorCharId, id: errorCharId };
+
+                                if (targetIdx === undefined) {
+                                    this.messages.push({
+                                        id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                                        role: 'assistant',
+                                        character_id: errorCharId,
+                                        character_name: char.name,
+                                        content: data.message,
+                                        displayContent: data.message,
+                                        is_error: true,
+                                        provider: data.provider || null,
+                                        model: data.model || null,
+                                        timestamp: new Date().toISOString(),
+                                        streaming: false,
+                                        revealChars: null,
+                                    });
+                                    targetIdx = this.messages.length - 1;
+                                    charMsgMap[errorCharId] = targetIdx;
                                 } else {
-                                    this.showToast(data.message, 'error');
+                                    const existing = this.messages[targetIdx].content || '';
+                                    this.messages[targetIdx].content = existing ? `${existing}\n\n${data.message}` : data.message;
+                                    this.messages[targetIdx].displayContent = this.messages[targetIdx].content;
+                                    this.messages[targetIdx].is_error = true;
+                                    this.messages[targetIdx].provider = data.provider || null;
+                                    this.messages[targetIdx].streaming = false;
+                                    this.messages[targetIdx].revealChars = null;
                                 }
+
+                                if (data.is_new) {
+                                    if (this.currentConvId === this.streamingConvId) {
+                                        this.currentConvId = null;
+                                        if (window.location.hash.startsWith('#chat=')) {
+                                            history.replaceState(null, '', window.location.pathname);
+                                        }
+                                    }
+                                }
+                                this.streamingConvId = null;
+                                this.loading = false;
+                                this.loadingStatus = '';
+                                await this.fetchConversations();
+                                this.showToast(data.message, 'error');
                             }
                         } catch(e) { console.error('Stream parse error:', e); }
                     }
@@ -551,6 +590,25 @@ export function getChatActions() {
                 } else {
                     console.error("Stream reader error:", e);
                     this.showToast(`Connection error: ${e.message}`, 'error');
+                    const lastMsg = this.messages[this.messages.length - 1];
+                    if (!lastMsg || lastMsg.role !== 'assistant') {
+                        const char = this.characters.find(c => c.id === this.activeCharId) || { name: this.activeCharId, id: this.activeCharId };
+                        this.messages.push({
+                            id: 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                            role: 'assistant',
+                            character_id: this.activeCharId,
+                            character_name: char.name,
+                            content: `⚠️ **Connection Error:** ${e.message}`,
+                            displayContent: `⚠️ **Connection Error:** ${e.message}`,
+                            is_error: true,
+                            timestamp: new Date().toISOString(),
+                            streaming: false,
+                            revealChars: null,
+                        });
+                    }
+                    if (!this.currentConvId) {
+                        await this.fetchConversations();
+                    }
                 }
             } finally {
                 this.flushReveal();

@@ -19,7 +19,7 @@ from google import genai
 from google.genai import types
 
 from app.config import GOOGLE_API_KEY
-from app.storage import load_chars, load_prefs
+from app.storage import load_chars_async, load_prefs
 from app.mcp import get_pool_tools, init_pool, pool_is_stale
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def voice_call(ws: WebSocket, character_id: str, space_id: str | None = No
         return
 
     # Load character info
-    chars = load_chars()
+    chars = await load_chars_async()
     char = chars.get(character_id, chars.get("kokomi"))
     prefs = load_prefs()
 

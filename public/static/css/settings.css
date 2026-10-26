@@ -960,3 +960,70 @@
 .cp-picker-icon-btn:hover { background: var(--accent-subtle); color: var(--text-primary); }
 .cp-picker-icon-btn.danger:hover { color: #f87171; }
 
+/* ── Multi-User and Shared Keys Badges ── */
+.badge-endministrator {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.badge-standard {
+    background: color-mix(in srgb, var(--text-tertiary) 15%, transparent);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+.provider-pill {
+    letter-spacing: 0.05em;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+/* ── User Management Avatar ── */
+.user-avatar-cell {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    position: relative;
+}
+.user-avatar-cell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.user-avatar-modal-preview {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.user-avatar-modal-preview:hover {
+    transform: scale(1.02);
+    border-color: var(--accent);
+}
+.user-avatar-modal-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+
+

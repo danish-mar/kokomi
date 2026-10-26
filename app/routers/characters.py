@@ -5,12 +5,12 @@ import shutil
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
 from langchain_core.messages import HumanMessage
 
 from app.config import AVATARS_DIR
 from app.llm import get_llm
-from app.storage import load_chars, save_chars, load_prefs
+from app.storage import load_chars_async, save_chars_async, load_prefs
 
 router = APIRouter(prefix="/api/characters")
 
@@ -18,14 +18,24 @@ router = APIRouter(prefix="/api/characters")
 PROVIDER_MODEL_KEYS = ("groq_model", "google_model", "custom_model", "nvidia_model")
 
 
+def _get_user_id(request: Request) -> str | None:
+    user = getattr(request.state, "user", None)
+    if not user:
+        return None
+    return user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
+
+
 @router.get("")
-async def list_characters():
-    return list(load_chars().values())
+async def list_characters(request: Request):
+    user_id = _get_user_id(request)
+    chars = await load_chars_async(user_id=user_id)
+    return list(chars.values())
 
 
 @router.get("/{cid}")
-async def get_character(cid: str):
-    chars = load_chars()
+async def get_character(cid: str, request: Request):
+    user_id = _get_user_id(request)
+    chars = await load_chars_async(user_id=user_id)
     if cid not in chars:
         raise HTTPException(404, "Not found")
     return chars[cid]
@@ -33,6 +43,7 @@ async def get_character(cid: str):
 
 @router.post("")
 async def create_character(
+    request: Request,
     name: str = Form(...),
     persona: str = Form(...),
     mcp_servers: str = Form(""),
@@ -45,7 +56,8 @@ async def create_character(
     memory_enabled: bool = Form(True),
     avatar: Optional[UploadFile] = File(None),
 ):
-    chars = load_chars()
+    user_id = _get_user_id(request)
+    chars = await load_chars_async(user_id=user_id)
     cid = str(uuid.uuid4())[:8]
     avatar_path = None
 
@@ -60,6 +72,7 @@ async def create_character(
     tools_list = [s.strip() for s in selected_tools.split(",") if s.strip()] if selected_tools else []
     chars[cid] = {
         "id": cid,
+        "user_id": user_id,
         "name": name.strip(),
         "persona": persona.strip(),
         "avatar": avatar_path,
@@ -73,13 +86,14 @@ async def create_character(
         "memory_enabled": memory_enabled,
         "created_at": datetime.datetime.utcnow().isoformat(),
     }
-    save_chars(chars)
+    await save_chars_async(chars, user_id=user_id)
     return chars[cid]
 
 
 @router.put("/{cid}")
 async def update_character(
     cid: str,
+    request: Request,
     name: str = Form(...),
     persona: str = Form(...),
     mcp_servers: str = Form(""),
@@ -92,7 +106,8 @@ async def update_character(
     memory_enabled: bool = Form(True),
     avatar: Optional[UploadFile] = File(None),
 ):
-    chars = load_chars()
+    user_id = _get_user_id(request)
+    chars = await load_chars_async(user_id=user_id)
     if cid not in chars:
         raise HTTPException(404, "Not found")
 
@@ -117,24 +132,27 @@ async def update_character(
     chars[cid]["nvidia_model"] = nvidia_model.strip()
     chars[cid]["voice"] = voice.strip()
     chars[cid]["memory_enabled"] = memory_enabled
-    save_chars(chars)
+    await save_chars_async(chars, user_id=user_id)
     return chars[cid]
 
 
 @router.delete("/{cid}")
-async def delete_character(cid: str):
+async def delete_character(cid: str, request: Request):
     if cid in ["kokomi", "nahida"]:
         raise HTTPException(400, "Cannot delete protected character")
-    chars = load_chars()
+    user_id = _get_user_id(request)
+    chars = await load_chars_async(user_id=user_id)
     if cid not in chars:
         raise HTTPException(404, "Not found")
+    if not chars[cid].get("user_id"):
+        raise HTTPException(400, "Cannot delete system character")
     av = chars[cid].get("avatar")
     if av:
         p = os.path.join(AVATARS_DIR, os.path.basename(av))
         if os.path.exists(p):
             os.remove(p)
     del chars[cid]
-    save_chars(chars)
+    await save_chars_async(chars, user_id=user_id)
     return {"ok": True}
 
 
@@ -144,7 +162,7 @@ async def get_char_suggestions(char_id: str):
     if not GROQ_API_KEY:
         return []
 
-    chars = load_chars()
+    chars = await load_chars_async()
     char = chars.get(char_id)
     if not char:
         raise HTTPException(404, "Character not found")
@@ -187,7 +205,7 @@ async def list_character_memories(cid: str):
     from qdrant_client.models import Filter, FieldCondition, MatchValue
     
     # Check if character exists
-    chars = load_chars()
+    chars = await load_chars_async()
     if cid not in chars:
         raise HTTPException(404, "Character not found")
         
@@ -245,7 +263,7 @@ class ManualMemoryRequest(BaseModel):
 @router.post("/{cid}/memories")
 async def add_character_memory(cid: str, req: ManualMemoryRequest):
     from app.memory import save_memory
-    chars = load_chars()
+    chars = await load_chars_async()
     if cid not in chars:
         raise HTTPException(404, "Character not found")
     if not req.text.strip():
@@ -279,7 +297,7 @@ async def clear_character_memories(cid: str):
 async def get_character_profile_endpoint(cid: str):
     """Get the AI-synthesized relationship profile for a character."""
     from app.memory import get_character_profile
-    chars = load_chars()
+    chars = await load_chars_async()
     if cid not in chars:
         raise HTTPException(404, "Character not found")
     profile = get_character_profile(cid)
@@ -290,7 +308,7 @@ async def get_character_profile_endpoint(cid: str):
 async def trigger_decay(cid: str):
     """Manually trigger memory decay sweep for a character."""
     from app.memory import run_decay_sweep
-    chars = load_chars()
+    chars = await load_chars_async()
     if cid not in chars:
         raise HTTPException(404, "Character not found")
     run_decay_sweep(cid)

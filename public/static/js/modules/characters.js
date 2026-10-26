@@ -6,6 +6,9 @@ export function getCharacterActions() {
     return {
         selectCharacter(id) {
             this.activeCharId = id;
+            const u = window.__CURRENT_USER__;
+            const uname = u && u.username ? u.username : 'guest';
+            localStorage.setItem('lastCharacterId_' + uname, id);
             localStorage.setItem('lastCharacterId', id);
             this.charPickerOpen = false;
             this.welcomePickerOpen = false;
@@ -23,6 +26,9 @@ export function getCharacterActions() {
                     this.groupParticipants.splice(idx, 1);
                     if (this.activeCharId === id) {
                         this.activeCharId = this.groupParticipants[0];
+                        const u = window.__CURRENT_USER__;
+                        const uname = u && u.username ? u.username : 'guest';
+                        localStorage.setItem('lastCharacterId_' + uname, this.activeCharId);
                         localStorage.setItem('lastCharacterId', this.activeCharId);
                     }
                 } else {

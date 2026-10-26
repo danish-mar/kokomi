@@ -2327,14 +2327,20 @@
                     </a>
                 </div>
 
-                <!-- Settings Pinned -->
-                <a id="tour-settings" href="/settings"
-                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] text-2 hover:text-1 t-apple">
-                    <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
-                        <i class="fa-solid fa-gear text-[11px] text-accent-c"></i>
-                    </div>
-                    <span class="text-[13px] font-semibold">Settings</span>
-                </a>
+                <!-- Settings Pinned & Log out -->
+                <div class="w-full flex items-center gap-1.5">
+                    <a id="tour-settings" href="/settings"
+                        class="flex-1 flex items-center gap-2.5 px-3 py-2 rounded-[10px] hover:bg-black/[0.03] dark:hover:bg-white/[0.03] text-2 hover:text-1 t-apple">
+                        <div class="w-[22px] h-[22px] rounded-[6px] bg-accent-sub flex items-center justify-center">
+                            <i class="fa-solid fa-gear text-[11px] text-accent-c"></i>
+                        </div>
+                        <span class="text-[13px] font-semibold">Settings</span>
+                    </a>
+                    <a href="/auth/logout" title="Log Out"
+                        class="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center hover:bg-red-500/10 text-3 hover:text-red-500 transition-colors t-apple">
+                        <i class="fa-solid fa-arrow-right-from-bracket text-[12.5px]"></i>
+                    </a>
+                </div>
             </div>
 
 
@@ -2773,10 +2779,10 @@
                                 <div class="shrink-0 pt-0.5">
                                     <template x-if="msg.role === 'user'">
                                         <div class="flex items-center justify-center">
-                                            <template x-if="prefs.user_avatar">
-                                                <img :src="prefs.user_avatar" class="w-[28px] h-[28px] rounded-full object-cover" />
+                                            <template x-if="window.__CURRENT_USER__ ? window.__CURRENT_USER__.avatar : prefs.user_avatar">
+                                                <img :src="window.__CURRENT_USER__ ? window.__CURRENT_USER__.avatar : prefs.user_avatar" class="w-[28px] h-[28px] rounded-full object-cover" />
                                             </template>
-                                            <template x-if="!prefs.user_avatar">
+                                            <template x-if="!(window.__CURRENT_USER__ ? window.__CURRENT_USER__.avatar : prefs.user_avatar)">
                                                 <div class="w-[28px] h-[28px] rounded-full flex items-center justify-center" style="background: var(--accent);">
                                                     <i class="fa-solid fa-user text-accent-t text-[11px]"></i>
                                                 </div>
@@ -2806,7 +2812,7 @@
                                 <div class="flex-grow min-w-0">
                                     <div class="flex items-center gap-2 mb-1.5">
                                         <p class="font-semibold text-[13px] text-1 tracking-[-0.01em]"
-                                            x-text="msg.role === 'user' ? (prefs.user_name || 'You') : (msg.character_name || activeChar.name)"></p>
+                                            x-text="msg.role === 'user' ? ((window.__CURRENT_USER__ && (window.__CURRENT_USER__.display_name || window.__CURRENT_USER__.username)) || prefs.user_name || 'You') : (msg.character_name || activeChar.name)"></p>
                                         
                                         <!-- Streaming/Thinking indicator -->
                                         <template x-if="msg.streaming">
@@ -3036,7 +3042,35 @@
                                                 </div>
                                             </template>
 
-                                            <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg, msg.streaming)"></div>
+                                            <!-- Error Card -->
+                                            <template x-if="msg.is_error">
+                                                <div class="my-2.5 p-3.5 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-sm flex flex-col gap-2.5 shadow-sm">
+                                                    <div class="flex items-start gap-3">
+                                                        <div class="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                                                            <i class="fa-solid fa-triangle-exclamation text-xs"></i>
+                                                        </div>
+                                                        <div class="flex-1 min-w-0">
+                                                            <div class="text-[13px] font-semibold text-rose-300 mb-1 flex items-center gap-2">
+                                                                <span>Generation Failed</span>
+                                                                <span x-show="msg.provider" class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 uppercase tracking-wider font-mono" x-text="msg.provider"></span>
+                                                            </div>
+                                                            <div class="leading-relaxed text-[13px] text-rose-200/90 whitespace-pre-wrap font-sans" x-text="msg.content"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex items-center gap-2 pt-2 border-t border-rose-500/15 text-xs">
+                                                        <button @click="regenerate(index)" class="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 font-medium flex items-center gap-1.5 transition-colors">
+                                                            <i class="fa-solid fa-arrows-rotate text-[11px]"></i> Retry
+                                                        </button>
+                                                        <a href="/settings" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-rose-200/80 hover:text-rose-100 flex items-center gap-1.5 transition-colors">
+                                                            <i class="fa-solid fa-gear text-[11px]"></i> Provider Settings
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <template x-if="!msg.is_error">
+                                                <div x-show="!prefs.debug_mode || (msg.content && msg.content.length)" class="chat-prose text-2" x-html="renderMarkdown(msg, msg.streaming)"></div>
+                                            </template>
 
                                             <!-- Image generation shimmer: shown while generate_image tool runs -->
                                             <div x-show="msg.imgGenerating"

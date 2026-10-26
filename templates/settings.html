@@ -6,6 +6,14 @@
 <link rel="stylesheet" href="/static/css/settings.css?v=0.0.5">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+<script>
+    window.__CURRENT_USER__ = {{ current_user | tojson if current_user else 'null' }};
+</script>
+<style>
+.badge-shared { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.badge-personal { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+.badge-system { background: rgba(148, 163, 184, 0.12); color: var(--text-tertiary); border: 1px solid rgba(148, 163, 184, 0.2); }
+</style>
 {% endblock %}
 
 {% block body %}
@@ -33,16 +41,16 @@
 
             <button @click="openProfileModal()" class="profile-card" style="border:none; cursor:pointer;">
                 <div class="profile-avatar">
-                    <template x-if="prefs.user_avatar">
-                        <img :src="prefs.user_avatar" alt="Avatar">
+                    <template x-if="currentUser ? currentUser.avatar : prefs.user_avatar">
+                        <img :src="currentUser ? currentUser.avatar : prefs.user_avatar" alt="Avatar">
                     </template>
-                    <template x-if="!prefs.user_avatar">
-                        <span style="font-size:20px;font-weight:700;color:var(--accent);" x-text="(prefs.user_name || 'U').charAt(0).toUpperCase()"></span>
+                    <template x-if="!(currentUser ? currentUser.avatar : prefs.user_avatar)">
+                        <span style="font-size:20px;font-weight:700;color:var(--accent);" x-text="(currentUser?.display_name || currentUser?.username || prefs.user_name || 'U').charAt(0).toUpperCase()"></span>
                     </template>
                 </div>
                 <div class="profile-info">
-                    <p class="profile-name" x-text="prefs.user_name || 'User'"></p>
-                    <p class="profile-sub">Kokomi AI Account</p>
+                    <p class="profile-name" x-text="currentUser?.display_name || currentUser?.username || prefs.user_name || 'User'"></p>
+                    <p class="profile-sub" x-text="currentUser?.role || 'Kokomi AI Account'"></p>
                 </div>
                 <i class="fa-solid fa-chevron-right profile-chevron"></i>
             </button>
@@ -114,6 +122,14 @@
                     About
                 </button>
             </div>
+
+            <div class="tahoe-sidebar-section" x-show="currentUser && currentUser.role === 'Endministrator'">
+                <p class="tahoe-sidebar-label">Administration</p>
+                <button @click="selectTab('users')" class="tahoe-nav-item" :class="tab === 'users' ? 'active' : ''">
+                    <span class="nav-icon" style="background: linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight));"><i class="fa-solid fa-users-gear" style="font-size:11px;color:#fff;"></i></span>
+                    Users
+                </button>
+            </div>
         </aside>
 
         <main class="tahoe-content"
@@ -180,6 +196,209 @@
                             <div>
                                 <label class="apple-label" style="font-size:11px; color:var(--text-tertiary); margin-bottom:8px;">Model</label>
                                 {{ m.model_dropdown("prefs.custom_model", "customModelsFor('chat')") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- API Keys & Model Credentials -->
+                    <div class="card-row" style="background:rgba(255,255,255,0.02); border-radius:12px; padding:16px; margin: 12px 0 16px 0; border:1px solid var(--border-subtle);">
+                        <div style="margin-bottom:14px;">
+                            <label class="apple-label" style="font-size:13px; font-weight:700; color:var(--text-primary); margin:0; display:flex; align-items:center; gap:7px;">
+                                <i class="fa-solid fa-key" style="color:var(--accent);"></i>
+                                <span>API Keys &amp; Model Credentials</span>
+                            </label>
+                            <p style="font-size:11px; color:var(--text-tertiary); margin:2px 0 0;">Enter your personal keys or toggle sharing to allow other users on Kokomi to use them.</p>
+                        </div>
+
+                        <!-- 1. Groq API Key -->
+                        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-subtle);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-size:12px; font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-bolt" style="color:#f59e0b; width:14px;"></i> Groq API Key</span>
+                                    <span :class="getKeySourceInfo('groq').type === 'shared' ? 'badge-shared' : (getKeySourceInfo('groq').type === 'personal' ? 'badge-personal' : 'badge-system')"
+                                          style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"
+                                          x-text="getKeySourceInfo('groq').badge"></span>
+                                </div>
+                                <div>
+                                    <template x-if="getSharedKeysFor('groq').length > 0 && getKeySourceInfo('groq').type !== 'shared'">
+                                        <button type="button" @click="activateSharedKey(getSharedKeysFor('groq')[0].id)"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:#10b981; display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-handshake"></i> Use key from @<span x-text="getSharedKeysFor('groq')[0].owner_username"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="getKeySourceInfo('groq').type === 'shared'">
+                                        <button type="button" @click="clearSharedKey('groq')"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:var(--text-tertiary); display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-arrow-rotate-left"></i> Switch to Personal Key
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <div style="position:relative; flex:1;">
+                                    <input :type="showKey.groq ? 'text' : 'password'"
+                                           x-model="prefs.groq_api_key"
+                                           @input="prefs.groq_key_source = 'personal'"
+                                           @blur="savePrefs(); fetchModels();"
+                                           class="apple-field"
+                                           :placeholder="getKeySourceInfo('groq').type === 'shared' ? '•••••••• (Using shared key)' : 'gsk_... (leave empty for server .env default)'"
+                                           style="font-family:monospace; font-size:12px; padding-right:36px;">
+                                    <button type="button" @click="showKey.groq = !showKey.groq"
+                                            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer;">
+                                        <i :class="showKey.groq ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size:11px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between;" x-show="prefs.groq_api_key && getKeySourceInfo('groq').type !== 'shared'">
+                                <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; cursor:pointer; color:var(--text-secondary); user-select:none;">
+                                    <input type="checkbox" :checked="isMyKeyShared('groq')" @change="toggleShareKey('groq')" style="accent-color:var(--accent); cursor:pointer;">
+                                    <span>Share this key with other users on Kokomi</span>
+                                </label>
+                                <span x-show="isMyKeyShared('groq')" style="font-size:10.5px; color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Shared with everyone</span>
+                            </div>
+                        </div>
+
+                        <!-- 2. Google Gemini API Key -->
+                        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-subtle);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-size:12px; font-weight:600; color:var(--text-primary);"><i class="fa-brands fa-google" style="color:#4285f4; width:14px;"></i> Google Gemini API Key</span>
+                                    <span :class="getKeySourceInfo('google').type === 'shared' ? 'badge-shared' : (getKeySourceInfo('google').type === 'personal' ? 'badge-personal' : 'badge-system')"
+                                          style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"
+                                          x-text="getKeySourceInfo('google').badge"></span>
+                                </div>
+                                <div>
+                                    <template x-if="getSharedKeysFor('google').length > 0 && getKeySourceInfo('google').type !== 'shared'">
+                                        <button type="button" @click="activateSharedKey(getSharedKeysFor('google')[0].id)"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:#10b981; display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-handshake"></i> Use key from @<span x-text="getSharedKeysFor('google')[0].owner_username"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="getKeySourceInfo('google').type === 'shared'">
+                                        <button type="button" @click="clearSharedKey('google')"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:var(--text-tertiary); display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-arrow-rotate-left"></i> Switch to Personal Key
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <div style="position:relative; flex:1;">
+                                    <input :type="showKey.google ? 'text' : 'password'"
+                                           x-model="prefs.google_api_key"
+                                           @input="prefs.google_key_source = 'personal'"
+                                           @blur="savePrefs(); fetchModels();"
+                                           class="apple-field"
+                                           :placeholder="getKeySourceInfo('google').type === 'shared' ? '•••••••• (Using shared key)' : 'AIzaSy... (leave empty for server .env default)'"
+                                           style="font-family:monospace; font-size:12px; padding-right:36px;">
+                                    <button type="button" @click="showKey.google = !showKey.google"
+                                            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer;">
+                                        <i :class="showKey.google ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size:11px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between;" x-show="prefs.google_api_key && getKeySourceInfo('google').type !== 'shared'">
+                                <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; cursor:pointer; color:var(--text-secondary); user-select:none;">
+                                    <input type="checkbox" :checked="isMyKeyShared('google')" @change="toggleShareKey('google')" style="accent-color:var(--accent); cursor:pointer;">
+                                    <span>Share this key with other users on Kokomi</span>
+                                </label>
+                                <span x-show="isMyKeyShared('google')" style="font-size:10.5px; color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Shared with everyone</span>
+                            </div>
+                        </div>
+
+                        <!-- 3. NVIDIA NIM API Key -->
+                        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-subtle);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-size:12px; font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-network-wired" style="color:#10b981; width:14px;"></i> NVIDIA NIM API Key</span>
+                                    <span :class="getKeySourceInfo('nvidia').type === 'shared' ? 'badge-shared' : (getKeySourceInfo('nvidia').type === 'personal' ? 'badge-personal' : 'badge-system')"
+                                          style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"
+                                          x-text="getKeySourceInfo('nvidia').badge"></span>
+                                </div>
+                                <div>
+                                    <template x-if="getSharedKeysFor('nvidia').length > 0 && getKeySourceInfo('nvidia').type !== 'shared'">
+                                        <button type="button" @click="activateSharedKey(getSharedKeysFor('nvidia')[0].id)"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:#10b981; display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-handshake"></i> Use key from @<span x-text="getSharedKeysFor('nvidia')[0].owner_username"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="getKeySourceInfo('nvidia').type === 'shared'">
+                                        <button type="button" @click="clearSharedKey('nvidia')"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:var(--text-tertiary); display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-arrow-rotate-left"></i> Switch to Personal Key
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <div style="position:relative; flex:1;">
+                                    <input :type="showKey.nvidia ? 'text' : 'password'"
+                                           x-model="prefs.nvidia_api_key"
+                                           @input="prefs.nvidia_key_source = 'personal'"
+                                           @blur="savePrefs(); fetchModels();"
+                                           class="apple-field"
+                                           :placeholder="getKeySourceInfo('nvidia').type === 'shared' ? '•••••••• (Using shared key)' : 'nvapi-... (leave empty for server .env default)'"
+                                           style="font-family:monospace; font-size:12px; padding-right:36px;">
+                                    <button type="button" @click="showKey.nvidia = !showKey.nvidia"
+                                            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer;">
+                                        <i :class="showKey.nvidia ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size:11px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between;" x-show="prefs.nvidia_api_key && getKeySourceInfo('nvidia').type !== 'shared'">
+                                <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; cursor:pointer; color:var(--text-secondary); user-select:none;">
+                                    <input type="checkbox" :checked="isMyKeyShared('nvidia')" @change="toggleShareKey('nvidia')" style="accent-color:var(--accent); cursor:pointer;">
+                                    <span>Share this key with other users on Kokomi</span>
+                                </label>
+                                <span x-show="isMyKeyShared('nvidia')" style="font-size:10.5px; color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Shared with everyone</span>
+                            </div>
+                        </div>
+
+                        <!-- 4. Tavily Search API Key -->
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-size:12px; font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-globe" style="color:#06b6d4; width:14px;"></i> Tavily Search Key</span>
+                                    <span :class="getKeySourceInfo('tavily').type === 'shared' ? 'badge-shared' : (getKeySourceInfo('tavily').type === 'personal' ? 'badge-personal' : 'badge-system')"
+                                          style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"
+                                          x-text="getKeySourceInfo('tavily').badge"></span>
+                                </div>
+                                <div>
+                                    <template x-if="getSharedKeysFor('tavily').length > 0 && getKeySourceInfo('tavily').type !== 'shared'">
+                                        <button type="button" @click="activateSharedKey(getSharedKeysFor('tavily')[0].id)"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:#10b981; display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-handshake"></i> Use key from @<span x-text="getSharedKeysFor('tavily')[0].owner_username"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="getKeySourceInfo('tavily').type === 'shared'">
+                                        <button type="button" @click="clearSharedKey('tavily')"
+                                                class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:var(--text-tertiary); display:inline-flex; align-items:center; gap:4px;">
+                                            <i class="fa-solid fa-arrow-rotate-left"></i> Switch to Personal Key
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <div style="position:relative; flex:1;">
+                                    <input :type="showKey.tavily ? 'text' : 'password'"
+                                           x-model="prefs.tavily_api_key"
+                                           @input="prefs.tavily_key_source = 'personal'"
+                                           @blur="savePrefs()"
+                                           class="apple-field"
+                                           :placeholder="getKeySourceInfo('tavily').type === 'shared' ? '•••••••• (Using shared key)' : 'tvly-... (leave empty for server .env default)'"
+                                           style="font-family:monospace; font-size:12px; padding-right:36px;">
+                                    <button type="button" @click="showKey.tavily = !showKey.tavily"
+                                            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-tertiary); cursor:pointer;">
+                                        <i :class="showKey.tavily ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'" style="font-size:11px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between;" x-show="prefs.tavily_api_key && getKeySourceInfo('tavily').type !== 'shared'">
+                                <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; cursor:pointer; color:var(--text-secondary); user-select:none;">
+                                    <input type="checkbox" :checked="isMyKeyShared('tavily')" @change="toggleShareKey('tavily')" style="accent-color:var(--accent); cursor:pointer;">
+                                    <span>Share this key with other users on Kokomi</span>
+                                </label>
+                                <span x-show="isMyKeyShared('tavily')" style="font-size:10.5px; color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Shared with everyone</span>
                             </div>
                         </div>
                     </div>
@@ -544,9 +763,38 @@
                             </div>
 
                             <div>
-                                <label class="apple-label" style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 6px;">API Key</label>
-                                <input type="password" x-model="prefs.image_gen_api_key" @blur="savePrefs(); fetchModels()"
-                                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" class="apple-field" style="font-family: 'SF Mono', monospace; font-size: 12px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <label class="apple-label" style="font-size: 11px; color: var(--text-tertiary); margin-bottom: 0;">API Key</label>
+                                        <span :class="getKeySourceInfo('openai').type === 'shared' ? 'badge-shared' : (getKeySourceInfo('openai').type === 'personal' ? 'badge-personal' : 'badge-system')"
+                                              style="font-size:10px; font-weight:600; padding:2px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;"
+                                              x-text="getKeySourceInfo('openai').badge"></span>
+                                    </div>
+                                    <div>
+                                        <template x-if="getSharedKeysFor('openai').length > 0 && getKeySourceInfo('openai').type !== 'shared'">
+                                            <button type="button" @click="activateSharedKey(getSharedKeysFor('openai')[0].id)"
+                                                    class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:#10b981; display:inline-flex; align-items:center; gap:4px;">
+                                                <i class="fa-solid fa-handshake"></i> Use key from @<span x-text="getSharedKeysFor('openai')[0].owner_username"></span>
+                                            </button>
+                                        </template>
+                                        <template x-if="getKeySourceInfo('openai').type === 'shared'">
+                                            <button type="button" @click="clearSharedKey('openai')"
+                                                    class="btn-subtle" style="font-size:11px; padding:3px 8px; border-radius:6px; cursor:pointer; color:var(--text-tertiary); display:inline-flex; align-items:center; gap:4px;">
+                                                <i class="fa-solid fa-arrow-rotate-left"></i> Switch to Personal Key
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                                <input type="password" x-model="prefs.image_gen_api_key" @input="prefs.image_gen_key_source = 'personal'" @blur="savePrefs(); fetchModels()"
+                                    :placeholder="getKeySourceInfo('openai').type === 'shared' ? '•••••••• (Using shared key)' : 'sk-xxxxxxxxxxxxxxxxxxxxxxxx'"
+                                    class="apple-field" style="font-family: 'SF Mono', monospace; font-size: 12px;">
+                                <div style="margin-top:6px; display:flex; align-items:center; justify-content:space-between;" x-show="prefs.image_gen_api_key && getKeySourceInfo('openai').type !== 'shared'">
+                                    <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; cursor:pointer; color:var(--text-secondary); user-select:none;">
+                                        <input type="checkbox" :checked="isMyKeyShared('openai')" @change="toggleShareKey('openai')" style="accent-color:var(--accent); cursor:pointer;">
+                                        <span>Share this key with other users on Kokomi</span>
+                                    </label>
+                                    <span x-show="isMyKeyShared('openai')" style="font-size:10.5px; color:#10b981; font-weight:600; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-circle-check"></i> Shared with everyone</span>
+                                </div>
                             </div>
 
                             <div>
@@ -2040,7 +2288,217 @@
                 </div>
             </div>
 
+            <!-- ═══ TAB: USERS (Endministrator) ═══ -->
+            <div x-show="tab === 'users'" x-transition class="tab-panel">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px;">
+                    <div>
+                        <h2 class="section-title">User Management</h2>
+                        <p class="section-subtitle">Create, update, and manage Kokomi AI accounts and access roles.</p>
+                    </div>
+                    <button @click="openUserModal()" class="btn-accent" style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:8px 14px; border-radius:10px; cursor:pointer;">
+                        <i class="fa-solid fa-user-plus"></i> New User
+                    </button>
+                </div>
+
+                <div class="glass-card" style="padding:0; overflow:hidden;">
+                    <div style="padding:14px 18px; border-bottom:1px solid var(--border); font-size:11.5px; font-weight:700; color:var(--text-tertiary); display:grid; grid-template-columns: 2.2fr 1.6fr 1.4fr 1fr; align-items:center;">
+                        <span>USER</span>
+                        <span>ROLE</span>
+                        <span>CREATED</span>
+                        <span style="text-align:right;">ACTIONS</span>
+                    </div>
+
+                    <template x-if="usersList && usersList.length === 0">
+                        <div style="padding:32px; text-align:center; color:var(--text-secondary);">
+                            <i class="fa-solid fa-users" style="font-size:24px; color:var(--text-tertiary); margin-bottom:8px;"></i>
+                            <p style="margin:0; font-size:13px;">No users found.</p>
+                        </div>
+                    </template>
+
+                    <template x-for="u in usersList" :key="u.id">
+                        <div style="padding:14px 18px; border-bottom:1px solid var(--border); display:grid; grid-template-columns: 2.2fr 1.6fr 1.4fr 1fr; align-items:center; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                                <div class="user-avatar-cell">
+                                    <template x-if="u.avatar">
+                                        <img :src="u.avatar" :alt="u.username" @error="u.avatar = ''" />
+                                    </template>
+                                    <template x-if="!u.avatar">
+                                        <div :style="getUserAvatarGradient(u.username)" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px;">
+                                            <span x-text="(u.display_name || u.username || 'U').charAt(0).toUpperCase()"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div style="min-width:0;">
+                                    <p style="font-size:13.5px; font-weight:600; color:var(--text-primary); margin:0;" x-text="u.display_name || u.username"></p>
+                                    <p style="font-size:11.5px; color:var(--text-tertiary); margin:0;" x-text="'@' + u.username"></p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <span :class="u.role === 'Endministrator' ? 'badge-endministrator' : 'badge-standard'" style="display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:4px 9px; border-radius:8px;">
+                                    <i :class="u.role === 'Endministrator' ? 'fa-solid fa-shield-halved' : 'fa-solid fa-user'"></i>
+                                    <span x-text="u.role"></span>
+                                </span>
+                            </div>
+
+                            <div style="font-size:12px; color:var(--text-tertiary);" x-text="u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'"></div>
+
+                            <div style="display:flex; justify-content:flex-end; gap:6px;">
+                                <button @click="openEditUserModal(u)" class="btn-subtle" title="Edit User" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer;">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button @click="deleteUser(u)" :disabled="currentUser && currentUser.username === u.username" class="btn-subtle" :title="currentUser && currentUser.username === u.username ? 'Cannot delete yourself' : 'Delete User'" style="padding:6px 10px; font-size:12px; border-radius:8px; cursor:pointer; color:#ef4444;" :style="currentUser && currentUser.username === u.username ? 'opacity:0.4; cursor:not-allowed;' : ''">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
         </main>
+    </div>
+
+    <!-- ═══ MODAL: NEW USER (Endministrator) ═══ -->
+    <div x-show="userModalOpen" x-cloak class="modal-overlay" @keydown.escape.window="userModalOpen = false">
+        <div class="modal-backdrop" @click="userModalOpen = false"></div>
+        <div class="modal-sheet" style="max-width:440px;" @click.stop>
+            <div class="modal-handle"></div>
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+                <div style="width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight)); color:#fff;">
+                    <i class="fa-solid fa-user-plus"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); margin:0;">Create New User</h3>
+                    <p style="font-size:11.5px; color:var(--text-tertiary); margin:0;">Add a new account to Kokomi AI.</p>
+                </div>
+            </div>
+
+            <form @submit.prevent="createUser()" style="display:flex; flex-direction:column; gap:14px;">
+                <!-- Avatar section -->
+                <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px;">
+                    <div class="user-avatar-modal-preview" @click="$refs.createUserAvatarInput.click()" title="Click to upload profile picture">
+                        <template x-if="userForm.avatar">
+                            <img :src="userForm.avatar" alt="Avatar Preview" />
+                        </template>
+                        <template x-if="!userForm.avatar">
+                            <div :style="getUserAvatarGradient(userForm.username)" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:22px;">
+                                <span x-text="(userForm.display_name || userForm.username || 'U').charAt(0).toUpperCase()"></span>
+                            </div>
+                        </template>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <label class="apple-label" style="margin-bottom:6px;">Profile Picture</label>
+                        <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                            <input type="file" x-ref="createUserAvatarInput" accept="image/*" class="hidden" @change="handleUserAvatarUpload($event, false)">
+                            <button type="button" @click="$refs.createUserAvatarInput.click()" class="btn-subtle" style="font-size:11.5px; padding:5px 10px; border-radius:8px; cursor:pointer;">
+                                <i class="fa-solid fa-camera"></i> Choose File
+                            </button>
+                            <button type="button" x-show="userForm.avatar" @click="removeUserAvatar(false)" class="btn-subtle" style="font-size:11.5px; padding:5px 10px; border-radius:8px; cursor:pointer; color:#ef4444;">
+                                Remove
+                            </button>
+                        </div>
+                        <input class="apple-field" type="text" x-model="userForm.avatar" placeholder="Or enter image URL" style="font-size:11.5px; padding:6px 10px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Username</label>
+                    <input class="apple-field" type="text" x-model="userForm.username" placeholder="e.g. alice" required autocomplete="off">
+                </div>
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Display Name</label>
+                    <input class="apple-field" type="text" x-model="userForm.display_name" placeholder="e.g. Alice Cooper">
+                </div>
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Password</label>
+                    <input class="apple-field" type="password" x-model="userForm.password" placeholder="••••••••" required>
+                </div>
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Role</label>
+                    <select class="apple-field" x-model="userForm.role" style="cursor:pointer;">
+                        <option value="Standard user">Standard user (Use Kokomi AI services)</option>
+                        <option value="Endministrator">Endministrator (Root user management)</option>
+                    </select>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+                    <button type="button" @click="userModalOpen = false" class="btn-subtle" style="padding:8px 14px; border-radius:10px; cursor:pointer;">Cancel</button>
+                    <button type="submit" :disabled="userBusy" class="btn-accent" style="padding:8px 16px; border-radius:10px; cursor:pointer;">
+                        <span x-show="!userBusy">Create User</span>
+                        <span x-show="userBusy"><i class="fa-solid fa-circle-notch fa-spin"></i> Creating...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══ MODAL: EDIT USER (Endministrator) ═══ -->
+    <div x-show="userEditModalOpen" x-cloak class="modal-overlay" @keydown.escape.window="userEditModalOpen = false">
+        <div class="modal-backdrop" @click="userEditModalOpen = false"></div>
+        <div class="modal-sheet" style="max-width:440px;" @click.stop>
+            <div class="modal-handle"></div>
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+                <div style="width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, var(--swatch-indigo), var(--swatch-midnight)); color:#fff;">
+                    <i class="fa-solid fa-user-pen"></i>
+                </div>
+                <div>
+                    <h3 style="font-size:16px; font-weight:700; color:var(--text-primary); margin:0;" x-text="'Edit User @' + userEditForm.username"></h3>
+                    <p style="font-size:11.5px; color:var(--text-tertiary); margin:0;">Modify role, name, profile picture, or reset password.</p>
+                </div>
+            </div>
+
+            <form @submit.prevent="updateUser()" style="display:flex; flex-direction:column; gap:14px;">
+                <!-- Avatar section -->
+                <div style="display:flex; align-items:center; gap:14px; padding:12px 14px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:12px;">
+                    <div class="user-avatar-modal-preview" @click="$refs.editUserAvatarInput.click()" title="Click to upload profile picture">
+                        <template x-if="userEditForm.avatar">
+                            <img :src="userEditForm.avatar" alt="Avatar Preview" />
+                        </template>
+                        <template x-if="!userEditForm.avatar">
+                            <div :style="getUserAvatarGradient(userEditForm.username)" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:22px;">
+                                <span x-text="(userEditForm.display_name || userEditForm.username || 'U').charAt(0).toUpperCase()"></span>
+                            </div>
+                        </template>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <label class="apple-label" style="margin-bottom:6px;">Profile Picture</label>
+                        <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                            <input type="file" x-ref="editUserAvatarInput" accept="image/*" class="hidden" @change="handleUserAvatarUpload($event, true)">
+                            <button type="button" @click="$refs.editUserAvatarInput.click()" class="btn-subtle" style="font-size:11.5px; padding:5px 10px; border-radius:8px; cursor:pointer;">
+                                <i class="fa-solid fa-camera"></i> Change Photo
+                            </button>
+                            <button type="button" x-show="userEditForm.avatar" @click="removeUserAvatar(true)" class="btn-subtle" style="font-size:11.5px; padding:5px 10px; border-radius:8px; cursor:pointer; color:#ef4444;">
+                                Remove
+                            </button>
+                        </div>
+                        <input class="apple-field" type="text" x-model="userEditForm.avatar" placeholder="Or enter image URL" style="font-size:11.5px; padding:6px 10px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Display Name</label>
+                    <input class="apple-field" type="text" x-model="userEditForm.display_name" placeholder="Display name">
+                </div>
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">Role</label>
+                    <select class="apple-field" x-model="userEditForm.role" style="cursor:pointer;">
+                        <option value="Standard user">Standard user</option>
+                        <option value="Endministrator">Endministrator</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="apple-label" style="margin-bottom:6px;">New Password (leave blank to keep current)</label>
+                    <input class="apple-field" type="password" x-model="userEditForm.password" placeholder="••••••••">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+                    <button type="button" @click="userEditModalOpen = false" class="btn-subtle" style="padding:8px 14px; border-radius:10px; cursor:pointer;">Cancel</button>
+                    <button type="submit" :disabled="userBusy" class="btn-accent" style="padding:8px 16px; border-radius:10px; cursor:pointer;">
+                        <span x-show="!userBusy">Save Changes</span>
+                        <span x-show="userBusy"><i class="fa-solid fa-circle-notch fa-spin"></i> Saving...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- ═══ AI CHARACTER GENERATOR MODAL ═══ -->
@@ -2680,11 +3138,11 @@
                 <!-- Avatar preview -->
                 <div style="position:relative; cursor:pointer;" @click="triggerProfileAvatarUpload()">
                     <div style="width:88px; height:88px; border-radius:50%; border:3px solid var(--accent); overflow:hidden; background:var(--accent-subtle); display:flex; align-items:center; justify-content:center;">
-                        <template x-if="prefs.user_avatar">
-                            <img :src="prefs.user_avatar" style="width:100%;height:100%;object-fit:cover;">
+                        <template x-if="currentUser ? currentUser.avatar : prefs.user_avatar">
+                            <img :src="currentUser ? currentUser.avatar : prefs.user_avatar" style="width:100%;height:100%;object-fit:cover;">
                         </template>
-                        <template x-if="!prefs.user_avatar">
-                            <span style="font-size:32px; font-weight:700; color:var(--accent);" x-text="(prefs.user_name || 'U').charAt(0).toUpperCase()"></span>
+                        <template x-if="!(currentUser ? currentUser.avatar : prefs.user_avatar)">
+                            <span style="font-size:32px; font-weight:700; color:var(--accent);" x-text="(currentUser?.display_name || currentUser?.username || 'U').charAt(0).toUpperCase()"></span>
                         </template>
                     </div>
                     <!-- Camera overlay -->

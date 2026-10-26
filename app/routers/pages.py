@@ -6,7 +6,22 @@ from app.config import VERSION, RELEASE_NAME
 
 router = APIRouter()
 def inject_prefs(request: Request):
-    return {"prefs": load_prefs()}
+    user = getattr(request.state, "user", None)
+    safe_user = None
+    prefs = load_prefs().copy()
+    if user:
+        if isinstance(user, dict):
+            safe_user = {k: v for k, v in user.items() if k != "password_hash"}
+        else:
+            safe_user = {k: getattr(user, k) for k in ["id", "username", "display_name", "role", "avatar", "created_at"] if hasattr(user, k)}
+        prefs["user_avatar"] = safe_user.get("avatar") or None
+        prefs["user_name"] = safe_user.get("display_name") or safe_user.get("username")
+    else:
+        prefs["user_avatar"] = None
+    return {
+        "prefs": prefs,
+        "current_user": safe_user,
+    }
 
 def inject_app_version(request: Request):
     return {"app_version": {"version": VERSION, "release_name": RELEASE_NAME}}

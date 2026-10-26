@@ -34,6 +34,17 @@ async def lifespan(app):
     from app.db import init_db
     await init_db()
 
+    # loading preferences into memory from DB
+    from app.storage import init_prefs_cache
+    await init_prefs_cache()
+
+    from app.auth import seed_initial_users
+    await seed_initial_users()
+
+    from app.workflow import init_workflows_cache, init_templates_cache
+    await init_workflows_cache()
+    await init_templates_cache()
+
     from app.migration import auto_migrate_and_cleanup, migrate_embedding_model, migrate_local_provider_to_custom
     try:
         await auto_migrate_and_cleanup()
@@ -149,22 +160,45 @@ async def auth_middleware(request: Request, call_next):
     
     if not is_public:
         try:
-            # We use get_current_user logic here manually since it's a middleware
-            from app.auth import JWT_SECRET_KEY, JWT_ALGORITHM
+            from app.auth import JWT_SECRET_KEY, JWT_ALGORITHM, get_user_by_username_async
             from jose import jwt
             
             token = request.cookies.get("access_token")
             if not token:
+                auth_hdr = request.headers.get("Authorization")
+                if auth_hdr and auth_hdr.startswith("Bearer "):
+                    token = auth_hdr.split(" ", 1)[1]
+
+            if not token:
+                if path.startswith("/api/"):
+                    return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
                 return RedirectResponse(url="/auth/login")
             
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
             username: str = payload.get("sub")
-            
-            configured_username = prefs.get("admin_username", "admin")
-            if username is None or username != configured_username:
+            if not username:
+                if path.startswith("/api/"):
+                    return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
                 return RedirectResponse(url="/auth/login")
+
+            user = await get_user_by_username_async(username)
+            if not user:
+                configured_username = prefs.get("admin_username", "admin")
+                if username.strip().lower() != configured_username.strip().lower():
+                    if path.startswith("/api/"):
+                        return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+                    return RedirectResponse(url="/auth/login")
+                user = {
+                    "username": configured_username,
+                    "role": "Endministrator",
+                    "display_name": configured_username.title(),
+                }
+            
+            request.state.user = user
                 
         except (JWTError, Exception):
+            if path.startswith("/api/"):
+                return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
             return RedirectResponse(url="/auth/login")
 
     response = await call_next(request)
@@ -194,12 +228,15 @@ app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 # Register all routers
-from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton, canvas, images  # noqa: E402
+from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton, canvas, images, admin_users, shared_keys  # noqa: E402
 # Aliased: a bare `skills` here would bind app.skills to the ROUTER module,
 # shadowing app/skills.py (the actual skill loader) on the package.
 from app.routers import skills as skills_router  # noqa: E402
 
 app.include_router(auth.router)
+app.add_api_route("/api/auth/me", auth.get_me, methods=["GET"])
+app.include_router(admin_users.router)
+app.include_router(shared_keys.router)
 app.include_router(pages.router)
 app.include_router(prefs.router)
 app.include_router(app_store.router)

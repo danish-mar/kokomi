@@ -1,12 +1,22 @@
 import datetime
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.models import FolderCreate, ConversationFolderUpdate
-from app.storage import load_convos, save_convos, load_folders, save_folders
+from app.storage import (
+    load_convos_async, save_convos_async,
+    load_folders_async, save_folders_async,
+)
 
 router = APIRouter(prefix="/api")
+
+
+def _get_user_id(request: Request) -> str | None:
+    user = getattr(request.state, "user", None)
+    if not user:
+        return None
+    return user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
 
 
 def _clean_content(content):
@@ -115,8 +125,9 @@ def get_conversation_thumbnail(c):
 # ── Conversations ────────────────────────────────────────────────────
 
 @router.get("/conversations")
-async def list_conversations_api():
-    convos = load_convos()
+async def list_conversations_api(request: Request):
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     result = [
         {
             "_id": cid,
@@ -129,6 +140,7 @@ async def list_conversations_api():
         }
         for cid, c in convos.items()
         if not c.get("is_anonymous", False)
+        and (c.get("messages") and any(m.get("role") == "assistant" for m in c.get("messages", [])))
     ]
 
     def sort_key(c):
@@ -146,8 +158,9 @@ async def list_conversations_api():
 
 
 @router.get("/conversations/{conv_id}")
-async def get_conversation(conv_id: str):
-    convos = load_convos()
+async def get_conversation(conv_id: str, request: Request):
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     c = dict(convos[conv_id])
@@ -157,29 +170,32 @@ async def get_conversation(conv_id: str):
 
 
 @router.delete("/conversations/{conv_id}")
-async def delete_conversation(conv_id: str):
-    convos = load_convos()
+async def delete_conversation(conv_id: str, request: Request):
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     del convos[conv_id]
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     return {"ok": True}
 
 
 @router.post("/conversations/{conv_id}/save")
-async def save_temporary_conversation(conv_id: str):
+async def save_temporary_conversation(conv_id: str, request: Request):
     """Promote a temporary chat to permanent history by clearing the is_anonymous flag."""
-    convos = load_convos()
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     convos[conv_id]["is_anonymous"] = False
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     return {"ok": True}
 
 
 @router.post("/conversations/{conv_id}/pop")
-async def pop_last_messages(conv_id: str):
-    convos = load_convos()
+async def pop_last_messages(conv_id: str, request: Request):
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     msgs = convos[conv_id].get("messages", [])
@@ -189,20 +205,21 @@ async def pop_last_messages(conv_id: str):
     )
     if last_user_idx != -1:
         convos[conv_id]["messages"] = msgs[:last_user_idx]
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     return {"ok": True, "count": len(convos[conv_id]["messages"])}
 
 
 @router.delete("/conversations/{conv_id}/messages/{msg_index}")
-async def delete_specific_message(conv_id: str, msg_index: int):
-    convos = load_convos()
+async def delete_specific_message(conv_id: str, msg_index: int, request: Request):
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Not found")
     msgs = convos[conv_id].get("messages", [])
     if 0 <= msg_index < len(msgs):
         msgs.pop(msg_index)
         convos[conv_id]["messages"] = msgs
-        save_convos(convos)
+        await save_convos_async(convos, user_id=user_id)
         return {"ok": True}
     raise HTTPException(400, "Invalid index")
 
@@ -237,11 +254,12 @@ def _stamp_branch_metadata(conv: dict) -> None:
 
 
 @router.post("/conversations/{conv_id}/messages/{index}/branch")
-async def branch_at_message(conv_id: str, index: int):
+async def branch_at_message(conv_id: str, index: int, request: Request):
     """Archive messages[index:] as a branch variant and truncate storage to
     `index`. Used by both 'edit message' and 'regenerate response' — the
     caller resends via the normal chat flow to refill the truncated tail."""
-    convos = load_convos()
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Conversation not found")
     conv = convos[conv_id]
@@ -265,12 +283,12 @@ async def branch_at_message(conv_id: str, index: int):
         branches[group_id] = {"anchor_index": index, "variants": [suffix, []], "active_index": 1}
 
     conv["messages"] = msgs[:index]
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     return {"ok": True, **_branch_meta(conv, group_id)}
 
 
 @router.post("/conversations/{conv_id}/messages/{index}/attach-group")
-async def attach_branch_group(conv_id: str, index: int, payload: dict):
+async def attach_branch_group(conv_id: str, index: int, payload: dict, request: Request):
     """Called once a turn that refilled a truncated branch has finished
     streaming: stamps the branch marker onto the new message and freezes its
     now-complete content into the branch store so switching away and back
@@ -279,7 +297,8 @@ async def attach_branch_group(conv_id: str, index: int, payload: dict):
     if not group_id:
         raise HTTPException(400, "group_id is required")
 
-    convos = load_convos()
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Conversation not found")
     conv = convos[conv_id]
@@ -293,18 +312,19 @@ async def attach_branch_group(conv_id: str, index: int, payload: dict):
     msgs[index]["group_id"] = group_id
     g = conv["branches"][group_id]
     g["variants"][g["active_index"]] = copy.deepcopy(msgs[index:])
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     return {"ok": True, **_branch_meta(conv, group_id)}
 
 
 @router.post("/conversations/{conv_id}/messages/{index}/switch-branch")
-async def switch_branch(conv_id: str, index: int, payload: dict):
+async def switch_branch(conv_id: str, index: int, payload: dict, request: Request):
     """Instantly swap in an adjacent branch variant — no LLM call."""
     direction = payload.get("direction")
     if direction not in ("prev", "next"):
         raise HTTPException(400, "direction must be 'prev' or 'next'")
 
-    convos = load_convos()
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if conv_id not in convos:
         raise HTTPException(404, "Conversation not found")
     conv = convos[conv_id]
@@ -332,63 +352,69 @@ async def switch_branch(conv_id: str, index: int, payload: dict):
         msgs[anchor]["group_id"] = group_id
     g["active_index"] = target
     conv["messages"] = msgs
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     _stamp_branch_metadata(conv)  # so the returned messages carry branch_index/branch_count too
     return {"ok": True, "messages": msgs, **_branch_meta(conv, group_id)}
 
 
 @router.put("/conversations/{cid}/folder")
-async def assign_conversation_to_folder(cid: str, req: ConversationFolderUpdate):
-    convos = load_convos()
+async def assign_conversation_to_folder(cid: str, req: ConversationFolderUpdate, request: Request):
+    user_id = _get_user_id(request)
+    convos = await load_convos_async(user_id=user_id)
     if cid not in convos:
         raise HTTPException(404, "Conversation not found")
     convos[cid]["folder_id"] = req.folder_id
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
     return {"ok": True}
 
 
 # ── Folders ──────────────────────────────────────────────────────────
 
 @router.get("/folders")
-async def list_folders_api():
-    return list(load_folders().values())
+async def list_folders_api(request: Request):
+    user_id = _get_user_id(request)
+    return list((await load_folders_async(user_id=user_id)).values())
 
 
 @router.post("/folders")
-async def create_folder(req: FolderCreate):
-    folders = load_folders()
+async def create_folder(req: FolderCreate, request: Request):
+    user_id = _get_user_id(request)
+    folders = await load_folders_async(user_id=user_id)
     fid = str(uuid.uuid4())[:8]
     folders[fid] = {
         "id": fid,
+        "user_id": user_id,
         "name": req.name,
         "icon": req.icon,
         "created_at": datetime.datetime.utcnow().isoformat(),
     }
-    save_folders(folders)
+    await save_folders_async(folders, user_id=user_id)
     return folders[fid]
 
 
 @router.put("/folders/{fid}")
-async def update_folder(fid: str, req: FolderCreate):
-    folders = load_folders()
+async def update_folder(fid: str, req: FolderCreate, request: Request):
+    user_id = _get_user_id(request)
+    folders = await load_folders_async(user_id=user_id)
     if fid not in folders:
         raise HTTPException(404, "Folder not found")
     folders[fid]["name"] = req.name
     folders[fid]["icon"] = req.icon
-    save_folders(folders)
+    await save_folders_async(folders, user_id=user_id)
     return folders[fid]
 
 
 @router.delete("/folders/{fid}")
-async def delete_folder(fid: str):
-    folders = load_folders()
+async def delete_folder(fid: str, request: Request):
+    user_id = _get_user_id(request)
+    folders = await load_folders_async(user_id=user_id)
     if fid in folders:
         del folders[fid]
-        save_folders(folders)
+        await save_folders_async(folders, user_id=user_id)
         # Unlink any conversations that were in this folder
-        convos = load_convos()
+        convos = await load_convos_async(user_id=user_id)
         for c in convos.values():
             if c.get("folder_id") == fid:
                 c["folder_id"] = None
-        save_convos(convos)
+        await save_convos_async(convos, user_id=user_id)
     return {"ok": True}

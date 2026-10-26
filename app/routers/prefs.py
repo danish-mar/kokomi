@@ -3,18 +3,30 @@ from pathlib import Path
 
 from typing import Optional
 import httpx
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, Request, UploadFile, File
 
 from app.config import GROQ_API_KEY, GOOGLE_API_KEY, NVIDIA_API_KEY
 from app.models import PrefsUpdate, CustomModelsRequest
-from app.storage import load_prefs, save_prefs
+from app.storage import (
+    load_prefs, save_prefs,
+    load_user_prefs_async, save_user_prefs_async,
+)
 
 router = APIRouter(prefix="/api")
 
 
+def _get_user(request: Request) -> dict | None:
+    return getattr(request.state, "user", None)
+
+
 @router.get("/prefs")
-async def get_prefs():
-    return load_prefs()
+async def get_prefs(request: Request):
+    user = _get_user(request)
+    if not user:
+        return load_prefs()
+    user_id = user.get("id")
+    display_name = user.get("display_name") or user.get("username")
+    return await load_user_prefs_async(user_id, default_name=display_name)
 
 
 def _sniff_image_type(b: bytes):
@@ -83,10 +95,31 @@ async def image_proxy(url: str):
 
 
 @router.post("/prefs")
-async def update_prefs(p: PrefsUpdate):
-    prefs = load_prefs()
-    prefs.update(p.model_dump())
-    save_prefs(prefs)
+async def update_prefs(p: PrefsUpdate, request: Request):
+    user = _get_user(request)
+    incoming = p.model_dump(exclude_unset=True)
+    if not user:
+        prefs = load_prefs()
+        prefs.update(incoming)
+        save_prefs(prefs)
+        return prefs
+
+    user_id = user.get("id")
+    display_name = user.get("display_name") or user.get("username")
+    prefs = await load_user_prefs_async(user_id, default_name=display_name)
+    prefs.update(incoming)
+    await save_user_prefs_async(user_id, prefs)
+
+    # If the user is Endministrator and changed system-wide LLM/API keys or models, sync to global prefs as well
+    if user.get("role") == "Endministrator":
+        global_keys = {"groq_api_key", "google_api_key", "nvidia_api_key", "llm_provider", "tavily_api_key"}
+        if any(k in incoming for k in global_keys):
+            g_prefs = load_prefs()
+            for k in global_keys:
+                if k in incoming:
+                    g_prefs[k] = incoming[k]
+            save_prefs(g_prefs)
+
     return prefs
 
 
@@ -225,24 +258,47 @@ async def list_image_gen_models(base_url: Optional[str] = None, api_key: Optiona
 
 
 @router.post("/prefs/avatar")
-async def upload_user_avatar(avatar: UploadFile = File(...)):
+async def upload_user_avatar(request: Request, avatar: UploadFile = File(...)):
     import os
     import shutil
     from app.config import AVATARS_DIR
     
+    user_info = getattr(request.state, "user", None)
+    uname = user_info["username"] if user_info and user_info.get("username") else "user"
+    user_id = user_info.get("id") if user_info else None
+
     ext = os.path.splitext(avatar.filename)[1] or ".png"
-    fname = f"user_{avatar.filename}" # unique enough for single user
-    # or use a fixed name to overwrite
-    fname = f"user_profile{ext}"
+    fname = f"user_avatar_{uname}{ext}"
     
     target_path = os.path.join(AVATARS_DIR, fname)
     with open(target_path, "wb") as f:
         shutil.copyfileobj(avatar.file, f)
     
-    prefs = load_prefs()
-    prefs["user_avatar"] = f"/avatars/{fname}"
-    save_prefs(prefs)
-    return {"avatar": prefs["user_avatar"]}
+    avatar_url = f"/avatars/{fname}"
+
+    if user_id:
+        prefs = await load_user_prefs_async(user_id)
+        prefs["user_avatar"] = avatar_url
+        await save_user_prefs_async(user_id, prefs)
+    else:
+        prefs = load_prefs()
+        prefs["user_avatar"] = avatar_url
+        save_prefs(prefs)
+
+    # Sync to current user in DB if authenticated
+    try:
+        if user_info and user_info.get("username"):
+            from app.db import _session, UserRow
+            from sqlalchemy import select, func
+            async with _session() as sess:
+                res = await sess.execute(select(UserRow).where(func.lower(UserRow.username) == user_info["username"].lower()))
+                u = res.scalar_one_or_none()
+                if u:
+                    u.avatar = avatar_url
+    except Exception:
+        pass
+
+    return {"avatar": avatar_url}
 
 
 @router.post("/ai/generate")

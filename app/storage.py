@@ -24,9 +24,9 @@ from app.config import USER_PREFS_FILE, DEFAULT_PREFS
 from app.db import (
     _session, j_dumps, j_loads,
     ConversationRow, MessageRow, CharacterRow, McpServerRow,
-    SpaceRow, AgentTemplateRow, FolderRow, TritonDeviceRow,
+    SpaceRow, AgentTemplateRow, FolderRow, TritonDeviceRow, UserPrefsRow, UserRow
 )
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, or_
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -54,24 +54,116 @@ def _save(path: str, data) -> None:
 # Preferences (still JSON — see implementation plan note)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# def load_prefs() -> dict:
+#     prefs = _load(USER_PREFS_FILE)
+#     if not prefs:
+#         prefs = DEFAULT_PREFS.copy()
+#         _save(USER_PREFS_FILE, prefs)
+#         return prefs
+#     changed = False
+#     for k, v in DEFAULT_PREFS.items():
+#         if k not in prefs:
+#             prefs[k] = v
+#             changed = True
+#     if changed:
+#         _save(USER_PREFS_FILE, prefs)
+#     return prefs
+
+_PREFS_CACHE: dict = {}
+
+async def init_prefs_cache() -> None:
+    """Load once on server boot. Reads it from the PostgreSQL/SQLite database."""
+    global _PREFS_CACHE
+    async with _session() as sess:
+        row = await sess.get(UserPrefsRow, "default")
+        if row and row.data:
+            loaded = j_loads(row.data) or {}
+            merged = DEFAULT_PREFS.copy()
+            merged.update(loaded)
+            _PREFS_CACHE = merged
+        else:
+            # Check if there is an existing user_prefs.json file to import
+            existing_file_prefs = _load(USER_PREFS_FILE)
+            if existing_file_prefs:
+                merged = DEFAULT_PREFS.copy()
+                merged.update(existing_file_prefs)
+                _PREFS_CACHE = merged
+            else:
+                _PREFS_CACHE = DEFAULT_PREFS.copy()
+            now = datetime.datetime.utcnow().isoformat()
+            sess.add(UserPrefsRow(id="default", data=j_dumps(_PREFS_CACHE), updated_at=now))
+
+
 def load_prefs() -> dict:
-    prefs = _load(USER_PREFS_FILE)
-    if not prefs:
-        prefs = DEFAULT_PREFS.copy()
-        _save(USER_PREFS_FILE, prefs)
-        return prefs
-    changed = False
-    for k, v in DEFAULT_PREFS.items():
-        if k not in prefs:
-            prefs[k] = v
-            changed = True
-    if changed:
-        _save(USER_PREFS_FILE, prefs)
-    return prefs
+    """Instant synchronous read from memory."""
+    global _PREFS_CACHE
+    if not _PREFS_CACHE:
+        # Fallback if accessed before lifespan (e.g. CLI script)
+        _PREFS_CACHE = DEFAULT_PREFS.copy()
+    return _PREFS_CACHE
+async def save_prefs_async(prefs: dict) -> None:
+    """Persist preferences safely into PostgreSQL."""
+    global _PREFS_CACHE
+    _PREFS_CACHE = prefs.copy()
+    now = datetime.datetime.utcnow().isoformat()
+    
+    async with _session() as sess:
+        row = await sess.get(UserPrefsRow, "default")
+        if row is None:
+            sess.add(UserPrefsRow(id="default", data=j_dumps(prefs), updated_at=now))
+        else:
+            row.data = j_dumps(prefs)
+            row.updated_at = now
+def save_prefs(prefs: dict) -> None:
+    """Sync wrapper for save_prefs_async."""
+    global _PREFS_CACHE
+    _PREFS_CACHE = prefs.copy()
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(save_prefs_async(prefs))
+    except RuntimeError:
+        _run_async(save_prefs_async(prefs))
 
 
-def save_prefs(d: dict) -> None:
-    _save(USER_PREFS_FILE, d)
+async def load_user_prefs_async(user_id: str | None, default_name: str | None = None) -> dict:
+    """Load user preferences overlaid onto global preferences."""
+    base_prefs = load_prefs().copy()
+    base_prefs["user_avatar"] = None
+    if not user_id:
+        return base_prefs
+
+    async with _session() as sess:
+        u = await sess.get(UserRow, user_id)
+        if u and u.avatar:
+            base_prefs["user_avatar"] = u.avatar
+
+        row = await sess.get(UserPrefsRow, f"user_{user_id}")
+        if row and row.data:
+            user_data = j_loads(row.data) or {}
+            base_prefs.update(user_data)
+            if u and u.avatar:
+                base_prefs["user_avatar"] = u.avatar
+            elif "user_avatar" not in user_data:
+                base_prefs["user_avatar"] = None
+        else:
+            if default_name:
+                base_prefs["user_name"] = default_name
+    return base_prefs
+
+
+async def save_user_prefs_async(user_id: str | None, prefs: dict) -> None:
+    """Persist user-scoped preferences."""
+    if not user_id:
+        await save_prefs_async(prefs)
+        return
+    now = datetime.datetime.utcnow().isoformat()
+    async with _session() as sess:
+        row = await sess.get(UserPrefsRow, f"user_{user_id}")
+        if row is None:
+            sess.add(UserPrefsRow(id=f"user_{user_id}", data=j_dumps(prefs), updated_at=now))
+        else:
+            row.data = j_dumps(prefs)
+            row.updated_at = now
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +173,7 @@ def save_prefs(d: dict) -> None:
 def _conv_row_to_dict(row: ConversationRow, messages: list) -> dict:
     return {
         "id": row.id,
+        "user_id": getattr(row, "user_id", None),
         "title": row.title,
         "character_id": row.character_id,
         "participants": j_loads(row.participants) or [],
@@ -113,16 +206,25 @@ def _msg_row_to_dict(row: MessageRow) -> dict:
 # Conversations — ASYNC
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def load_convos_async() -> dict:
-    """Load ALL conversations with their messages as a dict keyed by conv id."""
+async def load_convos_async(user_id: str | None = None) -> dict:
+    """Load conversations with their messages as a dict keyed by conv id.
+    If user_id is provided, only loads conversations belonging to that user.
+    """
     async with _session() as sess:
-        conv_result = await sess.execute(select(ConversationRow))
+        query = select(ConversationRow)
+        if user_id:
+            query = query.where(ConversationRow.user_id == user_id)
+        conv_result = await sess.execute(query)
         conv_rows = conv_result.scalars().all()
+        conv_ids = [r.id for r in conv_rows]
 
-        msg_result = await sess.execute(
-            select(MessageRow).order_by(MessageRow.id.asc())
-        )
-        msg_rows = msg_result.scalars().all()
+        if conv_ids:
+            msg_result = await sess.execute(
+                select(MessageRow).where(MessageRow.conversation_id.in_(conv_ids)).order_by(MessageRow.id.asc())
+            )
+            msg_rows = msg_result.scalars().all()
+        else:
+            msg_rows = []
 
     # Group messages by conversation_id
     msgs_by_conv: dict[str, list] = {}
@@ -135,32 +237,39 @@ async def load_convos_async() -> dict:
     return result
 
 
-async def save_convos_async(convos: dict) -> None:
+async def save_convos_async(convos: dict, user_id: str | None = None) -> None:
     """
-    Upsert all conversations and messages.
-    Existing messages for a conversation are deleted then re-inserted
-    (keeps ordering correct and handles deleted messages).
+    Upsert conversations and messages.
+    If user_id is provided, only deletes orphaned conversations belonging to that user.
     """
     async with _session() as sess:
         conv_ids = list(convos.keys())
 
-        # Delete orphaned conversations (ones removed from the dict)
-        all_rows = await sess.execute(select(ConversationRow.id))
-        existing_ids = {r for (r,) in all_rows}
-        to_delete = existing_ids - set(conv_ids)
-        if to_delete:
-            await sess.execute(
-                delete(ConversationRow).where(ConversationRow.id.in_(to_delete))
+        # Delete orphaned conversations (ones removed from the dict for this user)
+        if user_id:
+            all_rows = await sess.execute(
+                select(ConversationRow.id).where(ConversationRow.user_id == user_id)
             )
+            existing_ids = {r for (r,) in all_rows}
+            to_delete = existing_ids - set(conv_ids)
+            if to_delete:
+                await sess.execute(
+                    delete(ConversationRow).where(
+                        ConversationRow.user_id == user_id,
+                        ConversationRow.id.in_(to_delete)
+                    )
+                )
 
         for conv_id, conv in convos.items():
             now = datetime.datetime.utcnow().isoformat()
+            c_user_id = conv.get("user_id") or user_id
 
             # Upsert conversation row
             existing = await sess.get(ConversationRow, conv_id)
             if existing is None:
                 sess.add(ConversationRow(
                     id=conv_id,
+                    user_id=c_user_id,
                     title=conv.get("title", "Untitled"),
                     character_id=conv.get("character_id"),
                     participants=j_dumps(conv.get("participants", [])),
@@ -171,6 +280,8 @@ async def save_convos_async(convos: dict) -> None:
                     branches=j_dumps(conv.get("branches", {})),
                 ))
             else:
+                if c_user_id and not existing.user_id:
+                    existing.user_id = c_user_id
                 existing.title = conv.get("title", existing.title)
                 existing.character_id = conv.get("character_id", existing.character_id)
                 existing.participants = j_dumps(conv.get("participants", []))
@@ -232,6 +343,7 @@ def save_convos(d: dict) -> None:
 def _char_row_to_dict(row: CharacterRow) -> dict:
     return {
         "id": row.id,
+        "user_id": getattr(row, "user_id", None),
         "name": row.name,
         "persona": row.persona or "",
         "avatar": row.avatar,
@@ -276,9 +388,12 @@ def _default_chars() -> dict:
     }
 
 
-async def _load_chars_async() -> dict:
+async def _load_chars_async(user_id: str | None = None) -> dict:
     async with _session() as sess:
-        rows = (await sess.execute(select(CharacterRow))).scalars().all()
+        query = select(CharacterRow)
+        if user_id:
+            query = query.where(or_(CharacterRow.user_id == None, CharacterRow.user_id == user_id))
+        rows = (await sess.execute(query)).scalars().all()
     if not rows:
         defaults = _default_chars()
         await _save_chars_async(defaults)
@@ -286,13 +401,15 @@ async def _load_chars_async() -> dict:
     return {r.id: _char_row_to_dict(r) for r in rows}
 
 
-async def _save_chars_async(chars: dict) -> None:
+async def _save_chars_async(chars: dict, user_id: str | None = None) -> None:
     async with _session() as sess:
         for cid, char in chars.items():
             existing = await sess.get(CharacterRow, cid)
+            c_user_id = char.get("user_id") or user_id
             if existing is None:
                 sess.add(CharacterRow(
                     id=cid,
+                    user_id=c_user_id,
                     name=char.get("name", ""),
                     persona=char.get("persona", ""),
                     avatar=char.get("avatar"),
@@ -307,6 +424,8 @@ async def _save_chars_async(chars: dict) -> None:
                     created_at=char.get("created_at"),
                 ))
             else:
+                if c_user_id and not existing.user_id:
+                    existing.user_id = c_user_id
                 existing.name = char.get("name", existing.name)
                 existing.persona = char.get("persona", existing.persona)
                 existing.avatar = char.get("avatar", existing.avatar)
@@ -318,15 +437,22 @@ async def _save_chars_async(chars: dict) -> None:
                 existing.custom_model = char.get("custom_model", "default")
                 existing.mcp_servers = j_dumps(char.get("mcp_servers", []))
                 existing.selected_tools = j_dumps(char.get("selected_tools", []))
-        # Delete characters removed from dict
-        existing_ids_res = await sess.execute(select(CharacterRow.id))
-        existing_ids = {r for (r,) in existing_ids_res}
-        to_remove = existing_ids - set(chars.keys())
-        for rid in to_remove:
-            row = await sess.get(CharacterRow, rid)
-            if row:
-                await sess.delete(row)
 
+        # Delete custom characters removed from dict (never delete system characters or other users' characters)
+        if user_id:
+            user_rows = await sess.execute(
+                select(CharacterRow.id).where(CharacterRow.user_id == user_id)
+            )
+            existing_user_ids = {r for (r,) in user_rows}
+            to_remove = existing_user_ids - set(chars.keys())
+            for rid in to_remove:
+                row = await sess.get(CharacterRow, rid)
+                if row:
+                    await sess.delete(row)
+
+
+load_chars_async = _load_chars_async
+save_chars_async = _save_chars_async
 
 def load_chars() -> dict:
     return _run_async(_load_chars_async())
@@ -384,6 +510,9 @@ async def _save_mcp_async(servers: dict) -> None:
                 await sess.delete(row)
 
 
+load_mcp_async = _load_mcp_async
+save_mcp_async = _save_mcp_async
+
 def load_mcp() -> dict:
     return _run_async(_load_mcp_async())
 
@@ -398,39 +527,58 @@ def save_mcp(d: dict) -> None:
 
 def _folder_row_to_dict(row: FolderRow) -> dict:
     return {
-        "id": row.id, "name": row.name, "icon": row.icon,
+        "id": row.id,
+        "user_id": getattr(row, "user_id", None),
+        "name": row.name,
+        "icon": row.icon,
         "conversation_ids": j_loads(row.conversation_ids) or [],
         "created_at": row.created_at,
     }
 
 
-async def _load_folders_async() -> dict:
+async def _load_folders_async(user_id: str | None = None) -> dict:
     async with _session() as sess:
-        rows = (await sess.execute(select(FolderRow))).scalars().all()
+        query = select(FolderRow)
+        if user_id:
+            query = query.where(FolderRow.user_id == user_id)
+        rows = (await sess.execute(query)).scalars().all()
     return {r.id: _folder_row_to_dict(r) for r in rows}
 
 
-async def _save_folders_async(folders: dict) -> None:
+async def _save_folders_async(folders: dict, user_id: str | None = None) -> None:
     async with _session() as sess:
-        existing_ids_res = await sess.execute(select(FolderRow.id))
+        query = select(FolderRow.id)
+        if user_id:
+            query = query.where(FolderRow.user_id == user_id)
+        existing_ids_res = await sess.execute(query)
         existing_ids = {r for (r,) in existing_ids_res}
         for fid, f in folders.items():
+            f_user_id = f.get("user_id") or user_id
             if fid not in existing_ids:
                 sess.add(FolderRow(
-                    id=fid, name=f.get("name", ""), icon=f.get("icon"),
+                    id=fid,
+                    user_id=f_user_id,
+                    name=f.get("name", ""),
+                    icon=f.get("icon"),
                     conversation_ids=j_dumps(f.get("conversation_ids", [])),
                     created_at=f.get("created_at"),
                 ))
             else:
                 row = await sess.get(FolderRow, fid)
-                row.name = f.get("name", row.name)
-                row.icon = f.get("icon", row.icon)
-                row.conversation_ids = j_dumps(f.get("conversation_ids", []))
+                if row:
+                    if f_user_id and not row.user_id:
+                        row.user_id = f_user_id
+                    row.name = f.get("name", row.name)
+                    row.icon = f.get("icon", row.icon)
+                    row.conversation_ids = j_dumps(f.get("conversation_ids", []))
         for rid in existing_ids - set(folders.keys()):
             row = await sess.get(FolderRow, rid)
             if row:
                 await sess.delete(row)
 
+
+load_folders_async = _load_folders_async
+save_folders_async = _save_folders_async
 
 def load_folders() -> dict:
     return _run_async(_load_folders_async())
@@ -480,6 +628,9 @@ async def _save_spaces_async(spaces: dict) -> None:
             if row:
                 await sess.delete(row)
 
+
+load_spaces_async = _load_spaces_async
+save_spaces_async = _save_spaces_async
 
 def load_spaces() -> dict:
     return _run_async(_load_spaces_async())
@@ -549,6 +700,13 @@ async def _delete_triton_device_async(device_id: str) -> None:
         row = await sess.get(TritonDeviceRow, device_id)
         if row:
             await sess.delete(row)
+
+
+list_triton_devices_async = _list_triton_devices_async
+get_triton_device_async = _get_triton_device_async
+get_triton_token_hash_async = _get_triton_token_hash_async
+upsert_triton_device_async = _upsert_triton_device_async
+delete_triton_device_async = _delete_triton_device_async
 
 
 def list_triton_devices() -> list:

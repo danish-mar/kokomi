@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
 from app.config import SPACES_DIR
-from app.storage import load_spaces, save_spaces
+from app.storage import load_spaces_async, save_spaces_async
 
 router = APIRouter(prefix="/api/spaces")
 
@@ -20,13 +20,15 @@ class SpaceUpdate(BaseModel):
     icon: str | None = None
 
 @router.get("")
+@router.get("/", include_in_schema=False)
 async def list_spaces():
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     return list(spaces.values())
 
 @router.post("")
+@router.post("/", include_in_schema=False)
 async def create_space(s: SpaceCreate):
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     sid = f"space_{uuid.uuid4().hex[:8]}"
     spaces[sid] = {
         "id": sid,
@@ -41,23 +43,23 @@ async def create_space(s: SpaceCreate):
     space_path = os.path.join(SPACES_DIR, sid)
     os.makedirs(space_path, exist_ok=True)
     
-    save_spaces(spaces)
+    await save_spaces_async(spaces)
     return spaces[sid]
 
 @router.get("/{space_id}")
 async def get_space(space_id: str):
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
     return spaces[space_id]
 
 @router.delete("/{space_id}")
 async def delete_space(space_id: str):
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
     del spaces[space_id]
-    save_spaces(spaces)
+    await save_spaces_async(spaces)
     # Note: We should probably also delete from Qdrant and local files here eventually
     return {"status": "ok"}
 
@@ -66,7 +68,7 @@ async def upload_file_to_space(
     space_id: str,
     file: UploadFile = File(...)
 ):
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
         
@@ -106,7 +108,7 @@ async def upload_file_to_space(
     }
 
     space["files"].append(new_file)
-    save_spaces(spaces)
+    await save_spaces_async(spaces)
 
     return new_file
 
@@ -115,7 +117,7 @@ async def upload_file_to_space(
 async def query_space_endpoint(space_id: str, payload: dict):
     """Lightweight semantic search against a space — returns the top matching
     excerpts. Powers the inline 'Ask this Space' preview (no LLM, pure retrieval)."""
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
     query = (payload.get("query") or "").strip()
@@ -133,7 +135,7 @@ async def query_space_endpoint(space_id: str, payload: dict):
 async def space_index_status(space_id: str):
     """Report whether a space's vectors are compatible with the active embedding
     model (i.e. whether it needs re-indexing)."""
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
     from app.rag import space_needs_reindex, _current_embedding_client, qdrant
@@ -153,7 +155,7 @@ async def space_index_status(space_id: str):
 async def reindex_space_endpoint(space_id: str):
     """Rebuild a space's vectors from its retained source files using the current
     embedding model. Fixes spaces whose vectors were embedded with an old model."""
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
     import asyncio
@@ -166,7 +168,7 @@ async def reindex_space_endpoint(space_id: str):
 
 @router.delete("/{space_id}/files/{file_id}")
 async def delete_file_from_space(space_id: str, file_id: str):
-    spaces = load_spaces()
+    spaces = await load_spaces_async()
     if space_id not in spaces:
         raise HTTPException(404, "Space not found")
         
@@ -177,7 +179,7 @@ async def delete_file_from_space(space_id: str, file_id: str):
     if len(space["files"]) == original_len:
         raise HTTPException(404, "File not found in space")
         
-    save_spaces(spaces)
+    await save_spaces_async(spaces)
     
     from app.rag import delete_file_from_rag
     delete_file_from_rag(space_id, file_id)

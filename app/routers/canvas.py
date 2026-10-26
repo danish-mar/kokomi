@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app.storage import load_convos, save_convos
+from app.storage import load_convos_async, save_convos_async
 
 router = APIRouter(prefix="/api")
 
@@ -197,7 +197,7 @@ def _locate(convos: dict, conversation_id: str, artifact_id: str):
 
 @router.get("/canvas/{conversation_id}/{artifact_id}")
 async def get_canvas(conversation_id: str, artifact_id: str):
-    _, art = _locate(load_convos(), conversation_id, artifact_id)
+    _, art = _locate(await load_convos_async(), conversation_id, artifact_id)
     return {
         "id": art.get("id"),
         "title": art.get("title"),
@@ -210,7 +210,7 @@ async def get_canvas(conversation_id: str, artifact_id: str):
 @router.put("/canvas/{conversation_id}/{artifact_id}")
 async def update_canvas(conversation_id: str, artifact_id: str, body: CanvasUpdate):
     """Save user edits back onto the stored artifact."""
-    convos = load_convos()
+    convos = await load_convos_async()
     _, art = _locate(convos, conversation_id, artifact_id)
 
     art["content"] = body.content
@@ -218,7 +218,7 @@ async def update_canvas(conversation_id: str, artifact_id: str, body: CanvasUpda
         art["title"] = body.title
     art["edited_by_user"] = True
 
-    save_convos(convos)
+    await save_convos_async(convos)
     return {"ok": True, "id": artifact_id, "bytes": len(body.content)}
 
 
@@ -248,7 +248,7 @@ async def edit_canvas(conversation_id: str, artifact_id: str, body: CanvasEdit):
     from app.llm import get_llm
     from app.storage import load_prefs
 
-    _, art = _locate(load_convos(), conversation_id, artifact_id)
+    _, art = _locate(await load_convos_async(), conversation_id, artifact_id)
     mode = (art.get("mode") or "code").lower()
     selection = (body.selection or "").strip()
     instruction = (body.instruction or "").strip()
@@ -675,7 +675,7 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
     from app.llm import get_llm
     from app.storage import load_prefs
 
-    convos = load_convos()
+    convos = await load_convos_async()
     _, art = _locate(convos, conversation_id, artifact_id)
     content = art.get("content") or ""
     instruction = (body.instruction or "").strip()
@@ -806,7 +806,7 @@ async def patch_canvas(conversation_id: str, artifact_id: str, body: CanvasPatch
     # Persist immediately so the stored copy and the editor agree.
     art["content"] = new_content
     art["edited_by_user"] = True
-    save_convos(convos)
+    await save_convos_async(convos)
 
     return {
         "content": new_content,
@@ -1025,7 +1025,7 @@ async def export_canvas(conversation_id: str, artifact_id: str, format: str = "d
     if fmt not in MEDIA_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
 
-    _, art = _locate(load_convos(), conversation_id, artifact_id)
+    _, art = _locate(await load_convos_async(), conversation_id, artifact_id)
     content = art.get("content") or ""
     mode = (art.get("mode") or "code").lower()
     title = art.get("title") or "canvas"

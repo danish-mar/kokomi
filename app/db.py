@@ -23,23 +23,40 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 # ─── Engine ──────────────────────────────────────────────────────────────────
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-DB_DIR = os.path.join("data", "database")
-os.makedirs(DB_DIR, exist_ok=True)
-DB_PATH = os.path.join(DB_DIR, "kokomi.db")
+if DATABASE_URL:
+    # If the user passed postgres:// or postgresql://, async SQLAlchemy requires postgresql+asyncpg://
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+asyncpg://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-engine = create_async_engine(
-    f"sqlite+aiosqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-    # WAL mode: dramatically better concurrent read/write performance
-    echo=False,
-)
+    engine = create_async_engine(DATABASE_URL, echo=False)
 
-AsyncSessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-    engine,
-    expire_on_commit=False,
-    class_=AsyncSession,
-)
+    AsyncSessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
+else:
+    # Uses the local SQLite database as fallback
+    DB_DIR = os.path.join("data", "database")
+    os.makedirs(DB_DIR, exist_ok=True)
+    DB_PATH = os.path.join(DB_DIR, "kokomi.db")
+
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{DB_PATH}",
+        connect_args={"check_same_thread": False},
+        # WAL mode: dramatically better concurrent read/write performance
+        echo=False,
+    )
+
+    AsyncSessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
 
 
 # ─── Base ─────────────────────────────────────────────────────────────────────
@@ -50,10 +67,46 @@ class Base(DeclarativeBase):
 
 # ─── Tables ───────────────────────────────────────────────────────────────────
 
+# ─── UserRow & SharedApiKeyRow ──────────────────────────────────────────────────
+class UserRow(Base):
+    __tablename__ = "users"
+
+    id            = Column(Text, primary_key=True)
+    username      = Column(Text, unique=True, nullable=False, index=True)
+    password_hash = Column(Text, nullable=False)
+    role          = Column(Text, nullable=False, default="Standard user") # "Endministrator" or "Standard user"
+    display_name  = Column(Text, nullable=True)
+    avatar        = Column(Text, nullable=True)
+    created_at    = Column(Text, nullable=True)
+    updated_at    = Column(Text, nullable=True)
+
+
+class SharedApiKeyRow(Base):
+    __tablename__ = "shared_api_keys"
+
+    id             = Column(Text, primary_key=True)
+    owner_username = Column(Text, nullable=False, index=True)
+    key_name       = Column(Text, nullable=False)
+    provider       = Column(Text, nullable=False) # groq, google, nvidia, openai, tavily, custom
+    api_key        = Column(Text, nullable=False)
+    shared_with    = Column(Text, nullable=False, default="[]") # JSON list: ["*"] for all, or ["user1", "user2"]
+    created_at     = Column(Text, nullable=True)
+    updated_at     = Column(Text, nullable=True)
+
+
+# ─── UserPrefersRow ───────────────────────────────────────────────────────────
+class UserPrefsRow(Base):
+    __tablename__ = "user_prefs"
+
+    id = Column(Text, primary_key=True, default="default")
+    data = Column(Text, nullable=False, default="{}") # holds the full json blob
+    updated_at = Column(Text, nullable=True)
+
 class ConversationRow(Base):
     __tablename__ = "conversations"
 
     id          = Column(Text, primary_key=True)
+    user_id     = Column(Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     title       = Column(Text, nullable=False, default="Untitled")
     character_id = Column(Text, nullable=True)
     participants = Column(Text, nullable=False, default="[]")  # JSON list
@@ -90,6 +143,7 @@ class CharacterRow(Base):
     __tablename__ = "characters"
 
     id             = Column(Text, primary_key=True)
+    user_id        = Column(Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     name           = Column(Text, nullable=False)
     persona        = Column(Text, nullable=True, default="")
     avatar         = Column(Text, nullable=True)
@@ -190,6 +244,7 @@ class FolderRow(Base):
     __tablename__ = "folders"
 
     id               = Column(Text, primary_key=True)
+    user_id          = Column(Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     name             = Column(Text, nullable=False)
     icon             = Column(Text, nullable=True)
     conversation_ids = Column(Text, nullable=False, default="[]")  # JSON list
@@ -215,52 +270,79 @@ class TritonDeviceRow(Base):
 async def init_db() -> None:
     """Create all tables and enable WAL mode on first boot. Idempotent."""
     async with engine.begin() as conn:
-        await conn.execute(text("PRAGMA journal_mode=WAL"))
-        await conn.execute(text("PRAGMA synchronous=NORMAL"))
-        await conn.execute(text("PRAGMA foreign_keys=ON"))
+        if engine.dialect.name == "sqlite":
+            await conn.execute(text("PRAGMA journal_mode=WAL"))
+            await conn.execute(text("PRAGMA synchronous=NORMAL"))
+            await conn.execute(text("PRAGMA foreign_keys=ON"))
+        
         await conn.run_sync(Base.metadata.create_all)
         
-        # Schema migration: Ensure selected_tools column exists in characters table
-        try:
-            await conn.execute(text("ALTER TABLE characters ADD COLUMN selected_tools TEXT DEFAULT '[]'"))
-        except Exception:
-            pass
+        if engine.dialect.name == "sqlite":
+            # Legacy SQLite schema migrations (Postgres has these columns already via create_all)
+            try:
+                await conn.execute(text("ALTER TABLE characters ADD COLUMN selected_tools TEXT DEFAULT '[]'"))
+            except Exception:
+                pass
 
-        # Schema migration: branch (edit/regenerate history) support
-        try:
-            await conn.execute(text("ALTER TABLE conversations ADD COLUMN branches TEXT"))
-        except Exception:
-            pass
-        try:
-            await conn.execute(text("ALTER TABLE messages ADD COLUMN group_id TEXT"))
-        except Exception:
-            pass
+            try:
+                await conn.execute(text("ALTER TABLE conversations ADD COLUMN branches TEXT"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text("ALTER TABLE messages ADD COLUMN group_id TEXT"))
+            except Exception:
+                pass
 
-        # Schema migration: Triton last_seen tracking (added after initial table)
-        try:
-            await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN last_seen TEXT"))
-        except Exception:
-            pass
+            try:
+                await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN last_seen TEXT"))
+            except Exception:
+                pass
 
-        # Schema migration: Triton device description (so the AI knows what a
-        # paired machine actually is, not just its hostname/platform)
-        try:
-            await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN description TEXT"))
-        except Exception:
-            pass
+            try:
+                await conn.execute(text("ALTER TABLE triton_devices ADD COLUMN description TEXT"))
+            except Exception:
+                pass
 
-        # Schema migration: the "local" provider became "custom" (base_url + api_key
-        # instead of an assumed-unauthenticated localhost server). Carry over any
-        # per-character model override saved under the old column name.
-        try:
-            await conn.execute(text("ALTER TABLE characters ADD COLUMN custom_model TEXT DEFAULT 'default'"))
-        except Exception:
-            pass
+            try:
+                await conn.execute(text("ALTER TABLE characters ADD COLUMN custom_model TEXT DEFAULT 'default'"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text(
+                    "UPDATE characters SET custom_model = local_model "
+                    "WHERE (custom_model IS NULL OR custom_model = 'default') "
+                    "AND local_model IS NOT NULL AND local_model != 'default'"
+                ))
+            except Exception:
+                pass
+
+        # Multi-user schema updates and migrations (compatible with SQLite and PostgreSQL)
+        for tbl in ["conversations", "folders", "characters"]:
+            try:
+                await conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS user_id TEXT"))
+            except Exception:
+                try:
+                    await conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN user_id TEXT"))
+                except Exception:
+                    pass
+            try:
+                await conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{tbl}_user_id ON {tbl}(user_id)"))
+            except Exception:
+                pass
+
+        # Backfill existing conversations and folders without user_id to the primary admin (denizuh)
         try:
             await conn.execute(text(
-                "UPDATE characters SET custom_model = local_model "
-                "WHERE (custom_model IS NULL OR custom_model = 'default') "
-                "AND local_model IS NOT NULL AND local_model != 'default'"
+                "UPDATE conversations SET user_id = (SELECT id FROM users WHERE username = 'denizuh' LIMIT 1) "
+                "WHERE user_id IS NULL"
+            ))
+        except Exception:
+            pass
+
+        try:
+            await conn.execute(text(
+                "UPDATE folders SET user_id = (SELECT id FROM users WHERE username = 'denizuh' LIMIT 1) "
+                "WHERE user_id IS NULL"
             ))
         except Exception:
             pass

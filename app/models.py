@@ -140,6 +140,11 @@ class PrefsUpdate(BaseModel):
     groq_api_key: Optional[str] = ""
     google_api_key: Optional[str] = ""
     nvidia_api_key: Optional[str] = ""
+    groq_key_source: Optional[str] = None
+    google_key_source: Optional[str] = None
+    nvidia_key_source: Optional[str] = None
+    tavily_key_source: Optional[str] = None
+    image_gen_key_source: Optional[str] = None
     admin_username: Optional[str] = "admin"
     admin_password: Optional[str] = "admin"
     tour_completed: bool = False

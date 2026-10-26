@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import JSONResponse
 
-from app.storage import load_prefs, save_prefs, load_chars, load_convos, save_convos
+from app.storage import load_prefs, save_prefs, load_chars_async, load_convos_async, save_convos_async
 from app.llm import get_llm, resolve_character_model
 from app.mcp import get_pool_tools, init_pool, pool_is_stale
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
@@ -200,7 +200,7 @@ async def sync_bot_profile(request: Request):
     if not token:
         return JSONResponse({"ok": False, "error": "No bot token configured"}, status_code=400)
 
-    chars = load_chars()
+    chars = await load_chars_async()
     char_id = prefs.get("telegram_character_id", "kokomi")
     char = chars.get(char_id) or next(iter(chars.values()), None)
     if not char:
@@ -347,7 +347,7 @@ async def _process_telegram_message(prefs: dict, token: str, chat_id: int | str,
         return
 
     # ── Load / create conversation ────────────────────────────────────────
-    convos = load_convos()
+    convos = await load_convos_async()
     conv_id = f"telegram_{chat_id}"
     if conv_id not in convos:
         convos[conv_id] = {
@@ -358,7 +358,7 @@ async def _process_telegram_message(prefs: dict, token: str, chat_id: int | str,
             "last_active": datetime.datetime.utcnow().isoformat(),
         }
 
-    chars = load_chars()
+    chars = await load_chars_async()
     char_id = prefs.get("telegram_character_id", "kokomi")
     char = chars.get(char_id) or next(iter(chars.values()), None)
     if not char:
@@ -451,7 +451,7 @@ async def _process_telegram_message(prefs: dict, token: str, chat_id: int | str,
         "timestamp": now,
     })
     convos[conv_id]["updated_at"] = now
-    save_convos(convos)
+    await save_convos_async(convos)
 
     show_thinking = prefs.get("telegram_show_thinking", False)
     clean_text = re.sub(r"<(thought|think)>.*?</\1>", "", final_text, flags=re.DOTALL).strip()

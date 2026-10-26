@@ -28,8 +28,8 @@ from app.triton import (
     manager, hash_token, new_device_token, new_pairing_code,
 )
 from app.storage import (
-    list_triton_devices, get_triton_device, get_triton_token_hash,
-    upsert_triton_device, delete_triton_device,
+    list_triton_devices_async, get_triton_device_async, get_triton_token_hash_async,
+    upsert_triton_device_async, delete_triton_device_async,
 )
 
 router = APIRouter(prefix="/api/triton")
@@ -39,15 +39,16 @@ def _now() -> str:
     return datetime.datetime.now().isoformat()
 
 
-def _touch_last_seen(device_id: str) -> None:
-    dev = get_triton_device(device_id)
+async def _touch_last_seen(device_id: str) -> None:
+    dev = await get_triton_device_async(device_id)
     if dev:
-        upsert_triton_device({**dev, "token_hash": get_triton_token_hash(device_id),
+        token_hash = await get_triton_token_hash_async(device_id)
+        await upsert_triton_device_async({**dev, "token_hash": token_hash,
                               "last_seen": _now()})
 
 
-def _authed(device_id: str, token: str) -> bool:
-    stored = get_triton_token_hash(device_id)
+async def _authed(device_id: str, token: str) -> bool:
+    stored = await get_triton_token_hash_async(device_id)
     return bool(token and stored and hash_token(token) == stored)
 
 
@@ -56,7 +57,7 @@ def _authed(device_id: str, token: str) -> bool:
 @router.get("/devices")
 async def triton_devices():
     online = manager.online_ids()
-    devices = list_triton_devices()
+    devices = await list_triton_devices_async()
     for d in devices:
         d["online"] = d["id"] in online
     return {"devices": devices}
@@ -90,7 +91,7 @@ async def triton_pair(payload: dict):
         "paired_at": _now(),
         "last_seen": _now(),
     }
-    upsert_triton_device(device)
+    await upsert_triton_device_async(device)
     manager.remove_pending(conn_id)
     manager.register_online(device_id)
 
@@ -108,13 +109,14 @@ async def triton_pair(payload: dict):
 
 @router.post("/devices/{device_id}/rename")
 async def triton_rename(device_id: str, payload: dict):
-    dev = get_triton_device(device_id)
+    dev = await get_triton_device_async(device_id)
     if not dev:
         raise HTTPException(status_code=404, detail="Device not found")
     name = (payload or {}).get("name", "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
-    upsert_triton_device({**dev, "name": name, "token_hash": get_triton_token_hash(device_id)})
+    token_hash = await get_triton_token_hash_async(device_id)
+    await upsert_triton_device_async({**dev, "name": name, "token_hash": token_hash})
     return {"ok": True}
 
 
@@ -123,26 +125,27 @@ async def triton_describe(device_id: str, payload: dict):
     """Set/clear the free-text note the AI reads to know what this machine
     actually is (e.g. "home NAS, media library under /media") — devices only
     otherwise carry a hostname and platform, which isn't enough context."""
-    dev = get_triton_device(device_id)
+    dev = await get_triton_device_async(device_id)
     if not dev:
         raise HTTPException(status_code=404, detail="Device not found")
     description = (payload or {}).get("description", "").strip()
-    upsert_triton_device({**dev, "description": description, "token_hash": get_triton_token_hash(device_id)})
+    token_hash = await get_triton_token_hash_async(device_id)
+    await upsert_triton_device_async({**dev, "description": description, "token_hash": token_hash})
     return {"ok": True}
 
 
 @router.delete("/devices/{device_id}")
 async def triton_revoke(device_id: str):
-    if not get_triton_device(device_id):
+    if not await get_triton_device_async(device_id):
         raise HTTPException(status_code=404, detail="Device not found")
     manager.unregister_online(device_id)
-    delete_triton_device(device_id)
+    await delete_triton_device_async(device_id)
     return {"ok": True}
 
 
 @router.post("/devices/{device_id}/command")
 async def triton_command(device_id: str, payload: dict):
-    if not get_triton_device(device_id):
+    if not await get_triton_device_async(device_id):
         raise HTTPException(status_code=404, detail="Device not found")
     if not manager.is_online(device_id):
         raise HTTPException(status_code=409, detail="Device is offline")
@@ -167,7 +170,7 @@ async def triton_forward(device_id: str, payload: dict):
     """Save an artifact to a paired machine's ~/Documents folder. Purpose-built for
     the chat 'Forward' button: it only ever writes into ~/Documents, and the write
     still has to clear the client's own --allow-write / allowlist gate."""
-    if not get_triton_device(device_id):
+    if not await get_triton_device_async(device_id):
         raise HTTPException(status_code=404, detail="Device not found")
     if not manager.is_online(device_id):
         raise HTTPException(status_code=409, detail="Device is offline")
@@ -198,9 +201,9 @@ async def triton_enroll(payload: dict):
         raise HTTPException(status_code=400, detail="device_id required")
     token = payload.get("token")
 
-    if _authed(device_id, token):
+    if await _authed(device_id, token):
         manager.register_online(device_id)
-        _touch_last_seen(device_id)
+        await _touch_last_seen(device_id)
         return {"status": "ready"}
 
     conn_id = f"poll:{device_id}"
@@ -231,10 +234,10 @@ async def triton_poll(payload: dict):
     device, or return {} so the client can immediately poll again."""
     device_id = (payload or {}).get("device_id")
     token = (payload or {}).get("token")
-    if not _authed(device_id, token):
+    if not await _authed(device_id, token):
         raise HTTPException(status_code=401, detail="Invalid device token")
     manager.register_online(device_id)  # idempotent; refreshes online + queue
-    _touch_last_seen(device_id)
+    await _touch_last_seen(device_id)
     cmd = await manager.next_command(device_id, timeout=25.0)
     return cmd or {"type": "idle"}
 
@@ -244,7 +247,7 @@ async def triton_result(payload: dict):
     """Poll-transport client returns a command result."""
     device_id = (payload or {}).get("device_id")
     token = (payload or {}).get("token")
-    if not _authed(device_id, token):
+    if not await _authed(device_id, token):
         raise HTTPException(status_code=401, detail="Invalid device token")
     manager.resolve_result(device_id, payload.get("req_id", ""), {
         "ok": bool(payload.get("ok", False)),
@@ -292,12 +295,13 @@ async def triton_agent(ws: WebSocket):
                     await ws.send_json({"type": "error", "error": "device_id required"})
                     continue
                 token = msg.get("token")
-                if _authed(device_id, token):
+                if await _authed(device_id, token):
                     manager.register_online(device_id)
-                    _touch_last_seen(device_id)
-                    dev = get_triton_device(device_id)
+                    await _touch_last_seen(device_id)
+                    dev = await get_triton_device_async(device_id)
                     if dev:
-                        upsert_triton_device({**dev, "token_hash": get_triton_token_hash(device_id),
+                        token_hash = await get_triton_token_hash_async(device_id)
+                        await upsert_triton_device_async({**dev, "token_hash": token_hash,
                                               "capabilities": msg.get("capabilities", dev.get("capabilities", [])),
                                               "last_seen": _now()})
                     await ws.send_json({"type": "ready", "device_id": device_id})

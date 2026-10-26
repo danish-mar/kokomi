@@ -12,19 +12,20 @@ from app.mcp import (
     test_single_server,
 )
 from app.models import MCPServerCreate
-from app.storage import load_mcp, save_mcp, load_chars, save_chars
+from app.storage import load_mcp_async, save_mcp_async, load_chars_async, save_chars_async
 
 router = APIRouter(prefix="/api/mcp-servers")
 
 
 @router.get("")
 async def list_mcp_servers():
-    return list(load_mcp().values())
+    servers = await load_mcp_async()
+    return list(servers.values())
 
 
 @router.get("/{sid}")
 async def get_mcp_server(sid: str):
-    servers = load_mcp()
+    servers = await load_mcp_async()
     if sid not in servers:
         raise HTTPException(404, "Not found")
     return servers[sid]
@@ -32,14 +33,14 @@ async def get_mcp_server(sid: str):
 
 @router.post("")
 async def create_mcp_server(config: MCPServerCreate):
-    servers = load_mcp()
+    servers = await load_mcp_async()
     sid = str(uuid.uuid4())[:8]
     servers[sid] = {
         "id": sid,
         **config.model_dump(),
         "created_at": datetime.datetime.utcnow().isoformat(),
     }
-    save_mcp(servers)
+    await save_mcp_async(servers)
     try:
         await init_pool(force=True)
     except Exception as e:
@@ -49,11 +50,11 @@ async def create_mcp_server(config: MCPServerCreate):
 
 @router.put("/{sid}")
 async def update_mcp_server(sid: str, config: MCPServerCreate):
-    servers = load_mcp()
+    servers = await load_mcp_async()
     if sid not in servers:
         raise HTTPException(404, "Not found")
     servers[sid].update(config.model_dump())
-    save_mcp(servers)
+    await save_mcp_async(servers)
     try:
         await init_pool(force=True)
     except Exception as e:
@@ -63,18 +64,18 @@ async def update_mcp_server(sid: str, config: MCPServerCreate):
 
 @router.delete("/{sid}")
 async def delete_mcp_server(sid: str):
-    servers = load_mcp()
+    servers = await load_mcp_async()
     if sid not in servers:
         raise HTTPException(404, "Not found")
     del servers[sid]
-    save_mcp(servers)
+    await save_mcp_async(servers)
 
     # Also remove the server from any characters that reference it
-    chars = load_chars()
+    chars = await load_chars_async()
     for c in chars.values():
         if sid in c.get("mcp_servers", []):
             c["mcp_servers"].remove(sid)
-    save_chars(chars)
+    await save_chars_async(chars)
 
     try:
         await init_pool(force=True)
@@ -86,7 +87,7 @@ async def delete_mcp_server(sid: str):
 @router.post("/{sid}/test")
 async def test_mcp_server(sid: str):
     """Test a single MCP server in an isolated context (not from pool)."""
-    servers = load_mcp()
+    servers = await load_mcp_async()
     if sid not in servers:
         raise HTTPException(404, "Not found")
     if not MCP_AVAILABLE:

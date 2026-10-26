@@ -9,161 +9,451 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        min-height: 100vh;
     }
 
-    /* Ambient background pulses */
+    /* Ambient background with color theme swatches */
     .ambient-bg {
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        inset: 0;
         z-index: -2;
         background: var(--bg-canvas);
         overflow: hidden;
     }
 
+    .ambient-bg::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 45%, transparent 30%, var(--bg-canvas) 85%);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    /* Autonomous organic theme blobs */
     .blob {
         position: absolute;
+        border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+        filter: blur(100px);
+        opacity: 0.26;
+        pointer-events: none;
+        will-change: transform, border-radius;
+    }
+
+    .dark .blob {
+        opacity: 0.34;
+    }
+
+    .blob-midnight {
         width: 600px;
         height: 600px;
-        border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.15;
-        z-index: -1;
-        transition: all 4s ease-in-out;
+        background: var(--swatch-midnight, #272757);
+        top: -140px;
+        right: -80px;
+        animation: floatMidnight 24s ease-in-out infinite alternate;
     }
 
-    .blob-1 {
-        background: #505081;
-        top: -100px;
-        right: -100px;
-        animation: pulse-slow 15s infinite alternate;
+    .blob-indigo {
+        width: 640px;
+        height: 640px;
+        background: var(--swatch-indigo, #505081);
+        bottom: -180px;
+        left: -120px;
+        animation: floatIndigo 28s ease-in-out infinite alternate;
     }
 
-    .blob-2 {
-        background: #8686AC;
-        bottom: -150px;
-        left: -150px;
-        animation: pulse-slow 20s infinite alternate-reverse;
+    .blob-lavender {
+        width: 520px;
+        height: 520px;
+        background: var(--swatch-lavender, #8686AC);
+        top: 22%;
+        left: 6%;
+        animation: floatLavender 20s ease-in-out infinite alternate;
+        opacity: 0.18;
     }
 
-    @keyframes pulse-slow {
-        0% { transform: scale(1) translate(0, 0); }
-        50% { transform: scale(1.1) translate(50px, -30px); }
-        100% { transform: scale(0.9) translate(-20px, 40px); }
+    .blob-accent {
+        width: 540px;
+        height: 540px;
+        background: var(--accent, #505081);
+        bottom: 10%;
+        right: 10%;
+        animation: floatAccent 22s ease-in-out infinite alternate;
+        opacity: 0.22;
     }
 
-    /* Login Card */
+    @keyframes floatMidnight {
+        0% {
+            transform: translate(0, 0) scale(1) rotate(0deg);
+            border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+        }
+        50% {
+            transform: translate(-45px, 35px) scale(1.08) rotate(30deg);
+            border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%;
+        }
+        100% {
+            transform: translate(25px, 60px) scale(0.94) rotate(60deg);
+            border-radius: 35% 65% 55% 45% / 60% 35% 65% 40%;
+        }
+    }
+
+    @keyframes floatIndigo {
+        0% {
+            transform: translate(0, 0) scale(1) rotate(0deg);
+            border-radius: 50% 50% 40% 60% / 60% 40% 60% 40%;
+        }
+        50% {
+            transform: translate(50px, -35px) scale(1.1) rotate(-40deg);
+            border-radius: 40% 60% 60% 40% / 50% 50% 50% 50%;
+        }
+        100% {
+            transform: translate(-25px, -20px) scale(0.95) rotate(-80deg);
+            border-radius: 55% 45% 35% 65% / 45% 55% 45% 55%;
+        }
+    }
+
+    @keyframes floatLavender {
+        0% {
+            transform: translate(0, 0) scale(0.96);
+        }
+        50% {
+            transform: translate(50px, 35px) scale(1.06);
+        }
+        100% {
+            transform: translate(15px, -25px) scale(1);
+        }
+    }
+
+    @keyframes floatAccent {
+        0% {
+            transform: translate(0, 0) scale(1);
+        }
+        50% {
+            transform: translate(-45px, -35px) scale(1.09);
+        }
+        100% {
+            transform: translate(25px, 20px) scale(0.93);
+        }
+    }
+
+    /* Premium macOS Card Container */
     .login-wrapper {
         width: 100%;
-        max-width: 400px;
-        padding: 20px;
-        perspective: 1000px;
+        max-width: 420px;
+        padding: 24px;
+        position: relative;
+        z-index: 1;
     }
 
     .login-card {
-        background: var(--bg-surface);
-        backdrop-filter: var(--vibrancy);
-        -webkit-backdrop-filter: var(--vibrancy);
-        border: 1px solid var(--border);
-        border-radius: 32px;
-        padding: 40px;
-        box-shadow: var(--shadow-lg);
+        background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
+        backdrop-filter: blur(40px) saturate(190%);
+        -webkit-backdrop-filter: blur(40px) saturate(190%);
+        border: 1px solid color-mix(in srgb, var(--border) 65%, rgba(255, 255, 255, 0.16));
+        border-radius: 28px;
+        padding: 42px 38px;
+        box-shadow:
+            0 1px 0 0 rgba(255, 255, 255, 0.15) inset,
+            0 0 0 1px rgba(0, 0, 0, 0.04),
+            0 24px 48px -12px rgba(0, 0, 0, 0.35);
         animation: slideInUpCustom 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         transform-origin: center bottom;
     }
 
+    /* Reverse exit animation */
+    .login-card.animate-reverse {
+        animation: slideOutDownCustom 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        pointer-events: none;
+    }
+
     @keyframes slideInUpCustom {
-        from { opacity: 0; transform: translateY(40px) scale(0.95); }
+        from { opacity: 0; transform: translateY(36px) scale(0.96); }
         to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
+    @keyframes slideOutDownCustom {
+        from { opacity: 1; transform: translateY(0) scale(1); }
+        to { opacity: 0; transform: translateY(36px) scale(0.96); }
+    }
+
+    /* Logo area */
     .logo-area {
         text-align: center;
-        margin-bottom: 32px;
+        margin-bottom: 28px;
     }
 
     .logo-icon {
-        width: 72px;
-        height: 72px;
-        background: linear-gradient(135deg, var(--accent), #A0A0C8);
-        border-radius: 18px;
+        width: 68px;
+        height: 68px;
+        background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--swatch-lavender, #A0A0C8)));
+        border-radius: 20px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 32px;
-        box-shadow: 0 8px 16px rgba(134, 134, 172, 0.3);
+        font-size: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow:
+            0 1px 0 0 rgba(255, 255, 255, 0.3) inset,
+            0 10px 24px -4px color-mix(in srgb, var(--accent) 45%, transparent);
         margin-bottom: 16px;
-        animation: float 6s ease-in-out infinite;
+        animation: subtlePulse 5s ease-in-out infinite;
     }
 
-    @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
+    @keyframes subtlePulse {
+        0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 0 transparent); }
+        50% { transform: translateY(-4px); filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--accent) 30%, transparent)); }
     }
 
     .login-title {
-        font-size: 24px;
+        font-size: 23px;
         font-weight: 700;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.025em;
         color: var(--text-primary);
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }
 
     .login-subtitle {
-        font-size: 14px;
+        font-size: 13.5px;
         color: var(--text-tertiary);
+        letter-spacing: -0.01em;
     }
 
+    /* Login Form */
     .login-form {
+        position: relative;
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 18px;
     }
 
     .input-group {
         display: flex;
         flex-direction: column;
         gap: 6px;
+        position: relative;
     }
 
-    .login-btn {
-        background: var(--accent);
-        color: var(--accent-text);
-        border: none;
-        border-radius: 14px;
-        padding: 14px;
-        font-size: 16px;
+    .input-group label {
+        font-size: 12.5px;
         font-weight: 600;
+        color: var(--text-secondary);
+        letter-spacing: -0.01em;
+    }
+
+    .input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    .field-icon {
+        position: absolute;
+        left: 14px;
+        font-size: 13.5px;
+        color: var(--text-quaternary);
+        pointer-events: none;
+        transition: color 0.22s ease;
+        z-index: 2;
+    }
+
+    .input-wrapper:focus-within .field-icon {
+        color: var(--accent);
+    }
+
+    .apple-field-macos {
+        background: color-mix(in srgb, var(--bg-input) 85%, transparent) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 13px !important;
+        color: var(--text-primary) !important;
+        padding: 12px 14px 12px 40px !important;
+        width: 100%;
+        font-size: 14px;
+        letter-spacing: -0.01em;
+        appearance: none;
+        outline: none !important;
+        transition:
+            border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+            background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .apple-field-macos:hover {
+        border-color: color-mix(in srgb, var(--border) 60%, var(--accent) 40%) !important;
+    }
+
+    .apple-field-macos:focus {
+        border-color: var(--accent) !important;
+        background: color-mix(in srgb, var(--bg-input) 95%, transparent) !important;
+    }
+
+    /* macOS Snap-In Focus Ring: Fades big and contracts to fit textbox outer border */
+    .focus-ring-halo {
+        position: absolute;
+        inset: 0;
+        border-radius: 13px;
+        border: 2px solid var(--accent);
+        pointer-events: none;
+        opacity: 0;
+        transform: scale(0.99);
+        box-shadow:
+            0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent),
+            0 0 12px -2px color-mix(in srgb, var(--accent) 28%, transparent);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        z-index: 3;
+    }
+
+    .apple-field-macos:focus ~ .focus-ring-halo {
+        animation: macosFocusSnap 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes macosFocusSnap {
+        0% {
+            opacity: 0;
+            transform: scale(1.05);
+            box-shadow:
+                0 0 0 8px color-mix(in srgb, var(--accent) 20%, transparent),
+                0 0 22px color-mix(in srgb, var(--accent) 38%, transparent);
+        }
+        35% {
+            opacity: 0.85;
+        }
+        100% {
+            opacity: 1;
+            transform: scale(1);
+            box-shadow:
+                0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent),
+                0 0 12px -2px color-mix(in srgb, var(--accent) 28%, transparent);
+        }
+    }
+
+    .toggle-pwd-btn {
+        position: absolute;
+        right: 12px;
+        background: none;
+        border: none;
+        color: var(--text-quaternary);
+        font-size: 13.5px;
         cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s ease;
+        z-index: 4;
+    }
+
+    .toggle-pwd-btn:hover {
+        color: var(--text-primary);
+    }
+
+    .remember-row {
+        display: flex;
+        align-items: center;
+        margin-top: -2px;
+        user-select: none;
+    }
+
+    .remember-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-tertiary);
+        transition: color 0.15s ease;
+    }
+
+    .remember-label:hover {
+        color: var(--text-primary);
+    }
+
+    .remember-checkbox {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 17px;
+        height: 17px;
+        border: 1.5px solid var(--border);
+        border-radius: 5px;
+        background: var(--bg-surface);
+        cursor: pointer;
+        display: grid;
+        place-content: center;
         transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
-        margin-top: 10px;
-        box-shadow: 0 4px 12px rgba(80, 80, 129, 0.2);
+        margin: 0;
+    }
+
+    .remember-checkbox:hover {
+        border-color: var(--accent);
+    }
+
+    .remember-checkbox:checked {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+
+    .remember-checkbox:checked::before {
+        content: "";
+        width: 8px;
+        height: 4.5px;
+        border-left: 2px solid var(--accent-text);
+        border-bottom: 2px solid var(--accent-text);
+        transform: rotate(-45deg) translate(0.5px, -0.5px);
+    }
+
+    /* Tactile macOS Submit Button */
+    .login-btn {
+        background: linear-gradient(180deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 88%, #000) 100%);
+        color: var(--accent-text);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 13px;
+        padding: 13px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        margin-top: 6px;
+        box-shadow:
+            0 1px 0 0 rgba(255, 255, 255, 0.25) inset,
+            0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
     }
 
     .login-btn:hover {
-        background: var(--accent-hover);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(80, 80, 129, 0.3);
+        filter: brightness(1.07);
+        transform: translateY(-1px);
+        box-shadow:
+            0 1px 0 0 rgba(255, 255, 255, 0.3) inset,
+            0 6px 18px color-mix(in srgb, var(--accent) 42%, transparent);
     }
 
     .login-btn:active {
-        transform: translateY(0) scale(0.98);
+        transform: translateY(0.5px) scale(0.99);
+        filter: brightness(0.96);
     }
 
+    /* Error Message */
     .error-msg {
-        background: rgba(255, 59, 48, 0.1);
-        color: #FF3B30;
-        border-radius: 12px;
+        background: rgba(255, 59, 48, 0.12);
+        color: #FF453A;
+        border: 1px solid rgba(255, 59, 48, 0.28);
+        border-radius: 13px;
         padding: 10px 14px;
         font-size: 13px;
-        margin-bottom: 20px;
+        margin-bottom: 18px;
         display: flex;
         align-items: center;
         gap: 8px;
-        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        letter-spacing: -0.01em;
+    }
+
+    .error-msg.shake-anim {
+        animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
     }
 
     @keyframes shake {
@@ -172,14 +462,16 @@
         30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
         40%, 60% { transform: translate3d(4px, 0, 0); }
     }
-
 </style>
 {% endblock %}
 
 {% block body %}
+<!-- Ambient Dynamic Background using Theme Swatches -->
 <div class="ambient-bg">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
+    <div class="blob blob-midnight"></div>
+    <div class="blob blob-indigo"></div>
+    <div class="blob blob-lavender"></div>
+    <div class="blob blob-accent"></div>
 </div>
 
 <div class="login-wrapper">
@@ -192,47 +484,135 @@
             <p class="login-subtitle">Sign in to continue to your workspace</p>
         </div>
 
-        {% if request.query_params.get('error') %}
-        <div class="error-msg">
+        <div id="login-error" class="error-msg {% if request.query_params.get('error') %}shake-anim{% endif %}" style="display: {% if request.query_params.get('error') %}flex{% else %}none{% endif %};">
             <i class="fa-solid fa-circle-exclamation"></i>
-            {{ request.query_params.get('error') }}
+            <span id="login-error-text">{{ request.query_params.get('error') or "Can't login" }}</span>
         </div>
-        {% endif %}
 
-        <form class="login-form" action="/auth/login" method="POST">
+        <form id="login-form" class="login-form" action="/auth/login" method="POST">
             <div class="input-group">
-                <label class="apple-label" for="username">Username</label>
-                <input class="apple-field" type="text" id="username" name="username" placeholder="Enter your username" required autocomplete="username">
+                <label for="username">Username</label>
+                <div class="input-wrapper">
+                    <i class="fa-regular fa-user field-icon"></i>
+                    <input class="apple-field-macos" type="text" id="username" name="username" placeholder="Username" required autocomplete="username">
+                    <div class="focus-ring-halo" aria-hidden="true"></div>
+                </div>
             </div>
 
             <div class="input-group">
-                <label class="apple-label" for="password">Password</label>
-                <input class="apple-field" type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+                <label for="password">Password</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-lock field-icon"></i>
+                    <input class="apple-field-macos" type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+                    <button type="button" id="toggle-password" class="toggle-pwd-btn" tabindex="-1" aria-label="Toggle password visibility">
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
+                    <div class="focus-ring-halo" aria-hidden="true"></div>
+                </div>
             </div>
 
-            <button type="submit" class="login-btn">
-                Sign In
+            <div class="remember-row">
+                <label class="remember-label" for="remember">
+                    <input class="remember-checkbox" type="checkbox" id="remember" name="remember" value="true" checked>
+                    <span>Remember me</span>
+                </label>
+            </div>
+
+            <button type="submit" id="login-btn" class="login-btn">
+                <span>Sign In</span>
             </button>
         </form>
     </div>
 </div>
 
 <script>
-    // Subtle mouse tracking for the card
     const card = document.querySelector('.login-card');
-    document.addEventListener('mousemove', (e) => {
-        const xAxis = (window.innerWidth / 2 - e.pageX) / 45;
-        const yAxis = (window.innerHeight / 2 - e.pageY) / 45;
-        card.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
-    });
+    const form = document.getElementById('login-form');
+    const submitBtn = document.getElementById('login-btn');
+    const errorBox = document.getElementById('login-error');
+    const errorText = document.getElementById('login-error-text');
+    const togglePwdBtn = document.getElementById('toggle-password');
+    const pwdInput = document.getElementById('password');
 
-    document.addEventListener('mouseleave', () => {
-        card.style.transform = `rotateY(0deg) rotateX(0deg)`;
-        card.style.transition = 'all 0.5s ease';
-    });
+    let isLeaving = false;
 
-    document.addEventListener('mouseenter', () => {
-        card.style.transition = 'none';
+    // Toggle password visibility
+    if (togglePwdBtn && pwdInput) {
+        togglePwdBtn.addEventListener('click', () => {
+            const isPassword = pwdInput.type === 'password';
+            pwdInput.type = isPassword ? 'text' : 'password';
+            togglePwdBtn.innerHTML = isPassword ? '<i class="fa-regular fa-eye-slash"></i>' : '<i class="fa-regular fa-eye"></i>';
+            pwdInput.focus();
+        });
+    }
+
+    // In-place Error Notification
+    function displayError(msg) {
+        errorText.textContent = msg || "Can't login";
+        errorBox.style.display = 'flex';
+        errorBox.classList.remove('shake-anim');
+        void errorBox.offsetWidth; // Force DOM reflow
+        errorBox.classList.add('shake-anim');
+    }
+
+    // Asynchronous Submission
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (isLeaving) return;
+
+        errorBox.style.display = 'none';
+        errorBox.classList.remove('shake-anim');
+
+        const originalBtnHtml = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.75';
+        submitBtn.style.cursor = 'not-allowed';
+        submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> <span>Signing In...</span>';
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            });
+
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (err) {
+                // Non-JSON response
+            }
+
+            if (response.ok && data && data.ok) {
+                // Smooth reverse exit animation
+                isLeaving = true;
+                card.classList.add('animate-reverse');
+                setTimeout(() => {
+                    window.location.href = data.redirect || '/';
+                }, 520);
+                return;
+            }
+
+            // Restore state on failure without page refresh
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+            submitBtn.innerHTML = originalBtnHtml;
+
+            const errorMsg = (data && data.error) ? data.error : "Can't login";
+            displayError(errorMsg);
+
+        } catch (err) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+            submitBtn.innerHTML = originalBtnHtml;
+            displayError("Can't login");
+        }
     });
 </script>
 {% endblock %}

@@ -106,15 +106,30 @@ async def save_workflows_async(workflows: dict) -> None:
                 existing.completed_at = wf.get("completed_at", existing.completed_at)
                 existing.state_json = j_dumps(state)
 
+async def init_workflows_cache() -> None:
+    global _WORKFLOWS_CACHE
+    try:
+        loaded = await load_workflows_async()
+        _WORKFLOWS_CACHE = loaded if loaded else {}
+    except Exception as e:
+        print(f"Error loading workflows from database: {e}")
+        _WORKFLOWS_CACHE = {}
+
+
 def load_workflows() -> dict:
     global _WORKFLOWS_CACHE
     if not _WORKFLOWS_CACHE:
         try:
-            _WORKFLOWS_CACHE = _run_async(load_workflows_async())
-        except Exception as e:
-            print(f"Error loading workflows from database: {e}")
-            _WORKFLOWS_CACHE = {}
+            loop = asyncio.get_running_loop()
+            return _WORKFLOWS_CACHE
+        except RuntimeError:
+            try:
+                _WORKFLOWS_CACHE = _run_async(load_workflows_async())
+            except Exception as e:
+                print(f"Error loading workflows from database: {e}")
+                _WORKFLOWS_CACHE = {}
     return _WORKFLOWS_CACHE
+
 
 def save_workflows(data: dict) -> None:
     global _WORKFLOWS_CACHE
@@ -386,18 +401,45 @@ async def save_templates_async(templates: dict) -> None:
                 existing.retry_limit = t.get("retry_limit", existing.retry_limit)
                 existing.max_iterations = t.get("max_iterations", existing.max_iterations)
 
-def load_templates() -> dict:
+_TEMPLATES_CACHE: dict = {}
+
+
+async def init_templates_cache() -> None:
+    global _TEMPLATES_CACHE
     try:
-        return _run_async(load_templates_async())
+        loaded = await load_templates_async()
+        _TEMPLATES_CACHE = loaded if loaded else DEFAULT_WORKER_TEMPLATES.copy()
     except Exception as e:
         print(f"Error loading worker templates from database: {e}")
-        return DEFAULT_WORKER_TEMPLATES
+        _TEMPLATES_CACHE = DEFAULT_WORKER_TEMPLATES.copy()
+
+
+def load_templates() -> dict:
+    global _TEMPLATES_CACHE
+    if not _TEMPLATES_CACHE:
+        try:
+            loop = asyncio.get_running_loop()
+            return DEFAULT_WORKER_TEMPLATES.copy()
+        except RuntimeError:
+            try:
+                _TEMPLATES_CACHE = _run_async(load_templates_async())
+            except Exception as e:
+                print(f"Error loading worker templates from database: {e}")
+                _TEMPLATES_CACHE = DEFAULT_WORKER_TEMPLATES.copy()
+    return _TEMPLATES_CACHE
+
 
 def save_templates(data: dict) -> None:
+    global _TEMPLATES_CACHE
+    _TEMPLATES_CACHE = data
     try:
-        _run_async(save_templates_async(data))
-    except Exception as e:
-        print(f"Error saving worker templates to database: {e}")
+        loop = asyncio.get_running_loop()
+        loop.create_task(save_templates_async(data))
+    except RuntimeError:
+        try:
+            _run_async(save_templates_async(data))
+        except Exception as e:
+            print(f"Error saving worker templates to database: {e}")
 
 
 # ── Tool Definitions ──────────────────────────────────────────────────

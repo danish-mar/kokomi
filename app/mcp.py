@@ -19,7 +19,7 @@ import asyncio
 import time
 from contextlib import AsyncExitStack
 
-from app.storage import load_mcp
+from app.storage import load_mcp_async
 
 # MCP SDK — optional dependency
 try:
@@ -120,7 +120,7 @@ async def init_pool(force: bool = False):
             except Exception as e:
                 print(f"[MCP pool] teardown warning ({sid}): {e}")
 
-        servers = load_mcp()
+        servers = await load_mcp_async()
         enabled = {
             sid: cfg for sid, cfg in servers.items()
             if cfg.get("enabled", True)
@@ -200,7 +200,7 @@ async def teardown_pool():
 
 async def test_single_server(sid: str):
     """Test a single MCP server in isolation. Does NOT touch the global pool."""
-    servers = load_mcp()
+    servers = await load_mcp_async()
     config = servers.get(sid)
     if not config:
         return {"ok": False, "error": "Server not found"}

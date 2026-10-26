@@ -55,6 +55,10 @@
     <script defer src="/static/vendor/katex/katex.min.js"></script>
 
     <script>
+        window.__CURRENT_USER__ = {{ current_user | tojson if current_user else 'null' }};
+    </script>
+
+    <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {

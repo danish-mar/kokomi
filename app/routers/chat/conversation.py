@@ -10,7 +10,7 @@ from typing import Optional
 from functools import reduce
 from operator import add
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 import os
 
 from pypdf import PdfReader
@@ -20,7 +20,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, Tool
 from app.mcp import MCP_TOOL_CALL_TIMEOUT, get_pool_tools
 from app.llm import get_llm, get_llm_for_tier, active_model_name, generate_title, parse_thinking, _normalize_model, resolve_character_model
 from app.models import ChatRequest
-from app.storage import load_prefs, load_chars, load_convos, save_convos
+from app.storage import load_prefs, load_chars_async, load_convos_async, save_convos_async, load_user_prefs_async
 from app.insights import log_generation
 from app.memory import save_memory, search_memories, summarize_conversation
 from app.tools.memory_tool import get_memory_tool
@@ -135,16 +135,20 @@ MEDIA_WIDGET_GUIDE = (
 # ── Non-streaming chat ───────────────────────────────────────────────
 
 @router.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, request: Request):
+    user = getattr(request.state, "user", None)
+    user_id = user.get("id") if isinstance(user, dict) else (getattr(user, "id", None) if user else None)
+    user_name = user.get("display_name") or user.get("username") if isinstance(user, dict) else "User"
+
     t0 = time.time()
-    prefs = load_prefs()
+    prefs = await load_user_prefs_async(user_id, default_name=user_name)
     provider = prefs.get("llm_provider", "groq")
     tier = req.model_tier or "normal"
 
     active_model = active_model_name(prefs, tier)
 
     user_p = prefs.get("user_persona", "")
-    chars = load_chars()
+    chars = await load_chars_async(user_id=user_id)
     char_id = req.character_id or "kokomi"
     char = chars.get(char_id, chars.get("kokomi"))
 
@@ -157,7 +161,7 @@ async def chat(req: ChatRequest):
     if char_model and char_model != "default":
         active_model = _normalize_model(char_model)
 
-    convos = load_convos()
+    convos = await load_convos_async(user_id=user_id)
     conv_id = req.conversation_id
     is_new = conv_id is None or conv_id not in convos
     history = [] if is_new else convos[conv_id].get("messages", [])
@@ -168,6 +172,8 @@ async def chat(req: ChatRequest):
     persona = char.get("persona", "You are a helpful AI assistant.")
     if user_p:
         persona += f"\n\nInformation about the user (User Persona):\n{user_p}"
+    if user_name:
+        persona += f"\n\nThe user's name is {user_name}."
     # Inject AI-synthesized relationship profile
     try:
         from app.memory import get_character_profile
@@ -415,6 +421,7 @@ async def chat(req: ChatRequest):
         conv_id = str(uuid.uuid4())[:12]
         title = await generate_title(req.message, content, prefs)
         convos[conv_id] = {
+            "user_id": user_id,
             "title": title,
             "character_id": char_id,
             "messages": history,
@@ -423,12 +430,13 @@ async def chat(req: ChatRequest):
         }
     else:
         convos[conv_id].update({
+            "user_id": convos[conv_id].get("user_id") or user_id,
             "messages": history,
             "updated_at": now,
             "is_anonymous": req.is_anonymous
         })
 
-    save_convos(convos)
+    await save_convos_async(convos, user_id=user_id)
 
     if prefs.get("debug_mode"):
         t1 = time.time()
@@ -482,20 +490,24 @@ async def chat(req: ChatRequest):
 # ── Streaming chat ───────────────────────────────────────────────────
 
 @router.post("/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest, request: Request):
+    user = getattr(request.state, "user", None)
+    user_id = user.get("id") if isinstance(user, dict) else (getattr(user, "id", None) if user else None)
+    user_name = user.get("display_name") or user.get("username") if isinstance(user, dict) else "User"
+
     t0 = time.time()
-    prefs = load_prefs()
+    prefs = await load_user_prefs_async(user_id, default_name=user_name)
     provider = prefs.get("llm_provider", "groq")
     tier = req.model_tier or "normal"
 
     active_model = active_model_name(prefs, tier)
 
     user_p = prefs.get("user_persona", "")
-    chars = load_chars()
+    chars = await load_chars_async(user_id=user_id)
     char_id = req.character_id or "kokomi"
     char = chars.get(char_id, chars.get("kokomi"))
 
-    convos = load_convos()
+    convos = await load_convos_async(user_id=user_id)
     conv_id = req.conversation_id
     is_new = conv_id is None or conv_id not in convos
 
@@ -515,6 +527,7 @@ async def chat_stream(req: ChatRequest):
     provisional_title = (req.message or "New Chat").strip().split("\n")[0][:60] or "New Chat"
     if is_new:
         convos[conv_id] = {
+            "user_id": user_id,
             "title": provisional_title,
             "character_id": char_id,
             "messages": history,
@@ -523,8 +536,12 @@ async def chat_stream(req: ChatRequest):
             "is_anonymous": req.is_anonymous,
         }
     else:
-        convos[conv_id].update({"messages": history, "updated_at": now_iso})
-    save_convos(convos)
+        convos[conv_id].update({
+            "user_id": convos[conv_id].get("user_id") or user_id,
+            "messages": history,
+            "updated_at": now_iso,
+        })
+    await save_convos_async(convos, user_id=user_id)
 
     # Registered before streaming starts so the conversation id is already
     # known to the client (it goes out in the 'start' event) — otherwise a
@@ -547,7 +564,7 @@ async def chat_stream(req: ChatRequest):
                 await queue.put(f"data: {json.dumps({'type': 'start', 'conversation_id': conv_id})}\n\n")
 
                 pids = req.participants or [char_id]
-                all_chars = load_chars()
+                all_chars = await load_chars_async()
 
                 all_mcp_ids = list({
                     sid
@@ -607,7 +624,7 @@ async def chat_stream(req: ChatRequest):
 
                 # Triton: reach the user's paired computers (read-only file access)
                 from ._triton_tools import get_triton_tools
-                triton_tools, triton_note = get_triton_tools()
+                triton_tools, triton_note = await get_triton_tools()
                 for t in triton_tools:
                     tool_defs.append(t)
                     builtin_tools[t.name] = t
@@ -724,6 +741,8 @@ async def chat_stream(req: ChatRequest):
 
                     if user_p:
                         p_persona += f"\n\nUser Profile:\n{user_p}"
+                    if user_name:
+                        p_persona += f"\n\nThe user's name is {user_name}."
 
                     # Inject AI-synthesized relationship profile
                     try:
@@ -1576,6 +1595,7 @@ async def chat_stream(req: ChatRequest):
                     title_content = history[-1]["content"] if len(history) > 1 else "New Chat"
                     title = await generate_title(req.message, title_content, prefs)
                     convos[conv_id] = {
+                        "user_id": user_id,
                         "title": title,
                         "character_id": char_id,
                         "messages": history,
@@ -1585,13 +1605,14 @@ async def chat_stream(req: ChatRequest):
                     }
                 else:
                     convos[conv_id].update({
+                        "user_id": convos[conv_id].get("user_id") or user_id,
                         "messages": history,
                         "updated_at": now_iso,
                         "participants": pids,
                         "is_anonymous": req.is_anonymous
                     })
 
-                save_convos(convos)
+                await save_convos_async(convos, user_id=user_id)
 
                 await queue.put(f"data: {json.dumps({
                     'type': 'done',
@@ -1622,19 +1643,54 @@ async def chat_stream(req: ChatRequest):
                     msgs = [str(ex) for ex in e.exceptions]
                     err_msg = "Multiple errors: " + " | ".join(msgs)
 
-                # Rate limits otherwise surface as a mysterious long hang: the
-                # provider client retries with backoff internally, so the user
-                # just sees nothing happen. Name it explicitly.
                 low = err_msg.lower()
-                if "rate limit" in low or "429" in low or "tokens per minute" in low:
+                prov_label = provider.title() if provider else "AI Provider"
+                if "invalid api key" in low or "invalid_api_key" in low or "authentication" in low or "unauthorized" in low or "401" in low:
                     err_msg = (
-                        "Rate limited by the model provider (tokens-per-minute cap). "
+                        f"Authentication Error: Invalid API key for {prov_label}. "
+                        "Please verify your API key in Settings → General or switch to an active shared key."
+                    )
+                elif "rate limit" in low or "429" in low or "tokens per minute" in low:
+                    err_msg = (
+                        f"Rate limited by {prov_label} (tokens-per-minute cap). "
                         "The request was retried and still hit the limit. Large prompts "
                         "consume the per-minute budget quickly — wait a moment and retry, "
                         "or upgrade the provider tier.\n\n" + err_msg
                     )
+                elif "not found" in low or "does not exist" in low or "404" in low or "model_not_found" in low:
+                    err_msg = (
+                        f"Model Error: The model '{active_model}' is not accessible or does not exist on {prov_label}. "
+                        "Please select another model in Settings → General."
+                    )
+                elif "connection" in low or "connect" in low or "timeout" in low:
+                    err_msg = (
+                        f"Connection Error: Could not connect to {prov_label}. "
+                        f"Please check your network connection or model endpoint ({err_msg})."
+                    )
 
-                await queue.put(f"data: {json.dumps({'type': 'error', 'message': err_msg})}\n\n")
+                # Clean up database so no empty chat is left behind
+                try:
+                    if is_new and conv_id in convos:
+                        del convos[conv_id]
+                        await save_convos_async(convos, user_id=user_id)
+                    elif not is_new and conv_id in convos:
+                        c_msgs = convos[conv_id].get("messages", [])
+                        if c_msgs and c_msgs[-1].get("role") == "user":
+                            c_msgs.pop()
+                            convos[conv_id]["messages"] = c_msgs
+                            await save_convos_async(convos, user_id=user_id)
+                except Exception as cleanup_err:
+                    print(f"[WARN] Failed to clean up failed chat: {cleanup_err}")
+
+                err_char_id = pid if 'pid' in locals() else char_id
+                await queue.put(f"data: {json.dumps({
+                    'type': 'error',
+                    'message': err_msg,
+                    'character_id': err_char_id,
+                    'provider': provider,
+                    'is_new': is_new,
+                    'conversation_id': None if is_new else conv_id,
+                })}\n\n")
                 await queue.put("data: [DONE]\n\n")
             finally:
                 await queue.put(None) # Sentinel to stop generator

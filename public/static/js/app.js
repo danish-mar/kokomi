@@ -108,12 +108,11 @@ function aiApp() {
             }
         });
 
-        // Trigger Guided Tour Prompt if not completed
+        // Trigger Guided Tour Prompt if not completed for this user
         setTimeout(() => {
-            if (this.prefs && this.prefs.tour_completed === false) {
-                localStorage.removeItem('kokomi_tour_completed');
-            }
-            if ((!this.prefs || this.prefs.tour_completed !== true) && localStorage.getItem('kokomi_tour_completed') !== 'true') {
+            const currentUser = window.__CURRENT_USER__;
+            const tourKey = 'kokomi_tour_completed_' + (currentUser && currentUser.username ? currentUser.username : 'guest');
+            if (localStorage.getItem(tourKey) !== 'true') {
                 this.showTourPrompt = true;
             }
         }, 1200);
@@ -121,6 +120,11 @@ function aiApp() {
 
     app.startTour = async function() {
         this.showTourPrompt = false;
+        const currentUser = window.__CURRENT_USER__;
+        const tourKey = 'kokomi_tour_completed_' + (currentUser && currentUser.username ? currentUser.username : 'guest');
+        localStorage.setItem(tourKey, 'true');
+        
+        // Also keep legacy key synced
         localStorage.setItem('kokomi_tour_completed', 'true');
         
         // Sync tour completed to backend
@@ -208,6 +212,9 @@ function aiApp() {
 
     app.dismissTour = async function() {
         this.showTourPrompt = false;
+        const currentUser = window.__CURRENT_USER__;
+        const tourKey = 'kokomi_tour_completed_' + (currentUser && currentUser.username ? currentUser.username : 'guest');
+        localStorage.setItem(tourKey, 'true');
         localStorage.setItem('kokomi_tour_completed', 'true');
         
         // Sync tour completed to backend

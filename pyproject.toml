@@ -39,4 +39,5 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "tomli>=2.4.1",
+    "asyncpg>=0.31.0",
 ]

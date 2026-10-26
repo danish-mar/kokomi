@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, Request, BackgroundTasks
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage
 
-from app.storage import load_prefs, load_chars, load_convos, save_convos, load_mcp
+from app.storage import load_prefs, load_chars_async, load_convos_async, save_convos_async
 from app.llm import get_llm, resolve_character_model
 from app.mcp import get_pool_tools, init_pool, pool_is_stale, MCP_TOOL_CALL_TIMEOUT
 from app.config import DATA_DIR
@@ -35,7 +35,7 @@ async def run_agent_task(main_char_id: str, target_char_id: str, task_message: s
     Simulate one character (main) asking another (target) to do something.
     """
     prefs = load_prefs()
-    chars = load_chars()
+    chars = await load_chars_async()
     
     # Case-insensitive lookup
     target_char = None
@@ -141,7 +141,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "disabled"}
 
     char_id = prefs.get("whatsapp_character_id", "kokomi")
-    chars = load_chars()
+    chars = await load_chars_async()
     char = chars.get(char_id, chars.get("kokomi"))
     
     # Process the message with the assigned character
@@ -162,8 +162,7 @@ async def process_whatsapp_message(char, from_jid, body):
         return
 
     # 2. Load context (History)
-    from app.storage import load_convos, save_convos
-    convos = load_convos()
+    convos = await load_convos_async()
     conv_id = f"whatsapp_{from_jid.replace('@', '_').replace('.', '_')}"
     if conv_id not in convos:
         convos[conv_id] = {
@@ -306,7 +305,7 @@ async def process_whatsapp_message(char, from_jid, body):
         "timestamp": now
     })
     convos[conv_id]["updated_at"] = now
-    save_convos(convos)
+    await save_convos_async(convos)
 
     # Format final reply for WhatsApp
     show_thinking = prefs.get("whatsapp_show_thinking", True)

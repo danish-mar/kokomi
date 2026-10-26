@@ -11,7 +11,7 @@ import requests
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from app.storage import load_mcp, save_mcp, load_chars, save_chars
+from app.storage import load_mcp_async, save_mcp_async, load_chars_async, save_chars_async
 from app.mcp import init_pool
 
 router = APIRouter(prefix="/api/app-store", tags=["app-store"])
@@ -51,11 +51,11 @@ async def get_catalog():
     installed_ids = []
     
     # Heal database if appbridge is saved with env string
-    mcp_servers = load_mcp()
+    mcp_servers = await load_mcp_async()
     if "appbridge" in mcp_servers:
         if isinstance(mcp_servers["appbridge"].get("env"), str):
             mcp_servers["appbridge"]["env"] = {}
-            save_mcp(mcp_servers)
+            await save_mcp_async(mcp_servers)
             try:
                 await init_pool(force=True)
             except Exception as e:
@@ -71,7 +71,7 @@ async def get_catalog():
                     installed_ids.append(app_id)
 
     # Check personas inside SQLite characters database
-    chars = load_chars()
+    chars = await load_chars_async()
     for p in personas_list:
         p_id = p.get("id")
         p_name = p.get("name", "").lower().strip()
@@ -161,38 +161,7 @@ def _install_item_sync(payload: InstallPayload) -> dict:
                     shutil.rmtree(app_dest, ignore_errors=True)
                     raise HTTPException(500, "Dependency installation timed out (120s limit)")
 
-            # Ensure Stdio Apps Bridge is registered in mcp_servers
-            mcp_servers = load_mcp()
-            bridge_exists = any("app/mcp_app_bridge.py" in str(s.get("args", [])) for s in mcp_servers.values())
-            if not bridge_exists:
-                sid = "appbridge"
-                mcp_servers[sid] = {
-                    "id": sid,
-                    "name": "Kokomi Apps Bridge",
-                    "transport": "stdio",
-                    "command": sys.executable,
-                    "args": ["app/mcp_app_bridge.py"],
-                    "env": {},  # Set env dictionary correctly instead of a string to prevent mapping errors
-                    "url": "",
-                    "icon": "fa-puzzle-piece",
-                    "enabled": 1,
-                    "created_at": datetime.datetime.utcnow().isoformat()
-                }
-                save_mcp(mcp_servers)
-
-            # Enable this app for all characters by default
-            try:
-                chars = load_chars()
-                for cid, char in chars.items():
-                    if "mcp_servers" not in char:
-                        char["mcp_servers"] = []
-                    if payload.id not in char["mcp_servers"]:
-                        char["mcp_servers"].append(payload.id)
-                save_chars(chars)
-            except Exception as e:
-                print(f"[App Store Manager] warning enabling app for characters: {e}")
-
-            return {"ok": True, "message": "App installed and bridge server loaded.", "_refresh_pool": True}
+            return {"type": "mcp"}
 
         # ── INSTALL PERSONA ──────────────────────────────────────────────
         elif payload.type == "character":
@@ -233,26 +202,12 @@ def _install_item_sync(payload: InstallPayload) -> dict:
                 except Exception:
                     pass
 
-            # Add to characters database
-            chars = load_chars()
-            mcp_list = ["appbridge"] if manifest.get("config", {}).get("mcp_servers") else []
-            
-            chars[payload.id] = {
-                "id": payload.id,
-                "name": manifest.get("name", "New Persona").strip(),
-                "persona": prompt_text.strip(),
-                "avatar": avatar_path,
-                "mcp_servers": mcp_list,
-                "groq_model": manifest.get("config", {}).get("groq_model", "default"),
-                "google_model": manifest.get("config", {}).get("google_model", "default"),
-                "custom_model": manifest.get("config", {}).get("custom_model", "default"),
-                "nvidia_model": manifest.get("config", {}).get("nvidia_model", "default"),
-                "voice": manifest.get("config", {}).get("voice", "aoede"),
-                "memory_enabled": manifest.get("config", {}).get("memory_enabled", True),
-                "created_at": datetime.datetime.utcnow().isoformat(),
+            return {
+                "type": "character",
+                "manifest": manifest,
+                "prompt_text": prompt_text,
+                "avatar_path": avatar_path,
             }
-            save_chars(chars)
-            return {"ok": True, "message": "Persona installed successfully."}
 
         raise HTTPException(400, "Invalid item type.")
 
@@ -267,13 +222,68 @@ def _install_item_sync(payload: InstallPayload) -> dict:
 @router.post("/install")
 async def install_item(payload: InstallPayload):
     """Download and install app or persona from GitHub repository."""
-    result = await asyncio.to_thread(_install_item_sync, payload)
-    if result.pop("_refresh_pool", False):
+    info = await asyncio.to_thread(_install_item_sync, payload)
+
+    if info["type"] == "mcp":
+        mcp_servers = await load_mcp_async()
+        bridge_exists = any("app/mcp_app_bridge.py" in str(s.get("args", [])) for s in mcp_servers.values())
+        if not bridge_exists:
+            sid = "appbridge"
+            mcp_servers[sid] = {
+                "id": sid,
+                "name": "Kokomi Apps Bridge",
+                "transport": "stdio",
+                "command": sys.executable,
+                "args": ["app/mcp_app_bridge.py"],
+                "env": {},
+                "url": "",
+                "icon": "fa-puzzle-piece",
+                "enabled": 1,
+                "created_at": datetime.datetime.utcnow().isoformat()
+            }
+            await save_mcp_async(mcp_servers)
+
+        try:
+            chars = await load_chars_async()
+            for cid, char in chars.items():
+                if "mcp_servers" not in char:
+                    char["mcp_servers"] = []
+                if payload.id not in char["mcp_servers"]:
+                    char["mcp_servers"].append(payload.id)
+            await save_chars_async(chars)
+        except Exception as e:
+            print(f"[App Store Manager] warning enabling app for characters: {e}")
+
         try:
             await init_pool(force=True)
         except Exception as e:
             print(f"[App Store Manager] warning refreshing pool: {e}")
-    return result
+
+        return {"ok": True, "message": "App installed and bridge server loaded."}
+
+    elif info["type"] == "character":
+        manifest = info.get("manifest") or {}
+        prompt_text = info.get("prompt_text") or ""
+        avatar_path = info.get("avatar_path")
+
+        chars = await load_chars_async()
+        mcp_list = ["appbridge"] if manifest.get("config", {}).get("mcp_servers") else []
+        chars[payload.id] = {
+            "id": payload.id,
+            "name": manifest.get("name", "New Persona").strip(),
+            "persona": prompt_text.strip(),
+            "avatar": avatar_path,
+            "mcp_servers": mcp_list,
+            "groq_model": manifest.get("config", {}).get("groq_model", "default"),
+            "google_model": manifest.get("config", {}).get("google_model", "default"),
+            "custom_model": manifest.get("config", {}).get("custom_model", "default"),
+            "nvidia_model": manifest.get("config", {}).get("nvidia_model", "default"),
+            "voice": manifest.get("config", {}).get("voice", "aoede"),
+            "memory_enabled": manifest.get("config", {}).get("memory_enabled", True),
+            "created_at": datetime.datetime.utcnow().isoformat(),
+        }
+        await save_chars_async(chars)
+        return {"ok": True, "message": "Persona installed successfully."}
 
 
 class TogglePayload(BaseModel):
@@ -355,7 +365,7 @@ async def toggle_app(payload: TogglePayload):
 async def uninstall_app(app_id: str):
     """Uninstall an app or persona by deleting its files/database entry."""
     # 1. Try to see if it is a character
-    chars = load_chars()
+    chars = await load_chars_async()
     if app_id in chars:
         char = chars[app_id]
         avatar = char.get("avatar")
@@ -369,7 +379,7 @@ async def uninstall_app(app_id: str):
                 except Exception as e:
                     print(f"[App Store Manager] error deleting avatar: {e}")
         del chars[app_id]
-        save_chars(chars)
+        await save_chars_async(chars)
         return {"ok": True, "message": "Persona uninstalled successfully."}
 
     # 2. Try to see if it is an app
@@ -383,11 +393,11 @@ async def uninstall_app(app_id: str):
         
         # Clean up character references
         try:
-            chars = load_chars()
+            chars = await load_chars_async()
             for cid, char in chars.items():
                 if "mcp_servers" in char and app_id in char["mcp_servers"]:
                     char["mcp_servers"].remove(app_id)
-            save_chars(chars)
+            await save_chars_async(chars)
         except Exception as e:
             print(f"[App Store Manager] warning cleaning character references: {e}")
 

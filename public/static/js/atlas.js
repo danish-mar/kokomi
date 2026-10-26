@@ -125,10 +125,9 @@ function atlasApp() {
       } else {
         // Trigger Guided Tour Prompt if not completed
         setTimeout(() => {
-          if (this.prefs && this.prefs.tour_completed === false) {
-            localStorage.removeItem('atlas_tour_completed');
-          }
-          if ((!this.prefs || this.prefs.tour_completed !== true) && localStorage.getItem('atlas_tour_completed') !== 'true') {
+          const currentUser = window.__CURRENT_USER__;
+          const tourKey = 'atlas_tour_completed_' + (currentUser && currentUser.username ? currentUser.username : 'guest');
+          if (localStorage.getItem(tourKey) !== 'true') {
             this.showTourPrompt = true;
           }
         }, 1200);
@@ -158,6 +157,9 @@ function atlasApp() {
     },
     async startTour(force = false) {
       this.showTourPrompt = false;
+      const currentUser = window.__CURRENT_USER__;
+      const tourKey = 'atlas_tour_completed_' + (currentUser && currentUser.username ? currentUser.username : 'guest');
+      localStorage.setItem(tourKey, 'true');
       localStorage.setItem('atlas_tour_completed', 'true');
       
       if (!window.driver || !window.driver.js) {
@@ -394,6 +396,9 @@ function atlasApp() {
 
     dismissTour() {
       this.showTourPrompt = false;
+      const currentUser = window.__CURRENT_USER__;
+      const tourKey = 'atlas_tour_completed_' + (currentUser && currentUser.username ? currentUser.username : 'guest');
+      localStorage.setItem(tourKey, 'true');
       localStorage.setItem('atlas_tour_completed', 'true');
     },
     resolvedAtlasModel() {

@@ -37,7 +37,11 @@ export function getInitialState() {
         messages: [],
         conversations: [],
         folders: [],
-        openFolders: JSON.parse(localStorage.getItem('openFolders') || '[]'),
+        openFolders: (function() {
+            const u = window.__CURRENT_USER__;
+            const uname = u && u.username ? u.username : 'guest';
+            return JSON.parse(localStorage.getItem('openFolders_' + uname) || '[]');
+        })(),
         currentConvId: null,
         projectModal: { show: false, id: null, name: '', icon: 'fa-solid fa-folder' },
         iconChoices: [
@@ -123,7 +127,11 @@ export function getInitialState() {
 
         // Characters
         characters: [],
-        activeCharId: localStorage.getItem('lastCharacterId') || 'kokomi',
+        activeCharId: (function() {
+            const u = window.__CURRENT_USER__;
+            const uname = u && u.username ? u.username : 'guest';
+            return localStorage.getItem('lastCharacterId_' + uname) || 'kokomi';
+        })(),
         charPickerOpen: false,
         welcomePickerOpen: false,
         groupParticipants: [],
