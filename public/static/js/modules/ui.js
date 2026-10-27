@@ -944,11 +944,44 @@ except:
         },
         cleanMsgContent(content) {
             if (!content) return '';
-            // Remove <think>...</think> or <thought>...</thought> (closed or unclosed)
+            // Remove <think>/<thought> blocks
             let cleaned = content.replace(/<(think|thought)>[\s\S]*?(<\/\1>|$)/gi, '');
-            // Strip markdown heading markers
+            // Summarise interactive component tags instead of showing raw syntax
+            cleaned = cleaned.replace(
+                /<(CheckboxList|List)((?:\s[^>]*)?)>([\s\S]*?)<\/\1>/gi,
+                (_, tag, attrs, body) => {
+                    const titleM = attrs.match(/title="([^"]*)"/);
+                    const title  = titleM ? titleM[1] : (tag === 'CheckboxList' ? 'Checklist' : 'List');
+                    const count  = (body.match(/^\s*-\s+/gm) || []).length;
+                    const icon   = tag === 'CheckboxList' ? '✅' : '📋';
+                    return `${icon} ${title} (${count} item${count !== 1 ? 's' : ''})`;
+                }
+            );
+            // Summarise Calculator tags
+            cleaned = cleaned.replace(
+                /<Calculator((?:\s[^>]*)?)>([\s\S]*?)<\/Calculator>/gi,
+                (_, attrs, body) => {
+                    const titleM = attrs.match(/title="([^"]*)"/);
+                    const title  = titleM ? titleM[1] : 'Calculator';
+                    const inputs = (body.match(/^\s*-\s+\w+\s*\|/gm) || []).length;
+                    return `🔢 ${title} (${inputs} input${inputs !== 1 ? 's' : ''})`;
+                }
+            );
+            // Summarise remaining interactive tags generically
+            const _iconMap = { rating:'⭐', quiz:'🧠', flashcards:'🃏', stepper:'📋', kanban:'📌', form:'📝', timeline:'📅', meter:'📊', timer:'⏱️', palette:'🎨' };
+            cleaned = cleaned.replace(
+                /<(Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette)((?:\s[^>]*)?)(?:\/>|>[\s\S]*?<\/\1>)/gi,
+                (_, tag, attrs) => {
+                    const titleM = attrs.match(/title="([^"]*)"/);
+                    const title  = titleM ? titleM[1] : tag;
+                    return `${_iconMap[tag.toLowerCase()] || '🔲'} ${title}`;
+                }
+            );
+            // Drop unclosed/partial interactive tags (still streaming)
+            const _allTags = 'CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette';
+            cleaned = cleaned.replace(new RegExp(`<(${_allTags})\\b[^>]*>[\\s\\S]*`, 'gi'), '');
+            // Strip markdown heading markers and code blocks
             cleaned = cleaned.replace(/^\s*#+\s+/gm, '');
-            // Strip code blocks
             cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
             return cleaned.trim();
         }

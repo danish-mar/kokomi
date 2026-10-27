@@ -265,6 +265,15 @@ class TritonDeviceRow(Base):
     last_seen    = Column(Text, nullable=True)
 
 
+class InteractiveStateRow(Base):
+    """Persisted checkbox/interactive state keyed by stable content hash (iid)."""
+    __tablename__ = "interactive_states"
+
+    iid        = Column(Text, primary_key=True)   # contentHash(title+subtitle+inner)
+    state_json = Column(Text, nullable=False, default="[]")  # JSON [checked_idx, ...]
+    updated_at = Column(Text, nullable=True)
+
+
 # ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 async def init_db() -> None:

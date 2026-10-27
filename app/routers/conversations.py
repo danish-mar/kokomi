@@ -30,6 +30,59 @@ def _clean_content(content):
     import re
     # Remove think/thought tags (closed or unclosed until end of text)
     cleaned = re.sub(r"<(think|thought)>.*?(</\1>|$)", "", content, flags=re.DOTALL | re.IGNORECASE)
+    # Replace interactive component tags with a human-readable summary
+    def _summarise_interactive(m):
+        tag   = m.group(1)   # CheckboxList or List
+        attrs = m.group(2)   # attribute string
+        body  = m.group(3)   # inner content
+        title_m = re.search(r'title="([^"]*)"', attrs)
+        title   = title_m.group(1) if title_m else ("Checklist" if tag == "CheckboxList" else "List")
+        items   = re.findall(r"^\s*-\s+(?:\[.\]\s+)?(.*)", body, re.MULTILINE)
+        icon    = "✅" if tag == "CheckboxList" else "📋"
+        count   = len(items)
+        return f"{icon} {title} ({count} item{'s' if count != 1 else ''})"
+    cleaned = re.sub(
+        r"<(CheckboxList|List)((?:\s[^>]*)?)>([\s\S]*?)</\1>",
+        _summarise_interactive,
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Summarise Calculator tags
+    def _summarise_calc(m):
+        attrs   = m.group(1)
+        body    = m.group(2)
+        title_m = re.search(r'title="([^"]*)"', attrs)
+        title   = title_m.group(1) if title_m else "Calculator"
+        inputs  = len(re.findall(r"^\s*-\s+\w+\s*\|", body, re.MULTILINE))
+        return f"🔢 {title} ({inputs} input{'s' if inputs != 1 else ''})"
+    cleaned = re.sub(
+        r"<Calculator((?:\s[^>]*)?)>([\s\S]*?)</Calculator>",
+        _summarise_calc,
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Summarise remaining interactive tags with a generic handler
+    _ICON_MAP = {
+        "rating": "⭐", "quiz": "🧠", "flashcards": "🃏", "stepper": "📋",
+        "kanban": "📌", "form": "📝", "timeline": "📅", "meter": "📊",
+        "timer": "⏱️", "palette": "🎨",
+    }
+    def _summarise_generic(m):
+        tag   = m.group(1).lower()
+        attrs = m.group(2)
+        title_m = re.search(r'title="([^"]*)"', attrs)
+        title = title_m.group(1) if title_m else m.group(1)
+        icon  = _ICON_MAP.get(tag, "🔲")
+        return f"{icon} {title}"
+    cleaned = re.sub(
+        r"<(Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette)((?:\s[^>]*)?)(?:/>|>[\s\S]*?</\1>)",
+        _summarise_generic,
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Drop any remaining unclosed/partial interactive tags
+    _ALL_TAGS = "CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette"
+    cleaned = re.sub(rf"<({_ALL_TAGS})\b[^>]*>[\s\S]*", "", cleaned, flags=re.IGNORECASE)
     # Remove markdown code blocks
     cleaned = re.sub(r"```.*?```", "", cleaned, flags=re.DOTALL)
     # Remove markdown heading symbols at start of lines

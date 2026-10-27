@@ -3,6 +3,7 @@
  */
 
 import { setupMarkdown } from './modules/markdown.js';
+import { setupInteractives } from './modules/interactives.js';
 import { getInitialState } from './modules/state.js';
 import { getUiActions } from './modules/ui.js';
 import { getApiActions } from './modules/api.js';
@@ -14,6 +15,7 @@ import { getBackgroundActions } from './modules/background.js';
 
 // Initialize Markdown
 setupMarkdown();
+setupInteractives();
 
 function aiApp() {
     const app = {};

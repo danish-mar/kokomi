@@ -161,11 +161,12 @@ export function getChatActions() {
             }
 
             try {
+                const _ictx = window.KokomiInteractives?.getContextSummary?.() || '';
                 const r = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        message: text,
+                        message: text + _ictx,
                         conversation_id: this.currentConvId,
                         character_id: this.activeCharId,
                         space_id: this.activeSpaceId,
@@ -232,9 +233,10 @@ export function getChatActions() {
             // supersedes an earlier one, and the superseded reader must not
             // clobber the newer reader's state when its abort finally lands.
             const seq = (this._streamSeq = (this._streamSeq || 0) + 1);
+            const _interactiveCtx = window.KokomiInteractives?.getContextSummary?.() || '';
             const sendMsg = (this.imageGenMode && msg)
-                ? msg + `\n\n[Image Generation Request: Please use generate_image to create ${this.imageGenCount || 1} image(s) with aspect ratio ${this.imageGenAspect || '1:1'}.]`
-                : msg;
+                ? msg + `\n\n[Image Generation Request: Please use generate_image to create ${this.imageGenCount || 1} image(s) with aspect ratio ${this.imageGenAspect || '1:1'}.]` + _interactiveCtx
+                : msg + _interactiveCtx;
 
             try {
                 const response = attachConvId

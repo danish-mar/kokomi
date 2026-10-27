@@ -4,6 +4,7 @@
  */
 
 import { renderImage, renderTable, renderCodeWidget, setupWidgets } from './widgets.js?v=14';
+import { extractInteractives, reinjectInteractives } from './interactives.js';
 
 // ── Math Token Store ─────────────────────────────────────────────────────────
 // We extract math before marked runs (to prevent it from mangling LaTeX),
@@ -109,10 +110,14 @@ export function setupMarkdown() {
 export function parseWithMath(rawContent) {
     if (!rawContent) return '';
 
-    // 1. Extract math tokens BEFORE marked touches the text
-    const { src: safeContent, store } = extractMath(rawContent);
+    // 1. Extract <CheckboxList> / <List> interactive tags FIRST so marked
+    //    never sees them (it would HTML-escape their attributes).
+    const { src: noInteractives, store: iStore } = extractInteractives(rawContent);
 
-    // 2. Run marked on the math-safe text
+    // 2. Extract math tokens BEFORE marked touches the text
+    const { src: safeContent, store } = extractMath(noInteractives);
+
+    // 3. Run marked on the clean text
     let html;
     try {
         html = marked.parse(safeContent);
@@ -120,8 +125,11 @@ export function parseWithMath(rawContent) {
         html = safeContent;
     }
 
-    // 3. Re-inject rendered KaTeX HTML
+    // 4. Re-inject rendered KaTeX HTML
     html = renderMathTokens(html, store);
+
+    // 5. Re-inject rendered interactive component HTML
+    html = reinjectInteractives(html, iStore);
 
     return html;
 }

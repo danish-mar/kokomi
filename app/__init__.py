@@ -228,7 +228,7 @@ app.mount("/uploads", StaticFiles(directory="data/uploads"), name="uploads")
 
 
 # Register all routers
-from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton, canvas, images, admin_users, shared_keys  # noqa: E402
+from app.routers import auth, pages, prefs, mcp_servers, characters, conversations, chat, voice, spaces, whatsapp, telegram, workflows, insights, app_store, triton, canvas, images, admin_users, shared_keys, interactives  # noqa: E402
 # Aliased: a bare `skills` here would bind app.skills to the ROUTER module,
 # shadowing app/skills.py (the actual skill loader) on the package.
 from app.routers import skills as skills_router  # noqa: E402
@@ -254,3 +254,4 @@ app.include_router(triton.router)
 app.include_router(canvas.router)
 app.include_router(images.router)
 app.include_router(skills_router.router)
+app.include_router(interactives.router)
