@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v7.8.0] - 2026-10-28
+
+### Added
+
+- **`<App>` Sandboxed Iframe Renderer**: New interactive component tag that lets the AI write a complete self-contained HTML/CSS/JS application rendered inline inside a `sandbox="allow-scripts"` iframe. The runtime auto-injects dark theme CSS variables (`--bg-page`, `--bg-card`, `--accent`, etc.), an auto-resize `postMessage` bridge, and a `window.reportState({...})` hook so the app can share state back to the chat context. Includes an expand/collapse button for full 80vh view.
+- **13-Component Interactive System**: Full interactive component pipeline including CheckboxList, List, Calculator, Rating, Quiz, Flashcards, Stepper, Kanban, Form, Timeline, Meter, Timer, and Palette — all AI-generated, rendered inline in chat messages via XML-like tags.
+- **Server Persistence for Interactive Components**: Rating, Quiz, Flashcards, and Stepper components persist their state across page refreshes via `/api/interactives/{iid}` GET/POST endpoints backed by SQLite.
+- **Chat Context Injection**: `getContextSummary()` scans all mounted interactive components and injects their current state as a hidden block on every outgoing message, keeping the AI aware of checklist progress, quiz scores, stepper position, app state, etc.
+
+### Changed
+
+- **Palette Component Layout**: Redesigned from small 44×44 color squares to tall vertical strips spanning the full card width, with hex code displayed above each color block and a hover-expand animation.
+- **`scheduleSave` Signature**: Now accepts an optional explicit array parameter so non-checklist components (Rating, Quiz, Flashcards, Stepper) can persist their own state encoding without going through the checklist `_state` map.
+
+### Fixed
+
+- **Timer Layout**: Fixed CSS class name mismatches (`koki-timer-controls` → `koki-timer-ctrl`, missing `koki-timer-btn` on buttons, no `position: relative` on ring wrapper) that caused the SVG ring and controls to render side-by-side instead of stacked, and the time to appear below the ring instead of centered inside it.
+- **Timer Shimmer**: AI models that output `<Timer>` without a closing tag now render immediately instead of getting stuck in the shimmer loading state.
+- **Interactive State Persistence**: Added `scheduleSave` calls to Rating star clicks, Flashcard "know it" clicks, and Stepper done button clicks so state is actually saved on interaction (previously only Quiz had save calls).
+
 ## [v7.7.7] - 2026-10-26
 
 ### Added
