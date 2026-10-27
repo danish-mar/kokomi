@@ -22,7 +22,8 @@ from app.db import (
     engine, _session, init_db,
     ConversationRow, MessageRow, CharacterRow, McpServerRow,
     WorkflowRow, InsightRow, SpaceRow, AgentTemplateRow,
-    FolderRow, TritonDeviceRow, UserPrefsRow
+    FolderRow, TritonDeviceRow, UserPrefsRow,
+    UserRow, SharedApiKeyRow
 )
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy import text
@@ -61,7 +62,31 @@ async def migrate():
         return {k: v for k, v in row_dict.items() if k in valid}
 
     async with _session() as sess:
-        # 1. Characters
+        # 1. Users (must come first — folders/conversations FK to users.id)
+        user_rows = get_rows("users")
+        print(f"  • Users: migrating {len(user_rows)} rows...")
+        for r in user_rows:
+            d = filter_row(dict(r), UserRow)
+            stmt = pg_insert(UserRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
+            await sess.execute(stmt)
+
+        # 2. User Prefs
+        prefs_rows = get_rows("user_prefs")
+        print(f"  • User Prefs: migrating {len(prefs_rows)} rows...")
+        for r in prefs_rows:
+            d = filter_row(dict(r), UserPrefsRow)
+            stmt = pg_insert(UserPrefsRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
+            await sess.execute(stmt)
+
+        # 3. Shared API Keys
+        key_rows = get_rows("shared_api_keys")
+        print(f"  • Shared API Keys: migrating {len(key_rows)} rows...")
+        for r in key_rows:
+            d = filter_row(dict(r), SharedApiKeyRow)
+            stmt = pg_insert(SharedApiKeyRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
+            await sess.execute(stmt)
+
+        # 4. Characters
         char_rows = get_rows("characters")
         print(f"  • Characters: migrating {len(char_rows)} rows...")
         for r in char_rows:
@@ -69,7 +94,7 @@ async def migrate():
             stmt = pg_insert(CharacterRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 2. Folders
+        # 5. Folders (FK → users.id)
         folder_rows = get_rows("folders")
         print(f"  • Folders: migrating {len(folder_rows)} rows...")
         for r in folder_rows:
@@ -77,7 +102,7 @@ async def migrate():
             stmt = pg_insert(FolderRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 3. Conversations
+        # 6. Conversations (FK → users.id)
         conv_rows = get_rows("conversations")
         print(f"  • Conversations: migrating {len(conv_rows)} rows...")
         for r in conv_rows:
@@ -85,7 +110,7 @@ async def migrate():
             stmt = pg_insert(ConversationRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 4. Messages (autoincrement ID)
+        # 7. Messages (autoincrement ID, FK → conversations.id)
         msg_rows = get_rows("messages")
         print(f"  • Messages: migrating {len(msg_rows)} rows...")
         for r in msg_rows:
@@ -93,7 +118,7 @@ async def migrate():
             stmt = pg_insert(MessageRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 5. MCP Servers
+        # 8. MCP Servers
         mcp_rows = get_rows("mcp_servers")
         print(f"  • MCP Servers: migrating {len(mcp_rows)} rows...")
         for r in mcp_rows:
@@ -101,7 +126,7 @@ async def migrate():
             stmt = pg_insert(McpServerRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 6. Workflows
+        # 9. Workflows
         wf_rows = get_rows("workflows")
         print(f"  • Workflows: migrating {len(wf_rows)} rows...")
         for r in wf_rows:
@@ -109,7 +134,7 @@ async def migrate():
             stmt = pg_insert(WorkflowRow).values(**d).on_conflict_do_nothing(index_elements=["run_id"])
             await sess.execute(stmt)
 
-        # 7. Spaces
+        # 10. Spaces
         space_rows = get_rows("spaces")
         print(f"  • Spaces: migrating {len(space_rows)} rows...")
         for r in space_rows:
@@ -117,7 +142,7 @@ async def migrate():
             stmt = pg_insert(SpaceRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 8. Agent Templates
+        # 11. Agent Templates
         tmpl_rows = get_rows("agent_templates")
         print(f"  • Agent Templates: migrating {len(tmpl_rows)} rows...")
         for r in tmpl_rows:
@@ -125,7 +150,7 @@ async def migrate():
             stmt = pg_insert(AgentTemplateRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 9. Triton Devices
+        # 12. Triton Devices
         triton_rows = get_rows("triton_devices")
         print(f"  • Triton Devices: migrating {len(triton_rows)} rows...")
         for r in triton_rows:
@@ -133,7 +158,7 @@ async def migrate():
             stmt = pg_insert(TritonDeviceRow).values(**d).on_conflict_do_nothing(index_elements=["id"])
             await sess.execute(stmt)
 
-        # 10. Insights (autoincrement ID)
+        # 13. Insights (autoincrement ID)
         insight_rows = get_rows("insights")
         print(f"  • Insights: migrating {len(insight_rows)} rows...")
         for r in insight_rows:

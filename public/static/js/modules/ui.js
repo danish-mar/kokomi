@@ -215,6 +215,12 @@ export function getUiActions() {
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
             document.getElementById('hljs-theme').href =
                 `https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${isDark ? 'github-dark' : 'github'}.min.css`;
+            // Persist to server so the next page load reflects the choice
+            fetch('/api/prefs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ theme: isDark ? 'dark' : 'light' })
+            }).catch(() => {});
             // Monaco carries its own theme registry — repaint an open code canvas.
             this.syncCanvasTheme?.();
         },

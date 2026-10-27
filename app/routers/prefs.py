@@ -319,13 +319,20 @@ async def ai_generate(body: dict):
         return {"text": "", "error": "No prompt provided"}
 
     prefs = load_prefs()
+    messages = [SystemMessage(content=system), HumanMessage(content=prompt)]
     try:
         llm = get_llm(prefs)
-        messages = [SystemMessage(content=system), HumanMessage(content=prompt)]
         result = await llm.ainvoke(messages)
         return {"text": result.content}
-    except Exception as e:
-        return {"text": "", "error": str(e)}
+    except Exception:
+        # Primary provider unavailable (e.g. custom provider with no key) — fall back to Groq
+        try:
+            fallback_prefs = {**prefs, "llm_provider": "groq"}
+            llm = get_llm(fallback_prefs)
+            result = await llm.ainvoke(messages)
+            return {"text": result.content}
+        except Exception as e:
+            return {"text": "", "error": str(e)}
 
 
 # Repo root, resolved once, so every git subprocess call below runs against the

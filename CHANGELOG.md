@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v7.8.1] - 2026-10-28
+
+### Fixed
+
+- **Theme Persistence**: `toggleTheme()` now persists the selected theme to the server via `POST /api/prefs` so dark/light mode survives page reloads and cross-device sessions.
+- **AI Character Generation Fallback**: `/api/ai/generate` now falls back to Groq if the configured primary provider (e.g. `custom`) has no API key set, fixing "Custom provider API key not found" errors during AI-assisted character creation.
+- **SQLite → PostgreSQL Migration Order**: Migration script now inserts `users` before `folders`/`conversations` (which have FK constraints on `user_id`), fixing the `ForeignKeyViolationError` that blocked data migration on first run. Also migrates `user_prefs` and `shared_api_keys` tables that were previously skipped.
+
 ## [v7.8.0] - 2026-10-28
 
 ### Added
