@@ -34,6 +34,7 @@ const _itemsAnimated = new Set();  // iids whose items have been stagger-animate
 const _calcDefaults  = new Map();  // iid → { varId: defaultVal } for Calculator reset
 const _timerIntervals = new Map(); // iid → intervalId
 const _formSubmissions = new Map(); // iid → { fieldId: value }
+const _appState  = new Map(); // iid → last reportState() payload from iframe
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1019,6 +1020,63 @@ function paletteHTML(iid, attrs, swatches) {
     </div>`;
 }
 
+// ── Artifact (sandboxed iframe renderer) ─────────────────────────────────────
+
+// CSS variables + auto-resize script injected before the AI's HTML
+function _appBase(iid) {
+    return `<style>:root{--bg-page:#0e0e12;--bg-card:#18181f;--bg-elevated:#222229;--border:rgba(255,255,255,0.08);--text-primary:#e8e8f0;--text-secondary:#9898b0;--text-tertiary:#68687a;--accent:#f97316;--accent-soft:rgba(249,115,22,0.12);--radius:8px}*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg-page);color:var(--text-primary);font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5}</style><script>(function(){var _i="${iid}";function r(){window.parent.postMessage({type:"koki-resize",iid:_i,height:document.documentElement.scrollHeight},"*")}window.addEventListener("load",r);window.addEventListener("resize",r);if(window.MutationObserver)new MutationObserver(r).observe(document.documentElement,{subtree:true,childList:true,attributes:true});setTimeout(r,80);window.reportState=function(d){window.parent.postMessage({type:"koki-state",iid:_i,data:d},"*")};})();<\/script>`;
+}
+
+function appHTML(iid, attrs, body) {
+    const noAnim = _animated.has(iid) ? ' koki-no-anim' : '';
+    _animated.add(iid);
+    const title = attrs.title || 'App';
+    const base  = _appBase(iid);
+
+    // Inject our base into the document — before </head> if present, else prepend
+    let full;
+    const trimmed = body.trimStart();
+    if (trimmed.match(/^<!doctype|^<html/i)) {
+        if (body.includes('</head>'))      full = body.replace('</head>', base + '</head>');
+        else if (body.match(/<body[^>]*>/i)) full = body.replace(/<body([^>]*)>/i, `<body$1>${base}`);
+        else                               full = base + body;
+    } else {
+        full = base + body;
+    }
+
+    // Escape for srcdoc attribute value (double-quoted)
+    const srcdoc = full.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+    return `<div class="koki-interactive koki-app${noAnim}" data-interactive="app" data-iid="${iid}">
+        <div class="koki-app-bar">
+            <i class="fa-solid fa-code"></i>
+            <span class="koki-app-title">${esc(title)}</span>
+            <button class="koki-app-expand" data-iid="${iid}" title="Expand / collapse" type="button">
+                <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+            </button>
+        </div>
+        <iframe class="koki-app-frame" data-iid="${iid}" sandbox="allow-scripts" srcdoc="${srcdoc}"></iframe>
+    </div>`;
+}
+
+function appShimmerHTML(title) {
+    return `<div class="koki-interactive koki-interactive--shimmer">
+        <div class="koki-cl-head">
+            <div class="koki-shimmer-line" style="width:18px;height:18px;border-radius:4px;flex-shrink:0"></div>
+            <div style="flex:1">
+                ${title
+                    ? `<div class="koki-cl-title">${esc(title)}</div><div class="koki-shimmer-line" style="width:80px;height:9px;margin-top:5px"></div>`
+                    : `<div class="koki-shimmer-line" style="width:140px;height:14px"></div><div class="koki-shimmer-line" style="width:80px;height:9px;margin-top:5px"></div>`}
+            </div>
+        </div>
+        <div style="padding:12px 16px">
+            <div class="koki-shimmer-line" style="width:100%;height:10px;margin-bottom:8px"></div>
+            <div class="koki-shimmer-line" style="width:90%;height:10px;margin-bottom:8px"></div>
+            <div class="koki-shimmer-line" style="width:100%;height:120px;border-radius:8px;margin-bottom:0"></div>
+        </div>
+    </div>`;
+}
+
 // ── Tag extraction (run BEFORE marked.parse) ──────────────────────────────────
 
 export function extractInteractives(src) {
@@ -1187,6 +1245,18 @@ export function extractInteractives(src) {
         }
     );
 
+    // Extract complete <Artifact> tags
+    out = out.replace(/<App((?:\s[^>]*)?)>([\s\S]*?)<\/App>/gi,
+        (_, attrStr, body) => {
+            const attrs = parseAttrs(attrStr);
+            const iid   = contentHash((attrs.title || 'App') + body.trim().slice(0, 200));
+            const html  = appHTML(iid, attrs, body);
+            const pid   = `\x00IATV_${i++}\x00`;
+            store.set(pid, html);
+            return pid;
+        }
+    );
+
     // Render dangling self-contained opening tags — AI often omits closing tag for
     // Timer/Meter/Rating. Complete-tag regexes above already consumed any properly
     // closed ones; only dangling `<Tag ...>` (no closing) can reach here.
@@ -1213,13 +1283,15 @@ export function extractInteractives(src) {
     });
 
     // Detect incomplete / still-streaming tags → show shimmer
-    const ALL_TAGS = 'CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette';
+    const ALL_TAGS = 'CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette|App';
     const partialAny = out.match(new RegExp(`<(${ALL_TAGS})\\b([^>]*)>([\\s\\S]*)$`, 'i'));
     if (partialAny) {
         const tag   = partialAny[1].toLowerCase();
         const attrs = parseAttrs(partialAny[2] || '');
         const pid   = `\x00IATV_${i++}\x00`;
-        const html  = (tag === 'calculator') ? calculatorShimmerHTML(attrs.title || '') : shimmerHTML(attrs.title || '');
+        const html  = tag === 'calculator' ? calculatorShimmerHTML(attrs.title || '')
+                    : tag === 'app'        ? appShimmerHTML(attrs.title || '')
+                    : shimmerHTML(attrs.title || '');
         store.set(pid, html);
         out = out.replace(partialAny[0], pid);
     } else {
@@ -1519,6 +1591,7 @@ class InteractiveTimer extends Interactive {
     }
 }
 class InteractivePalette extends Interactive { mount() {} }
+class InteractiveApp extends Interactive { mount() {} }
 
 // ── Hydration manager ─────────────────────────────────────────────────────────
 
@@ -1536,6 +1609,7 @@ const REGISTRY = {
     meter:       InteractiveMeter,
     timer:       InteractiveTimer,
     palette:     InteractivePalette,
+    artifact:    InteractiveApp,
 };
 
 function hydrate(root = document) {
@@ -1552,6 +1626,18 @@ export function setupInteractives() {
     // Hydrate existing + new nodes (survives Alpine x-html re-renders)
     new MutationObserver(() => hydrate()).observe(document.body, { childList: true, subtree: true });
     hydrate();
+
+    // Artifact iframe → parent communication
+    window.addEventListener('message', e => {
+        if (!e.data || typeof e.data !== 'object') return;
+        if (e.data.type === 'koki-resize') {
+            const frame = document.querySelector(`.koki-app-frame[data-iid="${e.data.iid}"]`);
+            if (frame) frame.style.height = Math.min(Math.max(e.data.height + 24, 120), 900) + 'px';
+        }
+        if (e.data.type === 'koki-state') {
+            _appState.set(String(e.data.iid), e.data.data);
+        }
+    });
 
     // ── Calculator: delegated input (number / slider / select) ──
     document.addEventListener('input', e => {
@@ -1832,6 +1918,21 @@ export function setupInteractives() {
             return;
         }
 
+        // ── Artifact expand toggle ──
+        const expBtn = e.target.closest('.koki-app-expand[data-iid]');
+        if (expBtn) {
+            const card = expBtn.closest('.koki-interactive');
+            card?.classList.toggle('koki-app--expanded');
+            const icon = expBtn.querySelector('i');
+            if (icon) {
+                const expanded = card?.classList.contains('koki-app--expanded');
+                icon.className = expanded
+                    ? 'fa-solid fa-down-left-and-up-right-to-center'
+                    : 'fa-solid fa-up-right-and-down-left-from-center';
+            }
+            return;
+        }
+
         // ── Palette copy ──
         const swatch = e.target.closest('.koki-swatch[data-hex]');
         if (swatch) {
@@ -1998,6 +2099,13 @@ function getContextSummary() {
         const title = el?.querySelector('.koki-cl-title')?.textContent?.trim() || 'Form';
         const fields = Object.entries(data).map(([k, v]) => `${k}=${v}`).join(', ');
         lines.push(`Form "${title}" submitted: ${fields}`);
+    });
+
+    // Apps (state reported via window.reportState())
+    _appState.forEach((data, iid) => {
+        const el    = document.querySelector(`[data-interactive="app"][data-iid="${iid}"]`);
+        const title = el?.querySelector('.koki-app-title')?.textContent?.trim() || 'App';
+        lines.push(`App "${title}": ${JSON.stringify(data)}`);
     });
 
     if (!lines.length) return '';

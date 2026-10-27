@@ -968,9 +968,9 @@ except:
                 }
             );
             // Summarise remaining interactive tags generically
-            const _iconMap = { rating:'⭐', quiz:'🧠', flashcards:'🃏', stepper:'📋', kanban:'📌', form:'📝', timeline:'📅', meter:'📊', timer:'⏱️', palette:'🎨' };
+            const _iconMap = { rating:'⭐', quiz:'🧠', flashcards:'🃏', stepper:'📋', kanban:'📌', form:'📝', timeline:'📅', meter:'📊', timer:'⏱️', palette:'🎨', app:'⚡' };
             cleaned = cleaned.replace(
-                /<(Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette)((?:\s[^>]*)?)(?:\/>|>[\s\S]*?<\/\1>)/gi,
+                /<(Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette|App)((?:\s[^>]*)?)(?:\/>|>[\s\S]*?<\/\1>)/gi,
                 (_, tag, attrs) => {
                     const titleM = attrs.match(/title="([^"]*)"/);
                     const title  = titleM ? titleM[1] : tag;
@@ -978,7 +978,7 @@ except:
                 }
             );
             // Drop unclosed/partial interactive tags (still streaming)
-            const _allTags = 'CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette';
+            const _allTags = 'CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette|App';
             cleaned = cleaned.replace(new RegExp(`<(${_allTags})\\b[^>]*>[\\s\\S]*`, 'gi'), '');
             // Strip markdown heading markers and code blocks
             cleaned = cleaned.replace(/^\s*#+\s+/gm, '');

@@ -65,7 +65,7 @@ def _clean_content(content):
     _ICON_MAP = {
         "rating": "⭐", "quiz": "🧠", "flashcards": "🃏", "stepper": "📋",
         "kanban": "📌", "form": "📝", "timeline": "📅", "meter": "📊",
-        "timer": "⏱️", "palette": "🎨",
+        "timer": "⏱️", "palette": "🎨", "app": "⚡",
     }
     def _summarise_generic(m):
         tag   = m.group(1).lower()
@@ -75,13 +75,13 @@ def _clean_content(content):
         icon  = _ICON_MAP.get(tag, "🔲")
         return f"{icon} {title}"
     cleaned = re.sub(
-        r"<(Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette)((?:\s[^>]*)?)(?:/>|>[\s\S]*?</\1>)",
+        r"<(Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette|App)((?:\s[^>]*)?)(?:/>|>[\s\S]*?</\1>)",
         _summarise_generic,
         cleaned,
         flags=re.IGNORECASE,
     )
     # Drop any remaining unclosed/partial interactive tags
-    _ALL_TAGS = "CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette"
+    _ALL_TAGS = "CheckboxList|List|Calculator|Rating|Quiz|Flashcards|Stepper|Kanban|Form|Timeline|Meter|Timer|Palette|App"
     cleaned = re.sub(rf"<({_ALL_TAGS})\b[^>]*>[\s\S]*", "", cleaned, flags=re.IGNORECASE)
     # Remove markdown code blocks
     cleaned = re.sub(r"```.*?```", "", cleaned, flags=re.DOTALL)

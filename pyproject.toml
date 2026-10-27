@@ -1,6 +1,6 @@
 [project]
 name = "kokomi"
-version = "7.7.7"
+version = "7.8.0"
 release-name = "coral atelier"
 description = "A premium Apple-inspired WhatsApp Agentic Platform featuring multi-agent orchestration, MCP integration, and real-time voice/chat capabilities."
 readme = "README.md"
